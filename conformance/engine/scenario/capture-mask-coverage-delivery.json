@@ -34,7 +34,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "0abd6cb77b97ad3e052e78cc7f38f52e261c73a74021695c3871f4b58691b70c"
           }
         },
         "expect": {
@@ -42,11 +43,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-9119162a-2dff-4e7e-a7ff-15dcfae99593",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456"
               },
               "userId": null
             }
@@ -63,10 +64,10 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":null,\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
-              "sessionId": "session-1781827200000000",
+              "jsonBody": "{\"sessionId\":\"session-7ce945b6-1931-476b-86a5-dc80ecd89456\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":null,\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456",
               "deliveryKeys": [
-                "session-1781827200000000/l/session_start/2026-06-19T00:00:00.000Z"
+                "session-7ce945b6-1931-476b-86a5-dc80ecd89456/l/session_start/2026-06-19T00:00:00.000Z"
               ],
               "isSessionEnd": false
             },
@@ -140,7 +141,7 @@
               "kind": "frame",
               "handle": "h-compose",
               "frame": {
-                "id": "frame-2",
+                "id": "frame-1",
                 "atMs": 50,
                 "width": 1080,
                 "height": 2400,
@@ -149,7 +150,7 @@
                 "trigger": "initial",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456",
                 "requestedBackend": "nativeCpuExperimental",
                 "resolvedBackend": "nativeCpuExperimental"
               }
@@ -157,15 +158,15 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-f841c250-d9c1-4dc3-9011-fb6ae1850135",
                 "atMs": 50,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-2",
+                "captureSessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456",
+                "afterFrame": "frame-1",
                 "data": {
                   "component": "capture_masking",
-                  "frameId": "frame-2",
+                  "frameId": "frame-1",
                   "mode": "wholeHost",
                   "reasons": [
                     "composeDefault",
@@ -178,18 +179,18 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-5",
+                "id": "event-6836108c-e926-43f1-8872-9e869d407058",
                 "atMs": 50,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-2",
+                "captureSessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456",
+                "afterFrame": "frame-1",
                 "data": {
                   "version": 1,
                   "outcome": "fresh_accepted",
-                  "requestId": "capture_request-1",
-                  "executionId": "capture_execution-4",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-0",
+                  "executionId": "capture_execution-2",
+                  "captureSessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456",
                   "routeEpoch": 0,
                   "trigger": "initial",
                   "visualEvidence": "fresh",
@@ -245,23 +246,23 @@
                   ],
                   [
                     "frameNos",
-                    "2"
+                    "1"
                   ],
                   [
                     "frameMetadata",
-                    "[{\"id\":\"frame-2\",\"atMs\":50,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-h-compose\",\"masked\":true,\"trigger\":\"initial\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-1781827200000000\",\"requestedBackend\":\"nativeCpuExperimental\",\"resolvedBackend\":\"nativeCpuExperimental\"}]"
+                    "[{\"id\":\"frame-1\",\"atMs\":50,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-h-compose\",\"masked\":true,\"trigger\":\"initial\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-7ce945b6-1931-476b-86a5-dc80ecd89456\",\"requestedBackend\":\"nativeCpuExperimental\",\"resolvedBackend\":\"nativeCpuExperimental\"}]"
                   ]
                 ],
                 "frames": [
                   {
                     "handle": "h-compose",
-                    "filename": "2.jpg"
+                    "filename": "1.jpg"
                   }
                 ]
               },
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/f/2"
+                "srv-1/f/1"
               ],
               "isSessionEnd": false
             },
@@ -300,10 +301,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-3\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:00.050Z\",\"userId\":null,\"eventType\":\"capture_diagnostic\",\"stream\":\"diagnostic\",\"enrichmentCandidate\":false,\"afterFrame\":\"frame-2\",\"payload\":{\"component\":\"capture_masking\",\"frameId\":\"frame-2\",\"mode\":\"wholeHost\",\"reasons\":[\"composeDefault\",\"interop\"]},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-5\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:00.050Z\",\"userId\":null,\"eventType\":\"capture_diagnostic\",\"stream\":\"diagnostic\",\"enrichmentCandidate\":false,\"afterFrame\":\"frame-2\",\"payload\":{\"version\":1,\"outcome\":\"fresh_accepted\",\"requestId\":\"capture_request-1\",\"executionId\":\"capture_execution-4\",\"captureSessionId\":\"session-1781827200000000\",\"routeEpoch\":0,\"trigger\":\"initial\",\"visualEvidence\":\"fresh\",\"interactionEvidence\":\"not_applicable\",\"requestedBackend\":\"nativeCpuExperimental\",\"resolvedBackend\":\"nativeCpuExperimental\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-f841c250-d9c1-4dc3-9011-fb6ae1850135\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:00.050Z\",\"userId\":null,\"eventType\":\"capture_diagnostic\",\"stream\":\"diagnostic\",\"enrichmentCandidate\":false,\"afterFrame\":\"frame-1\",\"payload\":{\"component\":\"capture_masking\",\"frameId\":\"frame-1\",\"mode\":\"wholeHost\",\"reasons\":[\"composeDefault\",\"interop\"]},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-6836108c-e926-43f1-8872-9e869d407058\",\"atMs\":50,\"triggeredAt\":\"2026-06-19T00:00:00.050Z\",\"userId\":null,\"eventType\":\"capture_diagnostic\",\"stream\":\"diagnostic\",\"enrichmentCandidate\":false,\"afterFrame\":\"frame-1\",\"payload\":{\"version\":1,\"outcome\":\"fresh_accepted\",\"requestId\":\"capture_request-0\",\"executionId\":\"capture_execution-2\",\"captureSessionId\":\"session-7ce945b6-1931-476b-86a5-dc80ecd89456\",\"routeEpoch\":0,\"trigger\":\"initial\",\"visualEvidence\":\"fresh\",\"interactionEvidence\":\"not_applicable\",\"requestedBackend\":\"nativeCpuExperimental\",\"resolvedBackend\":\"nativeCpuExperimental\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/3b6c1528602582a9"
+                "srv-1/e/4680fc5f0ef79f28"
               ],
               "isSessionEnd": false
             },
@@ -344,8 +345,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-7ce945b6-1931-476b-86a5-dc80ecd89456",
+        "captureSessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -366,7 +367,7 @@
       },
       "frames": [
         {
-          "id": "frame-2",
+          "id": "frame-1",
           "atMs": 50,
           "width": 1080,
           "height": 2400,
@@ -375,29 +376,29 @@
           "trigger": "initial",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456",
           "requestedBackend": "nativeCpuExperimental",
           "resolvedBackend": "nativeCpuExperimental"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-9119162a-2dff-4e7e-a7ff-15dcfae99593",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456"
         },
         {
-          "id": "event-3",
+          "id": "event-f841c250-d9c1-4dc3-9011-fb6ae1850135",
           "atMs": 50,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-2",
+          "captureSessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456",
+          "afterFrame": "frame-1",
           "data": {
             "component": "capture_masking",
-            "frameId": "frame-2",
+            "frameId": "frame-1",
             "mode": "wholeHost",
             "reasons": [
               "composeDefault",
@@ -406,18 +407,18 @@
           }
         },
         {
-          "id": "event-5",
+          "id": "event-6836108c-e926-43f1-8872-9e869d407058",
           "atMs": 50,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-2",
+          "captureSessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456",
+          "afterFrame": "frame-1",
           "data": {
             "version": 1,
             "outcome": "fresh_accepted",
-            "requestId": "capture_request-1",
-            "executionId": "capture_execution-4",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-0",
+            "executionId": "capture_execution-2",
+            "captureSessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456",
             "routeEpoch": 0,
             "trigger": "initial",
             "visualEvidence": "fresh",

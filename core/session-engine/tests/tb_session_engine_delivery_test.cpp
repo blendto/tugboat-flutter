@@ -102,7 +102,7 @@ void test_frame_number() {
 void test_frame_gaps() {
   FrameGaps gaps;
   std::optional<tugboat::engine::GapReport> failed = gaps.failed(503, 4);
-  CHECK(failed && failed->id == "collector-frame-upload-0");
+  CHECK(failed && failed->id_prefix == "collector-frame-upload");
   CHECK(!gaps.failed(500, 1));          // latched
   CHECK(!gaps.flushed(true));           // a dropped chunk: no recovery
   CHECK(gaps.flushed(false));           // recovered, latch cleared

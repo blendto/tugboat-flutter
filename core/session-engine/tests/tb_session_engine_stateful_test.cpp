@@ -71,7 +71,8 @@ std::string start_message(int64_t mono_us) {
   return "{\"type\":\"session.start\",\"at\":{\"monoUs\":" +
          std::to_string(mono_us) + ",\"wallUs\":" + std::to_string(mono_us) +
          "},\"input\":{\"viewport\":{\"width\":1,\"height\":2},"
-         "\"platform\":\"android\",\"sessionEpoch\":0}}";
+         "\"platform\":\"android\",\"sessionEpoch\":0,\"idSeed\":\"" +
+         std::string(64, '2') + "\"}}";
 }
 
 std::string fact(const std::string& type, int64_t mono_us,
@@ -466,9 +467,9 @@ void test_configure_between_sessions() {
   auto snapshot =
       submit(engine, "{\"type\":\"session.snapshot\",\"input\":{}}");
   CHECK(contains(snapshot.json, "\"truncated\":true"));
+  CHECK(contains(snapshot.json, "\"events\":[{\"id\":\"event-"));
   CHECK(contains(snapshot.json,
-                 "\"events\":[{\"id\":\"event-6\",\"atMs\":0,\"type\":"
-                 "\"external_event\",\"stream\":\"evidence\""));
+                 "\"type\":\"external_event\",\"stream\":\"evidence\""));
   tb_session_engine_destroy(engine);
 }
 
@@ -480,9 +481,21 @@ std::string seeded_start(int64_t mono_us, const std::string& seed_hex) {
          seed_hex + "\"}}";
 }
 
+// The shared `idPattern` of conformance/capture_id_vectors.json.
+std::regex read_id_pattern() {
+  std::ifstream in(std::string(TB_CONFORMANCE_DIR) + "/" +
+                   conformance::kCaptureIdVectorsFile);
+  std::stringstream buffer;
+  buffer << in.rdbuf();
+  Value doc;
+  tugboat::engine::ParseError parse_error;
+  CHECK(tugboat::engine::parse_json(buffer.str(), 64, &doc, &parse_error));
+  return std::regex(doc.find("idPattern")->as_string());
+}
+
 // BLE-618: with a host `idSeed` the engine mints `session-<UUIDv4>` and
-// `event-<UUIDv4>` from SHA-256(seed || stream index); without it, the
-// legacy counters. The expected ids are pinned (computed with Python
+// `event-<UUIDv4>` from SHA-256(seed || stream index); a start without one
+// is rejected. The expected ids are pinned (computed with Python
 // hashlib); the shared format vectors are in
 // conformance/capture_id_vectors.json.
 void test_seeded_ids() {
@@ -491,6 +504,15 @@ void test_seeded_ids() {
   CHECK(submit(engine, configure("null")).status == TB_SESSION_OK);
   auto started = submit(engine, seeded_start(0, seed_a));
   CHECK(started.status == TB_SESSION_OK);
+  // The ids actually minted match the shared pattern, as Dart's do.
+  const std::regex pattern = read_id_pattern();
+  std::smatch match;
+  CHECK(std::regex_search(started.json, match,
+                          std::regex("\"id\":\"(event-[^\"]+)\"")) &&
+        std::regex_match(match[1].str(), pattern));
+  CHECK(std::regex_search(started.json, match,
+                          std::regex("\"captureSessionId\":\"([^\"]+)\"")) &&
+        std::regex_match(match[1].str(), pattern));
   CHECK(contains(started.json,
                  "\"id\":\"event-1ebd4283-1ae2-41e9-b44f-398b13182428\""));
   CHECK(contains(started.json,
@@ -513,13 +535,14 @@ void test_seeded_ids() {
                  "\"id\":\"event-6061c438-6d7a-4788-ba52-e2e8b2ee6fe6\""));
   CHECK(submit(engine, fact("session.end", 120, "{}")).status ==
         TB_SESSION_OK);
-  // No seed: the legacy deterministic ids the pinned scenarios use.
-  started = submit(engine, start_message(200));
-  CHECK(contains(started.json, "session-200"));
-  CHECK(contains(started.json, "\"id\":\"event-"));
-  CHECK(!contains(started.json, "event-6061"));
-  CHECK(submit(engine, fact("session.end", 220, "{}")).status ==
-        TB_SESSION_OK);
+  // A missing seed is rejected like a malformed one: no counter ids.
+  const std::string no_seed =
+      "{\"type\":\"session.start\",\"at\":{\"monoUs\":200,\"wallUs\":200},"
+      "\"input\":{\"viewport\":{\"width\":1,\"height\":2},\"platform\":"
+      "\"android\",\"sessionEpoch\":0}}";
+  auto missing = submit(engine, no_seed);
+  CHECK(missing.status == TB_SESSION_INVALID_MESSAGE &&
+        contains(missing.json, "$.input.idSeed"));
   // A malformed seed is rejected: wrong length, upper case, not hex.
   const std::string good = seed_b;
   for (const std::string& bad :

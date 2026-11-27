@@ -32,7 +32,8 @@
               "tag": "en-US"
             },
             "activationRequestId": "activation-1",
-            "explorationRunId": "run-1"
+            "explorationRunId": "run-1",
+            "idSeed": "8444d47c4e70efb14a8e3febaf4c749eb4a04e1c74b558eda9305b1c6ce7d3f1"
           }
         },
         "expect": {
@@ -40,11 +41,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-3809e039-2757-46e6-b4e1-f8e3a26d5576",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-f66cdcdc-0a05-4a6f-bb19-f2e14db03ba2",
                 "activationRequestId": "activation-1",
                 "locale": {
                   "language": "en",
@@ -93,11 +94,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-fa75072e-5f6e-4f43-bcd1-bbb0fa4288a0",
                 "atMs": 1234,
                 "type": "session_end",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-f66cdcdc-0a05-4a6f-bb19-f2e14db03ba2",
                 "activationRequestId": "activation-1",
                 "locale": {
                   "language": "en",
@@ -123,8 +124,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-f66cdcdc-0a05-4a6f-bb19-f2e14db03ba2",
+        "captureSessionId": "session-f66cdcdc-0a05-4a6f-bb19-f2e14db03ba2",
         "activationRequestId": "activation-1",
         "explorationRunId": "run-1",
         "startedAt": "2026-06-19T00:00:00.000Z",
@@ -153,11 +154,11 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-3809e039-2757-46e6-b4e1-f8e3a26d5576",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-f66cdcdc-0a05-4a6f-bb19-f2e14db03ba2",
           "activationRequestId": "activation-1",
           "locale": {
             "language": "en",
@@ -167,11 +168,11 @@
           "explorationRunId": "run-1"
         },
         {
-          "id": "event-3",
+          "id": "event-fa75072e-5f6e-4f43-bcd1-bbb0fa4288a0",
           "atMs": 1234,
           "type": "session_end",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-f66cdcdc-0a05-4a6f-bb19-f2e14db03ba2",
           "activationRequestId": "activation-1",
           "locale": {
             "language": "en",

@@ -49,7 +49,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "ccf15a125ca86291a5d1c9ec5fccc02e58f15302c83af29ed46a89832f123038"
           }
         },
         "expect": {
@@ -57,11 +58,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-e3557d6a-ab24-440b-8862-5ede20332d07",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200010000"
+                "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786"
               },
               "userId": null
             }
@@ -184,11 +185,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-273e9e43-fbb9-4ad8-a029-c9194263d81f",
                 "atMs": 90,
                 "type": "focus_changed",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200010000",
+                "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786",
                 "data": {
                   "focus": "none",
                   "previousFocus": "text_input"
@@ -294,7 +295,7 @@
               "kind": "frame",
               "handle": "h-capture_request-4",
               "frame": {
-                "id": "frame-8",
+                "id": "frame-5",
                 "atMs": 2190,
                 "width": 1080,
                 "height": 2400,
@@ -303,18 +304,18 @@
                 "trigger": "manual",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200010000"
+                "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-6",
+                "id": "event-0f9753a6-eba9-4779-8e16-04725bfca9ff",
                 "atMs": 1190,
                 "type": "focus_changed",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200010000",
-                "afterFrame": "frame-8",
+                "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786",
+                "afterFrame": "frame-5",
                 "data": {
                   "focus": "text_input",
                   "previousFocus": "none"
@@ -404,11 +405,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-10",
+                "id": "event-fda05b87-341e-40b9-8183-dfb35acda312",
                 "atMs": 2290,
                 "type": "focus_changed",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200010000",
+                "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786",
                 "data": {
                   "focus": "text_input",
                   "previousFocus": "text_input"
@@ -498,12 +499,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-13",
+                "id": "event-4247db0b-6308-4985-82a7-b50bb1f646cb",
                 "atMs": 3390,
                 "type": "focus_changed",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200010000",
-                "afterFrame": "frame-8",
+                "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786",
+                "afterFrame": "frame-5",
                 "data": {
                   "focus": "other",
                   "previousFocus": "text_input"
@@ -556,8 +557,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200010000",
-        "captureSessionId": "session-1781827200010000",
+        "id": "session-244401cf-e580-4108-b2b4-f7183f150786",
+        "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786",
         "startedAt": "2026-06-19T00:00:00.010Z",
         "platform": "android",
         "viewport": {
@@ -578,7 +579,7 @@
       },
       "frames": [
         {
-          "id": "frame-8",
+          "id": "frame-5",
           "atMs": 2190,
           "width": 1080,
           "height": 2400,
@@ -587,58 +588,58 @@
           "trigger": "manual",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200010000"
+          "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-e3557d6a-ab24-440b-8862-5ede20332d07",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200010000"
+          "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786"
         },
         {
-          "id": "event-3",
+          "id": "event-273e9e43-fbb9-4ad8-a029-c9194263d81f",
           "atMs": 90,
           "type": "focus_changed",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200010000",
+          "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786",
           "data": {
             "focus": "none",
             "previousFocus": "text_input"
           }
         },
         {
-          "id": "event-6",
+          "id": "event-0f9753a6-eba9-4779-8e16-04725bfca9ff",
           "atMs": 1190,
           "type": "focus_changed",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200010000",
-          "afterFrame": "frame-8",
+          "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786",
+          "afterFrame": "frame-5",
           "data": {
             "focus": "text_input",
             "previousFocus": "none"
           }
         },
         {
-          "id": "event-10",
+          "id": "event-fda05b87-341e-40b9-8183-dfb35acda312",
           "atMs": 2290,
           "type": "focus_changed",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200010000",
+          "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786",
           "data": {
             "focus": "text_input",
             "previousFocus": "text_input"
           }
         },
         {
-          "id": "event-13",
+          "id": "event-4247db0b-6308-4985-82a7-b50bb1f646cb",
           "atMs": 3390,
           "type": "focus_changed",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200010000",
-          "afterFrame": "frame-8",
+          "captureSessionId": "session-244401cf-e580-4108-b2b4-f7183f150786",
+          "afterFrame": "frame-5",
           "data": {
             "focus": "other",
             "previousFocus": "text_input"

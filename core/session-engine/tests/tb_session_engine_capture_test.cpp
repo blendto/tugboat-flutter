@@ -397,7 +397,7 @@ void test_late_answer_after_deadline() {
       engine,
       "{\"type\":\"session.start\",\"at\":{\"monoUs\":0,\"wallUs\":0},"
       "\"input\":{\"viewport\":{\"width\":1,\"height\":1},"
-      "\"platform\":\"android\",\"sessionEpoch\":0}}");
+      "\"platform\":\"android\",\"sessionEpoch\":0,\"idSeed\":\"1111111111111111111111111111111111111111111111111111111111111111\"}}");
   CHECK(unit::contains(started.json,
                        "\"timerId\":\"capture.answer.capture-0\","
                        "\"atMonoUs\":1000"));
@@ -551,7 +551,7 @@ void test_mask_coverage_only_for_accepted_frames() {
             engine,
             "{\"type\":\"session.start\",\"at\":{\"monoUs\":0,\"wallUs\":0},"
             "\"input\":{\"viewport\":{\"width\":1,\"height\":1},"
-            "\"platform\":\"android\",\"sessionEpoch\":0}}")
+            "\"platform\":\"android\",\"sessionEpoch\":0,\"idSeed\":\"1111111111111111111111111111111111111111111111111111111111111111\"}}")
             .status == TB_SESSION_OK);
   const std::string answer =
       "{\"type\":\"capture.result\",\"at\":{\"monoUs\":10},\"input\":" +
@@ -569,7 +569,7 @@ void test_mask_coverage_only_for_accepted_frames() {
   CHECK(accepted.status == TB_SESSION_OK);
   CHECK(unit::contains(accepted.json,
                        "\"data\":{\"component\":\"capture_masking\","
-                       "\"frameId\":\"frame-2\",\"mode\":\"wholeFrame\","
+                       "\"frameId\":\"frame-1\",\"mode\":\"wholeFrame\","
                        "\"reasons\":[\"noDecor\"]}"));
   // After session end the answer is released, again without a record.
   CHECK(unit::submit(engine,
@@ -601,7 +601,7 @@ void test_secure_window_with_capability() {
             engine,
             "{\"type\":\"session.start\",\"at\":{\"monoUs\":0,\"wallUs\":0},"
             "\"input\":{\"viewport\":{\"width\":1,\"height\":1},"
-            "\"platform\":\"android\",\"sessionEpoch\":0}}")
+            "\"platform\":\"android\",\"sessionEpoch\":0,\"idSeed\":\"1111111111111111111111111111111111111111111111111111111111111111\"}}")
             .status == TB_SESSION_OK);
   const std::string secure =
       "\"outcome\":\"failed\",\"failure\":\"secureWindow\"}}";

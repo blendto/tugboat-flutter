@@ -31,7 +31,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "19aba38329c21c3c7cd80f8ba80f85abe2fcf5bde314d5ce4d2dbd5a3d651656"
           }
         },
         "expect": {
@@ -39,11 +40,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-edd3c2a4-5a85-40a5-b650-d553bf91d649",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-332eb689-a5be-4439-a1ca-abdad50853f8"
               },
               "userId": null
             }
@@ -280,7 +281,7 @@
               "kind": "frame",
               "handle": "h-three",
               "frame": {
-                "id": "frame-4",
+                "id": "frame-3",
                 "atMs": 1350,
                 "width": 1080,
                 "height": 2400,
@@ -289,24 +290,24 @@
                 "trigger": "route",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-332eb689-a5be-4439-a1ca-abdad50853f8"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-6",
+                "id": "event-eb6c1051-40b4-4050-a7cd-892f4085e0ce",
                 "atMs": 1350,
                 "type": "route_change",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-4",
+                "captureSessionId": "session-332eb689-a5be-4439-a1ca-abdad50853f8",
+                "afterFrame": "frame-3",
                 "result": "navigated",
                 "data": {
                   "fromRoute": "/two",
                   "route": "/three",
                   "navigation": "route_push",
-                  "captureRequestId": "capture_request-3",
+                  "captureRequestId": "capture_request-2",
                   "routeName": "/three",
                   "routeType": "MaterialPageRoute<dynamic>",
                   "routeNamed": true,
@@ -360,8 +361,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-332eb689-a5be-4439-a1ca-abdad50853f8",
+        "captureSessionId": "session-332eb689-a5be-4439-a1ca-abdad50853f8",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -382,7 +383,7 @@
       },
       "frames": [
         {
-          "id": "frame-4",
+          "id": "frame-3",
           "atMs": 1350,
           "width": 1080,
           "height": 2400,
@@ -391,30 +392,30 @@
           "trigger": "route",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-332eb689-a5be-4439-a1ca-abdad50853f8"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-edd3c2a4-5a85-40a5-b650-d553bf91d649",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-332eb689-a5be-4439-a1ca-abdad50853f8"
         },
         {
-          "id": "event-6",
+          "id": "event-eb6c1051-40b4-4050-a7cd-892f4085e0ce",
           "atMs": 1350,
           "type": "route_change",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-4",
+          "captureSessionId": "session-332eb689-a5be-4439-a1ca-abdad50853f8",
+          "afterFrame": "frame-3",
           "result": "navigated",
           "data": {
             "fromRoute": "/two",
             "route": "/three",
             "navigation": "route_push",
-            "captureRequestId": "capture_request-3",
+            "captureRequestId": "capture_request-2",
             "routeName": "/three",
             "routeType": "MaterialPageRoute<dynamic>",
             "routeNamed": true,

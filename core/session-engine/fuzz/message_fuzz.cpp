@@ -27,7 +27,7 @@ const char kConfigure[] =
 const char kStart[] =
     "{\"type\":\"session.start\",\"at\":{\"monoUs\":0,\"wallUs\":0},"
     "\"input\":{\"viewport\":{\"width\":1,\"height\":1},\"platform\":"
-    "\"android\",\"sessionEpoch\":0}}";
+    "\"android\",\"sessionEpoch\":0,\"idSeed\":\"3333333333333333333333333333333333333333333333333333333333333333\"}}";
 const char kSnapshot[] = "{\"type\":\"session.snapshot\",\"input\":{}}";
 // The interaction script runs with every interaction capability on and
 // short windows, so its timers and captures resolve within a script.
@@ -345,7 +345,8 @@ class InteractionScript {
                    ? fact("session.end", "")
                    : fact("session.start",
                           "\"viewport\":{\"width\":1,\"height\":1},"
-                          "\"platform\":\"android\",\"sessionEpoch\":0");
+                          "\"platform\":\"android\",\"sessionEpoch\":0,"
+                          "\"idSeed\":\"3333333333333333333333333333333333333333333333333333333333333333\"");
     }
   }
 

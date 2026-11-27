@@ -28,7 +28,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "aa0f7744ed28da6d604b60ce85784acf8fb79b1fdf6a1aff429b724e0c458b2e"
           }
         },
         "expect": {
@@ -36,11 +37,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-922d83f3-d497-47a3-b27b-9559e902ff20",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827201000000"
+                "captureSessionId": "session-0274fb77-c998-4ce1-87ff-7cad305716b8"
               },
               "userId": null
             }
@@ -115,11 +116,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-fe87925a-2fb1-49c5-ac6d-216bb4350986",
                 "atMs": 0,
                 "type": "network_call",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827201000000",
+                "captureSessionId": "session-0274fb77-c998-4ce1-87ff-7cad305716b8",
                 "data": {
                   "method": "POST",
                   "route": "/v1/login",
@@ -140,8 +141,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827201000000",
-        "captureSessionId": "session-1781827201000000",
+        "id": "session-0274fb77-c998-4ce1-87ff-7cad305716b8",
+        "captureSessionId": "session-0274fb77-c998-4ce1-87ff-7cad305716b8",
         "startedAt": "2026-06-19T00:00:01.000Z",
         "platform": "android",
         "viewport": {
@@ -163,18 +164,18 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-922d83f3-d497-47a3-b27b-9559e902ff20",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827201000000"
+          "captureSessionId": "session-0274fb77-c998-4ce1-87ff-7cad305716b8"
         },
         {
-          "id": "event-3",
+          "id": "event-fe87925a-2fb1-49c5-ac6d-216bb4350986",
           "atMs": 0,
           "type": "network_call",
           "stream": "evidence",
-          "captureSessionId": "session-1781827201000000",
+          "captureSessionId": "session-0274fb77-c998-4ce1-87ff-7cad305716b8",
           "data": {
             "method": "POST",
             "route": "/v1/login",

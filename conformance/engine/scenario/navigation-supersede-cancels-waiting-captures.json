@@ -35,7 +35,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "fbf63d53b3f8e8ba6c534fa742c784f9794d4e5d81afce30fec851bd2166e630"
           }
         },
         "expect": {
@@ -43,11 +44,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-cd6a7e2a-0dbb-48cf-8110-fff64d412695",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4"
               },
               "userId": null
             }
@@ -284,17 +285,17 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-8c9f4983-b894-4e56-9071-01e95194567b",
                 "atMs": 300,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
                 "data": {
                   "version": 1,
                   "outcome": "superseded_route_epoch",
-                  "requestId": "capture_request-1",
-                  "executionId": "capture_execution-7",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-0",
+                  "executionId": "capture_execution-3",
+                  "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
                   "routeEpoch": 0,
                   "trigger": "initial",
                   "visualEvidence": "unavailable",
@@ -307,24 +308,24 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-10",
+                "id": "event-37b2ffe4-444d-4599-bed0-decb10c07dcf",
                 "atMs": 300,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
                 "data": {
                   "version": 1,
                   "outcome": "superseded_route_epoch",
-                  "requestId": "capture_request-3",
-                  "executionId": "capture_execution-9",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-1",
+                  "executionId": "capture_execution-4",
+                  "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
                   "routeEpoch": 1,
                   "navigatorId": "nav-0",
                   "routeInstanceId": "route-0",
                   "trigger": "interaction",
                   "visualEvidence": "unavailable",
                   "interactionEvidence": "linked",
-                  "relatedEventId": "event-2",
+                  "relatedEventId": "event-50d69cc7-71b0-4fa2-90d1-2c342c706ede",
                   "cancellationReason": "superseded_route"
                 }
               },
@@ -333,24 +334,24 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-12",
+                "id": "event-cec24010-6ef7-42fd-bc6b-eca433f2af50",
                 "atMs": 300,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
                 "data": {
                   "version": 1,
                   "outcome": "superseded_route_epoch",
-                  "requestId": "capture_request-6",
-                  "executionId": "capture_execution-11",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-2",
+                  "executionId": "capture_execution-5",
+                  "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
                   "routeEpoch": 1,
                   "navigatorId": "nav-0",
                   "routeInstanceId": "route-0",
                   "trigger": "interaction",
                   "visualEvidence": "unavailable",
                   "interactionEvidence": "linked",
-                  "relatedEventId": "event-5",
+                  "relatedEventId": "event-5485bbb9-acd3-4910-a2d7-32af02746532",
                   "cancellationReason": "superseded_route"
                 }
               },
@@ -488,7 +489,7 @@
               "kind": "frame",
               "handle": "h-b",
               "frame": {
-                "id": "frame-15",
+                "id": "frame-8",
                 "atMs": 850,
                 "width": 1080,
                 "height": 2400,
@@ -497,24 +498,24 @@
                 "trigger": "route",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-17",
+                "id": "event-0fae50b8-740a-4ca9-8f7b-2e7c0bde5166",
                 "atMs": 850,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-15",
+                "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
+                "afterFrame": "frame-8",
                 "data": {
                   "version": 1,
                   "outcome": "fresh_accepted",
-                  "requestId": "capture_request-14",
-                  "executionId": "capture_execution-16",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-7",
+                  "executionId": "capture_execution-9",
+                  "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
                   "routeEpoch": 2,
                   "navigatorId": "nav-0",
                   "routeInstanceId": "route-1",
@@ -528,18 +529,18 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-18",
+                "id": "event-2636911b-5965-4f4e-b0aa-bd3c989c1c2c",
                 "atMs": 850,
                 "type": "route_change",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-15",
+                "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
+                "afterFrame": "frame-8",
                 "result": "navigated",
                 "data": {
                   "fromRoute": "/a",
                   "route": "/b",
                   "navigation": "route_push",
-                  "captureRequestId": "capture_request-14",
+                  "captureRequestId": "capture_request-7",
                   "routeName": "/b",
                   "routeType": "MaterialPageRoute<dynamic>",
                   "routeNamed": true,
@@ -576,12 +577,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-fa48572b-1677-4e1c-8b40-649c8828d39f",
                 "atMs": 200,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-15",
+                "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
+                "afterFrame": "frame-8",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "scroll",
@@ -597,12 +598,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-50d69cc7-71b0-4fa2-90d1-2c342c706ede",
                 "atMs": 150,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-15",
+                "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
+                "afterFrame": "frame-8",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "swipe",
@@ -630,8 +631,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
+        "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -652,7 +653,7 @@
       },
       "frames": [
         {
-          "id": "frame-15",
+          "id": "frame-8",
           "atMs": 850,
           "width": 1080,
           "height": 2400,
@@ -661,29 +662,29 @@
           "trigger": "route",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-cd6a7e2a-0dbb-48cf-8110-fff64d412695",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4"
         },
         {
-          "id": "event-8",
+          "id": "event-8c9f4983-b894-4e56-9071-01e95194567b",
           "atMs": 300,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
           "data": {
             "version": 1,
             "outcome": "superseded_route_epoch",
-            "requestId": "capture_request-1",
-            "executionId": "capture_execution-7",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-0",
+            "executionId": "capture_execution-3",
+            "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
             "routeEpoch": 0,
             "trigger": "initial",
             "visualEvidence": "unavailable",
@@ -692,62 +693,62 @@
           }
         },
         {
-          "id": "event-10",
+          "id": "event-37b2ffe4-444d-4599-bed0-decb10c07dcf",
           "atMs": 300,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
           "data": {
             "version": 1,
             "outcome": "superseded_route_epoch",
-            "requestId": "capture_request-3",
-            "executionId": "capture_execution-9",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-1",
+            "executionId": "capture_execution-4",
+            "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
             "routeEpoch": 1,
             "navigatorId": "nav-0",
             "routeInstanceId": "route-0",
             "trigger": "interaction",
             "visualEvidence": "unavailable",
             "interactionEvidence": "linked",
-            "relatedEventId": "event-2",
+            "relatedEventId": "event-50d69cc7-71b0-4fa2-90d1-2c342c706ede",
             "cancellationReason": "superseded_route"
           }
         },
         {
-          "id": "event-12",
+          "id": "event-cec24010-6ef7-42fd-bc6b-eca433f2af50",
           "atMs": 300,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
           "data": {
             "version": 1,
             "outcome": "superseded_route_epoch",
-            "requestId": "capture_request-6",
-            "executionId": "capture_execution-11",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-2",
+            "executionId": "capture_execution-5",
+            "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
             "routeEpoch": 1,
             "navigatorId": "nav-0",
             "routeInstanceId": "route-0",
             "trigger": "interaction",
             "visualEvidence": "unavailable",
             "interactionEvidence": "linked",
-            "relatedEventId": "event-5",
+            "relatedEventId": "event-5485bbb9-acd3-4910-a2d7-32af02746532",
             "cancellationReason": "superseded_route"
           }
         },
         {
-          "id": "event-17",
+          "id": "event-0fae50b8-740a-4ca9-8f7b-2e7c0bde5166",
           "atMs": 850,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-15",
+          "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
+          "afterFrame": "frame-8",
           "data": {
             "version": 1,
             "outcome": "fresh_accepted",
-            "requestId": "capture_request-14",
-            "executionId": "capture_execution-16",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-7",
+            "executionId": "capture_execution-9",
+            "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
             "routeEpoch": 2,
             "navigatorId": "nav-0",
             "routeInstanceId": "route-1",
@@ -757,18 +758,18 @@
           }
         },
         {
-          "id": "event-18",
+          "id": "event-2636911b-5965-4f4e-b0aa-bd3c989c1c2c",
           "atMs": 850,
           "type": "route_change",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-15",
+          "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
+          "afterFrame": "frame-8",
           "result": "navigated",
           "data": {
             "fromRoute": "/a",
             "route": "/b",
             "navigation": "route_push",
-            "captureRequestId": "capture_request-14",
+            "captureRequestId": "capture_request-7",
             "routeName": "/b",
             "routeType": "MaterialPageRoute<dynamic>",
             "routeNamed": true,
@@ -801,12 +802,12 @@
           }
         },
         {
-          "id": "event-4",
+          "id": "event-fa48572b-1677-4e1c-8b40-649c8828d39f",
           "atMs": 200,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-15",
+          "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
+          "afterFrame": "frame-8",
           "data": {
             "interactionSchema": 2,
             "gesture": "scroll",
@@ -818,12 +819,12 @@
           }
         },
         {
-          "id": "event-2",
+          "id": "event-50d69cc7-71b0-4fa2-90d1-2c342c706ede",
           "atMs": 150,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-15",
+          "captureSessionId": "session-5760aa0b-d75c-4ee6-92b3-48bb528fd0e4",
+          "afterFrame": "frame-8",
           "data": {
             "interactionSchema": 2,
             "gesture": "swipe",

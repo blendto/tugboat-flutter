@@ -31,7 +31,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "a513512c2328df0f6b401082cd5ab65a45ab4f082fe27deb9c1ee3070e068b48"
           }
         },
         "expect": {
@@ -39,11 +40,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-89190ca7-2491-4fe8-ac5b-0b5c38631e51",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150"
               },
               "userId": null
             }
@@ -136,7 +137,7 @@
             },
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-3",
+              "timerId": "interaction.settle.event-ddba077e-fb6b-4f05-b47b-96a41170ee29",
               "atMonoUs": 10105000
             }
           ]
@@ -180,7 +181,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-4",
+              "timerId": "interaction.settle.event-fcbbbdfe-7148-4d13-96fd-dd9b3654726b",
               "atMonoUs": 10115000
             }
           ]
@@ -224,7 +225,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-5",
+              "timerId": "interaction.settle.event-c815da5c-7a4b-4efb-98bd-6fb255bd7daa",
               "atMonoUs": 10125000
             }
           ]
@@ -268,7 +269,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-6",
+              "timerId": "interaction.settle.event-2b88a867-d81f-4d94-9df9-1babf363cba9",
               "atMonoUs": 10135000
             }
           ]
@@ -312,7 +313,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-7",
+              "timerId": "interaction.settle.event-da7f3b48-bad8-4567-8d02-31f8e63b3f62",
               "atMonoUs": 10145000
             }
           ]
@@ -356,7 +357,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-8",
+              "timerId": "interaction.settle.event-f3441232-1e49-4c79-bd39-f7ee8d9c7adf",
               "atMonoUs": 10155000
             }
           ]
@@ -400,7 +401,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-9",
+              "timerId": "interaction.settle.event-4bf33240-71cd-4f19-a04c-f190d40519da",
               "atMonoUs": 10165000
             }
           ]
@@ -444,7 +445,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-10",
+              "timerId": "interaction.settle.event-1ff4a0fa-8654-4e0b-afd2-5110210518c6",
               "atMonoUs": 10175000
             }
           ]
@@ -488,7 +489,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-11",
+              "timerId": "interaction.settle.event-f864dc40-b979-4205-80c3-2b9ca595d603",
               "atMonoUs": 10185000
             }
           ]
@@ -532,7 +533,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-12",
+              "timerId": "interaction.settle.event-b6917348-e9df-4229-b692-02a8a047de1e",
               "atMonoUs": 10195000
             }
           ]
@@ -573,11 +574,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-5",
+                "id": "event-c815da5c-7a4b-4efb-98bd-6fb255bd7daa",
                 "atMs": 120,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "cancelled"
@@ -588,11 +589,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-6",
+                "id": "event-2b88a867-d81f-4d94-9df9-1babf363cba9",
                 "atMs": 130,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "cancelled"
@@ -603,11 +604,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-7",
+                "id": "event-da7f3b48-bad8-4567-8d02-31f8e63b3f62",
                 "atMs": 140,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "cancelled"
@@ -618,11 +619,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-f3441232-1e49-4c79-bd39-f7ee8d9c7adf",
                 "atMs": 150,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "cancelled"
@@ -633,11 +634,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-9",
+                "id": "event-4bf33240-71cd-4f19-a04c-f190d40519da",
                 "atMs": 160,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "cancelled"
@@ -648,11 +649,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-10",
+                "id": "event-1ff4a0fa-8654-4e0b-afd2-5110210518c6",
                 "atMs": 170,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "cancelled"
@@ -663,11 +664,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-11",
+                "id": "event-f864dc40-b979-4205-80c3-2b9ca595d603",
                 "atMs": 180,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "cancelled"
@@ -678,11 +679,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-12",
+                "id": "event-b6917348-e9df-4229-b692-02a8a047de1e",
                 "atMs": 190,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "cancelled"
@@ -693,11 +694,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-13",
+                "id": "event-1a552abf-8bb9-48a7-b36d-9c2182fe114a",
                 "atMs": 1400,
                 "type": "session_end",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150"
               },
               "userId": null
             }
@@ -705,43 +706,43 @@
           "effects": [
             {
               "type": "timer.cancel",
-              "timerId": "interaction.settle.event-3"
+              "timerId": "interaction.settle.event-ddba077e-fb6b-4f05-b47b-96a41170ee29"
             },
             {
               "type": "timer.cancel",
-              "timerId": "interaction.settle.event-4"
+              "timerId": "interaction.settle.event-fcbbbdfe-7148-4d13-96fd-dd9b3654726b"
             },
             {
               "type": "timer.cancel",
-              "timerId": "interaction.settle.event-5"
+              "timerId": "interaction.settle.event-c815da5c-7a4b-4efb-98bd-6fb255bd7daa"
             },
             {
               "type": "timer.cancel",
-              "timerId": "interaction.settle.event-6"
+              "timerId": "interaction.settle.event-2b88a867-d81f-4d94-9df9-1babf363cba9"
             },
             {
               "type": "timer.cancel",
-              "timerId": "interaction.settle.event-7"
+              "timerId": "interaction.settle.event-da7f3b48-bad8-4567-8d02-31f8e63b3f62"
             },
             {
               "type": "timer.cancel",
-              "timerId": "interaction.settle.event-8"
+              "timerId": "interaction.settle.event-f3441232-1e49-4c79-bd39-f7ee8d9c7adf"
             },
             {
               "type": "timer.cancel",
-              "timerId": "interaction.settle.event-9"
+              "timerId": "interaction.settle.event-4bf33240-71cd-4f19-a04c-f190d40519da"
             },
             {
               "type": "timer.cancel",
-              "timerId": "interaction.settle.event-10"
+              "timerId": "interaction.settle.event-1ff4a0fa-8654-4e0b-afd2-5110210518c6"
             },
             {
               "type": "timer.cancel",
-              "timerId": "interaction.settle.event-11"
+              "timerId": "interaction.settle.event-f864dc40-b979-4205-80c3-2b9ca595d603"
             },
             {
               "type": "timer.cancel",
-              "timerId": "interaction.settle.event-12"
+              "timerId": "interaction.settle.event-b6917348-e9df-4229-b692-02a8a047de1e"
             },
             {
               "type": "timer.cancel",
@@ -756,8 +757,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-0fe6f447-6f5a-423c-866c-579c45447150",
+        "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -779,106 +780,106 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-89190ca7-2491-4fe8-ac5b-0b5c38631e51",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150"
         },
         {
-          "id": "event-5",
+          "id": "event-c815da5c-7a4b-4efb-98bd-6fb255bd7daa",
           "atMs": 120,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
           "data": {
             "interactionSchema": 2,
             "gesture": "cancelled"
           }
         },
         {
-          "id": "event-6",
+          "id": "event-2b88a867-d81f-4d94-9df9-1babf363cba9",
           "atMs": 130,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
           "data": {
             "interactionSchema": 2,
             "gesture": "cancelled"
           }
         },
         {
-          "id": "event-7",
+          "id": "event-da7f3b48-bad8-4567-8d02-31f8e63b3f62",
           "atMs": 140,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
           "data": {
             "interactionSchema": 2,
             "gesture": "cancelled"
           }
         },
         {
-          "id": "event-8",
+          "id": "event-f3441232-1e49-4c79-bd39-f7ee8d9c7adf",
           "atMs": 150,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
           "data": {
             "interactionSchema": 2,
             "gesture": "cancelled"
           }
         },
         {
-          "id": "event-9",
+          "id": "event-4bf33240-71cd-4f19-a04c-f190d40519da",
           "atMs": 160,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
           "data": {
             "interactionSchema": 2,
             "gesture": "cancelled"
           }
         },
         {
-          "id": "event-10",
+          "id": "event-1ff4a0fa-8654-4e0b-afd2-5110210518c6",
           "atMs": 170,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
           "data": {
             "interactionSchema": 2,
             "gesture": "cancelled"
           }
         },
         {
-          "id": "event-11",
+          "id": "event-f864dc40-b979-4205-80c3-2b9ca595d603",
           "atMs": 180,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
           "data": {
             "interactionSchema": 2,
             "gesture": "cancelled"
           }
         },
         {
-          "id": "event-12",
+          "id": "event-b6917348-e9df-4229-b692-02a8a047de1e",
           "atMs": 190,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150",
           "data": {
             "interactionSchema": 2,
             "gesture": "cancelled"
           }
         },
         {
-          "id": "event-13",
+          "id": "event-1a552abf-8bb9-48a7-b36d-9c2182fe114a",
           "atMs": 1400,
           "type": "session_end",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-0fe6f447-6f5a-423c-866c-579c45447150"
         }
       ]
     }

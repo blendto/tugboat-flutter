@@ -46,10 +46,10 @@ void record_gap(DeliveryContext& ctx, std::optional<GapReport> report) {
     return;
   }
   EngineState* state = ctx.state;
-  // Dart's gap records: `collector-…` ids on the semantic stream.
+  // Dart's gap records: `collector-…-<UUIDv4>` ids on the semantic stream.
   Diagnostic gap;
   gap.data = std::move(report->data);
-  gap.id = std::move(report->id);
+  gap.id = state->ids.next_id(report->id_prefix.c_str());
   gap.stream = EventStream::kSemantic;
   if (state->live_session() != nullptr) {
     record_diagnostic(state, ctx.at, ctx.out, std::move(gap));

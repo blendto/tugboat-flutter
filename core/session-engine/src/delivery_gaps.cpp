@@ -30,8 +30,7 @@ GapReport FrameGaps::report(const char* result, std::optional<int64_t> status,
   }
   data.set("frameCount", Value::integer(frame_count));
   data.set("droppedFrameCount", Value::integer(dropped_frames_));
-  return GapReport{"collector-frame-upload-" + std::to_string(sequence_++),
-                   std::move(data)};
+  return GapReport{"collector-frame-upload", std::move(data)};
 }
 
 std::optional<GapReport> FrameGaps::failed(std::optional<int64_t> status,
@@ -84,8 +83,7 @@ std::optional<GapReport> EventGaps::dropped(EventDropReason reason,
   }
   data.set("eventCount", Value::integer(count));
   data.set("droppedEventCount", Value::integer(dropped_events_));
-  return GapReport{"collector-event-upload-" + std::to_string(sequence_++),
-                   std::move(data)};
+  return GapReport{"collector-event-upload", std::move(data)};
 }
 
 }  // namespace engine

@@ -28,7 +28,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "52b2d6e0da251174fc31a8ce3441d0a8a46a97ea2b7c510aaa6a97ac0342731f"
           }
         },
         "expect": {
@@ -36,11 +37,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-d4239259-76b5-4bab-9c1b-fe68c1e45754",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-64c4b9d6-4749-4d24-9cb6-ffed0e71197c"
               },
               "userId": null
             }
@@ -243,7 +244,7 @@
               "kind": "frame",
               "handle": "h-checkout",
               "frame": {
-                "id": "frame-5",
+                "id": "frame-3",
                 "atMs": 1450,
                 "width": 1080,
                 "height": 2400,
@@ -252,23 +253,23 @@
                 "trigger": "route",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-64c4b9d6-4749-4d24-9cb6-ffed0e71197c"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-7",
+                "id": "event-60a5a89c-386c-4243-bade-cfab41835f71",
                 "atMs": 1450,
                 "type": "route_change",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-5",
+                "captureSessionId": "session-64c4b9d6-4749-4d24-9cb6-ffed0e71197c",
+                "afterFrame": "frame-3",
                 "result": "navigated",
                 "data": {
                   "route": "/checkout",
                   "navigation": "route_push",
-                  "captureRequestId": "capture_request-4",
+                  "captureRequestId": "capture_request-2",
                   "routeName": "/checkout",
                   "routeType": "MaterialPageRoute<dynamic>",
                   "routeNamed": true,
@@ -278,8 +279,8 @@
                   "overlayKind": "page",
                   "visualObservationGeneration": 1,
                   "navigationOrigin": "interaction",
-                  "causeEventId": "event-3",
-                  "causedByInteractionId": "event-3",
+                  "causeEventId": "event-3e6621c8-4710-4627-9fe6-ace5ba3d8078",
+                  "causedByInteractionId": "event-3e6621c8-4710-4627-9fe6-ace5ba3d8078",
                   "interactionAttribution": "same_turn",
                   "routeStack": [
                     {
@@ -299,16 +300,16 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-3e6621c8-4710-4627-9fe6-ace5ba3d8078",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-64c4b9d6-4749-4d24-9cb6-ffed0e71197c",
                 "targetAnchor": {
                   "role": "button",
                   "fingerprint": "fp-buy"
                 },
-                "afterFrame": "frame-5",
+                "afterFrame": "frame-3",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap",
@@ -344,11 +345,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-45204c39-5204-4b8d-a22f-36d46d6e2c2a",
                 "atMs": 2000,
                 "type": "session_end",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-64c4b9d6-4749-4d24-9cb6-ffed0e71197c"
               },
               "userId": null
             }
@@ -371,8 +372,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-64c4b9d6-4749-4d24-9cb6-ffed0e71197c",
+        "captureSessionId": "session-64c4b9d6-4749-4d24-9cb6-ffed0e71197c",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -393,7 +394,7 @@
       },
       "frames": [
         {
-          "id": "frame-5",
+          "id": "frame-3",
           "atMs": 1450,
           "width": 1080,
           "height": 2400,
@@ -402,29 +403,29 @@
           "trigger": "route",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-64c4b9d6-4749-4d24-9cb6-ffed0e71197c"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-d4239259-76b5-4bab-9c1b-fe68c1e45754",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-64c4b9d6-4749-4d24-9cb6-ffed0e71197c"
         },
         {
-          "id": "event-7",
+          "id": "event-60a5a89c-386c-4243-bade-cfab41835f71",
           "atMs": 1450,
           "type": "route_change",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-5",
+          "captureSessionId": "session-64c4b9d6-4749-4d24-9cb6-ffed0e71197c",
+          "afterFrame": "frame-3",
           "result": "navigated",
           "data": {
             "route": "/checkout",
             "navigation": "route_push",
-            "captureRequestId": "capture_request-4",
+            "captureRequestId": "capture_request-2",
             "routeName": "/checkout",
             "routeType": "MaterialPageRoute<dynamic>",
             "routeNamed": true,
@@ -434,8 +435,8 @@
             "overlayKind": "page",
             "visualObservationGeneration": 1,
             "navigationOrigin": "interaction",
-            "causeEventId": "event-3",
-            "causedByInteractionId": "event-3",
+            "causeEventId": "event-3e6621c8-4710-4627-9fe6-ace5ba3d8078",
+            "causedByInteractionId": "event-3e6621c8-4710-4627-9fe6-ace5ba3d8078",
             "interactionAttribution": "same_turn",
             "routeStack": [
               {
@@ -451,16 +452,16 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-3e6621c8-4710-4627-9fe6-ace5ba3d8078",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-64c4b9d6-4749-4d24-9cb6-ffed0e71197c",
           "targetAnchor": {
             "role": "button",
             "fingerprint": "fp-buy"
           },
-          "afterFrame": "frame-5",
+          "afterFrame": "frame-3",
           "data": {
             "interactionSchema": 2,
             "gesture": "tap",
@@ -468,11 +469,11 @@
           }
         },
         {
-          "id": "event-8",
+          "id": "event-45204c39-5204-4b8d-a22f-36d46d6e2c2a",
           "atMs": 2000,
           "type": "session_end",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-64c4b9d6-4749-4d24-9cb6-ffed0e71197c"
         }
       ]
     }

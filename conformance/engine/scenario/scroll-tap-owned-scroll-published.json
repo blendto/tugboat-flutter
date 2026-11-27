@@ -32,7 +32,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "500d270efa74e1542b554e80867d891fc943259aa53622adfe8d1efbc95194a4"
           }
         },
         "expect": {
@@ -40,11 +41,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-e576a991-a082-4e92-aff4-5cf5da928663",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-e146d7cb-5914-4714-b285-ff22f44d5d0a"
               },
               "userId": null
             }
@@ -247,7 +248,7 @@
               "kind": "frame",
               "handle": "h-capture_request-3",
               "frame": {
-                "id": "frame-6",
+                "id": "frame-3",
                 "atMs": 170,
                 "width": 1080,
                 "height": 2400,
@@ -256,24 +257,24 @@
                 "trigger": "interaction",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-e146d7cb-5914-4714-b285-ff22f44d5d0a"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-b908c23b-54d0-48e1-b04e-fc499876b1d6",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e146d7cb-5914-4714-b285-ff22f44d5d0a",
                 "targetAnchor": {
                   "widgetType": "ListView",
                   "role": "scrollable",
                   "fingerprint": "fp-list",
                   "canonicalPath": "Scaffold/ListView"
                 },
-                "afterFrame": "frame-6",
+                "afterFrame": "frame-3",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "scroll",
@@ -301,8 +302,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-e146d7cb-5914-4714-b285-ff22f44d5d0a",
+        "captureSessionId": "session-e146d7cb-5914-4714-b285-ff22f44d5d0a",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -323,7 +324,7 @@
       },
       "frames": [
         {
-          "id": "frame-6",
+          "id": "frame-3",
           "atMs": 170,
           "width": 1080,
           "height": 2400,
@@ -332,30 +333,30 @@
           "trigger": "interaction",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-e146d7cb-5914-4714-b285-ff22f44d5d0a"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-e576a991-a082-4e92-aff4-5cf5da928663",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-e146d7cb-5914-4714-b285-ff22f44d5d0a"
         },
         {
-          "id": "event-3",
+          "id": "event-b908c23b-54d0-48e1-b04e-fc499876b1d6",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e146d7cb-5914-4714-b285-ff22f44d5d0a",
           "targetAnchor": {
             "widgetType": "ListView",
             "role": "scrollable",
             "fingerprint": "fp-list",
             "canonicalPath": "Scaffold/ListView"
           },
-          "afterFrame": "frame-6",
+          "afterFrame": "frame-3",
           "data": {
             "interactionSchema": 2,
             "gesture": "scroll",

@@ -34,7 +34,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "9bf46164106853882e16baf1372306525c21b960083af7523fadc04534fd17f7"
           }
         },
         "expect": {
@@ -42,11 +43,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-8c347012-8e72-4528-8a49-beb4743136f2",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3"
               },
               "userId": null
             }
@@ -91,17 +92,17 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-4f6eb43a-9646-4b5a-9c8a-1b356635d583",
                 "atMs": 0,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
                 "data": {
                   "version": 1,
                   "outcome": "capture_processing_failed",
-                  "requestId": "capture_request-1",
-                  "executionId": "capture_execution-2",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-0",
+                  "executionId": "capture_execution-1",
+                  "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
                   "routeEpoch": 0,
                   "trigger": "initial",
                   "visualEvidence": "unavailable",
@@ -242,24 +243,24 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-7",
+                "id": "event-57ddadd8-29bc-4edf-8276-6cb0c81ad03c",
                 "atMs": 340,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
                 "data": {
                   "version": 1,
                   "outcome": "cancelled",
-                  "requestId": "capture_request-5",
-                  "executionId": "capture_execution-6",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-2",
+                  "executionId": "capture_execution-3",
+                  "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
                   "routeEpoch": 2,
                   "navigatorId": "nav-0",
                   "routeInstanceId": "route-0",
                   "trigger": "interaction",
                   "visualEvidence": "unavailable",
                   "interactionEvidence": "linked",
-                  "relatedEventId": "event-4",
+                  "relatedEventId": "event-a95743cc-b384-42b0-a623-beb0baf16150",
                   "cancellationReason": "route_transition"
                 }
               },
@@ -284,17 +285,17 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-10",
+                "id": "event-463b0510-75de-4e04-be4b-10b0b83e62d7",
                 "atMs": 1200,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
                 "data": {
                   "version": 1,
                   "outcome": "cancelled",
-                  "requestId": "capture_request-8",
-                  "executionId": "capture_execution-9",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-4",
+                  "executionId": "capture_execution-5",
+                  "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
                   "routeEpoch": 2,
                   "navigatorId": "nav-0",
                   "routeInstanceId": "route-0",
@@ -309,11 +310,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-11",
+                "id": "event-dff6a7bf-dd7e-4560-94c8-8ec1c6818c32",
                 "atMs": 1200,
                 "type": "route_change",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
                 "result": "navigated",
                 "data": {
                   "fromRoute": "/a",
@@ -321,7 +322,7 @@
                   "navigation": "route_pop",
                   "captureOutcome": "failed",
                   "captureFailure": "cancelled",
-                  "captureRequestId": "capture_request-8",
+                  "captureRequestId": "capture_request-4",
                   "routeType": "unknown",
                   "routeNamed": false,
                   "fromRouteName": "/a",
@@ -342,11 +343,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-a95743cc-b384-42b0-a623-beb0baf16150",
                 "atMs": 300,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "swipe",
@@ -433,7 +434,7 @@
               "kind": "frame",
               "handle": "h-a",
               "frame": {
-                "id": "frame-13",
+                "id": "frame-7",
                 "atMs": 1450,
                 "width": 1080,
                 "height": 2400,
@@ -442,24 +443,24 @@
                 "trigger": "route",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-15",
+                "id": "event-df8f5aab-f9f8-415d-aa5d-9b7ecf0a9b58",
                 "atMs": 1450,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-13",
+                "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
+                "afterFrame": "frame-7",
                 "data": {
                   "version": 1,
                   "outcome": "fresh_accepted",
-                  "requestId": "capture_request-12",
-                  "executionId": "capture_execution-14",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-6",
+                  "executionId": "capture_execution-8",
+                  "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
                   "routeEpoch": 2,
                   "navigatorId": "nav-0",
                   "routeInstanceId": "route-0",
@@ -473,17 +474,17 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-16",
+                "id": "event-b366de58-223a-4856-8142-74ca34dc5c50",
                 "atMs": 1450,
                 "type": "route_change",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-13",
+                "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
+                "afterFrame": "frame-7",
                 "result": "navigated",
                 "data": {
                   "route": "/a",
                   "navigation": "route_push",
-                  "captureRequestId": "capture_request-12",
+                  "captureRequestId": "capture_request-6",
                   "routeName": "/a",
                   "routeType": "MaterialPageRoute<dynamic>",
                   "routeNamed": true,
@@ -525,8 +526,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
+        "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -547,7 +548,7 @@
       },
       "frames": [
         {
-          "id": "frame-13",
+          "id": "frame-7",
           "atMs": 1450,
           "width": 1080,
           "height": 2400,
@@ -556,29 +557,29 @@
           "trigger": "route",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-8c347012-8e72-4528-8a49-beb4743136f2",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3"
         },
         {
-          "id": "event-3",
+          "id": "event-4f6eb43a-9646-4b5a-9c8a-1b356635d583",
           "atMs": 0,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
           "data": {
             "version": 1,
             "outcome": "capture_processing_failed",
-            "requestId": "capture_request-1",
-            "executionId": "capture_execution-2",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-0",
+            "executionId": "capture_execution-1",
+            "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
             "routeEpoch": 0,
             "trigger": "initial",
             "visualEvidence": "unavailable",
@@ -586,39 +587,39 @@
           }
         },
         {
-          "id": "event-7",
+          "id": "event-57ddadd8-29bc-4edf-8276-6cb0c81ad03c",
           "atMs": 340,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
           "data": {
             "version": 1,
             "outcome": "cancelled",
-            "requestId": "capture_request-5",
-            "executionId": "capture_execution-6",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-2",
+            "executionId": "capture_execution-3",
+            "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
             "routeEpoch": 2,
             "navigatorId": "nav-0",
             "routeInstanceId": "route-0",
             "trigger": "interaction",
             "visualEvidence": "unavailable",
             "interactionEvidence": "linked",
-            "relatedEventId": "event-4",
+            "relatedEventId": "event-a95743cc-b384-42b0-a623-beb0baf16150",
             "cancellationReason": "route_transition"
           }
         },
         {
-          "id": "event-10",
+          "id": "event-463b0510-75de-4e04-be4b-10b0b83e62d7",
           "atMs": 1200,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
           "data": {
             "version": 1,
             "outcome": "cancelled",
-            "requestId": "capture_request-8",
-            "executionId": "capture_execution-9",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-4",
+            "executionId": "capture_execution-5",
+            "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
             "routeEpoch": 2,
             "navigatorId": "nav-0",
             "routeInstanceId": "route-0",
@@ -629,11 +630,11 @@
           }
         },
         {
-          "id": "event-11",
+          "id": "event-dff6a7bf-dd7e-4560-94c8-8ec1c6818c32",
           "atMs": 1200,
           "type": "route_change",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
           "result": "navigated",
           "data": {
             "fromRoute": "/a",
@@ -641,7 +642,7 @@
             "navigation": "route_pop",
             "captureOutcome": "failed",
             "captureFailure": "cancelled",
-            "captureRequestId": "capture_request-8",
+            "captureRequestId": "capture_request-4",
             "routeType": "unknown",
             "routeNamed": false,
             "fromRouteName": "/a",
@@ -658,11 +659,11 @@
           }
         },
         {
-          "id": "event-4",
+          "id": "event-a95743cc-b384-42b0-a623-beb0baf16150",
           "atMs": 300,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
           "data": {
             "interactionSchema": 2,
             "gesture": "swipe",
@@ -670,18 +671,18 @@
           }
         },
         {
-          "id": "event-15",
+          "id": "event-df8f5aab-f9f8-415d-aa5d-9b7ecf0a9b58",
           "atMs": 1450,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-13",
+          "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
+          "afterFrame": "frame-7",
           "data": {
             "version": 1,
             "outcome": "fresh_accepted",
-            "requestId": "capture_request-12",
-            "executionId": "capture_execution-14",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-6",
+            "executionId": "capture_execution-8",
+            "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
             "routeEpoch": 2,
             "navigatorId": "nav-0",
             "routeInstanceId": "route-0",
@@ -691,17 +692,17 @@
           }
         },
         {
-          "id": "event-16",
+          "id": "event-b366de58-223a-4856-8142-74ca34dc5c50",
           "atMs": 1450,
           "type": "route_change",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-13",
+          "captureSessionId": "session-0fc2ec5e-eeea-41f7-8286-d7791b1501d3",
+          "afterFrame": "frame-7",
           "result": "navigated",
           "data": {
             "route": "/a",
             "navigation": "route_push",
-            "captureRequestId": "capture_request-12",
+            "captureRequestId": "capture_request-6",
             "routeName": "/a",
             "routeType": "MaterialPageRoute<dynamic>",
             "routeNamed": true,

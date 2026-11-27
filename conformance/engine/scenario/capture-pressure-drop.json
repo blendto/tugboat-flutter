@@ -35,7 +35,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "6b5a6ca56247ef3345818d009c7e6ec594b011d7b494db6995e18138f4324052"
           }
         },
         "expect": {
@@ -43,11 +44,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-d523bd4c-f1df-45ab-b773-aa0359796961",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502"
               },
               "userId": null
             }
@@ -152,17 +153,17 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-6",
+                "id": "event-39baa189-beec-415d-b2d8-49d34aacbf9c",
                 "atMs": 120,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
                 "data": {
                   "version": 1,
                   "outcome": "capture_pressure_drop",
-                  "requestId": "capture_request-4",
-                  "executionId": "capture_execution-5",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-1",
+                  "executionId": "capture_execution-2",
+                  "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
                   "routeEpoch": 0,
                   "trigger": "scroll",
                   "visualEvidence": "unavailable",
@@ -193,17 +194,17 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-d478d81f-13b6-490c-989c-6057143e8a6b",
                 "atMs": 0,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
                 "data": {
                   "version": 1,
                   "outcome": "capture_processing_failed",
-                  "requestId": "capture_request-1",
-                  "executionId": "capture_execution-7",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-0",
+                  "executionId": "capture_execution-3",
+                  "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
                   "routeEpoch": 0,
                   "trigger": "initial",
                   "visualEvidence": "unavailable",
@@ -351,7 +352,7 @@
               "kind": "frame",
               "handle": "h-scroll-shot",
               "frame": {
-                "id": "frame-11",
+                "id": "frame-6",
                 "atMs": 1300,
                 "width": 1080,
                 "height": 2400,
@@ -360,24 +361,24 @@
                 "trigger": "scroll",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-13",
+                "id": "event-d747b18e-160c-4b5b-bd1f-d9114e2ed237",
                 "atMs": 1300,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-11",
+                "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
+                "afterFrame": "frame-6",
                 "data": {
                   "version": 1,
                   "outcome": "fresh_accepted",
-                  "requestId": "capture_request-9",
-                  "executionId": "capture_execution-12",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-4",
+                  "executionId": "capture_execution-7",
+                  "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
                   "routeEpoch": 0,
                   "trigger": "scroll",
                   "visualEvidence": "fresh",
@@ -446,7 +447,7 @@
               "kind": "frame",
               "handle": "h-scroll-end",
               "frame": {
-                "id": "frame-14",
+                "id": "frame-8",
                 "atMs": 1350,
                 "width": 1080,
                 "height": 2400,
@@ -455,29 +456,29 @@
                 "trigger": "interaction",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-16",
+                "id": "event-a9cad5e4-dcec-4dee-81bf-96699f871e3b",
                 "atMs": 1350,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-14",
+                "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
+                "afterFrame": "frame-8",
                 "data": {
                   "version": 1,
                   "outcome": "fresh_accepted",
-                  "requestId": "capture_request-10",
-                  "executionId": "capture_execution-15",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-5",
+                  "executionId": "capture_execution-9",
+                  "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
                   "routeEpoch": 0,
                   "trigger": "interaction",
                   "visualEvidence": "fresh",
                   "interactionEvidence": "linked",
-                  "relatedEventId": "event-3"
+                  "relatedEventId": "event-574ba6c7-67fb-46e7-a302-d45e0c5250ff"
                 }
               },
               "userId": null
@@ -485,12 +486,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-4ae79301-5c1f-476a-9d94-fd07ff5112f2",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-14",
+                "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
+                "afterFrame": "frame-8",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "scroll",
@@ -517,8 +518,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
+        "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -539,7 +540,7 @@
       },
       "frames": [
         {
-          "id": "frame-11",
+          "id": "frame-6",
           "atMs": 1300,
           "width": 1080,
           "height": 2400,
@@ -548,10 +549,10 @@
           "trigger": "scroll",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502"
         },
         {
-          "id": "frame-14",
+          "id": "frame-8",
           "atMs": 1350,
           "width": 1080,
           "height": 2400,
@@ -560,29 +561,29 @@
           "trigger": "interaction",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-d523bd4c-f1df-45ab-b773-aa0359796961",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502"
         },
         {
-          "id": "event-6",
+          "id": "event-39baa189-beec-415d-b2d8-49d34aacbf9c",
           "atMs": 120,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
           "data": {
             "version": 1,
             "outcome": "capture_pressure_drop",
-            "requestId": "capture_request-4",
-            "executionId": "capture_execution-5",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-1",
+            "executionId": "capture_execution-2",
+            "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
             "routeEpoch": 0,
             "trigger": "scroll",
             "visualEvidence": "unavailable",
@@ -591,17 +592,17 @@
           }
         },
         {
-          "id": "event-8",
+          "id": "event-d478d81f-13b6-490c-989c-6057143e8a6b",
           "atMs": 0,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
           "data": {
             "version": 1,
             "outcome": "capture_processing_failed",
-            "requestId": "capture_request-1",
-            "executionId": "capture_execution-7",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-0",
+            "executionId": "capture_execution-3",
+            "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
             "routeEpoch": 0,
             "trigger": "initial",
             "visualEvidence": "unavailable",
@@ -609,18 +610,18 @@
           }
         },
         {
-          "id": "event-13",
+          "id": "event-d747b18e-160c-4b5b-bd1f-d9114e2ed237",
           "atMs": 1300,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-11",
+          "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
+          "afterFrame": "frame-6",
           "data": {
             "version": 1,
             "outcome": "fresh_accepted",
-            "requestId": "capture_request-9",
-            "executionId": "capture_execution-12",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-4",
+            "executionId": "capture_execution-7",
+            "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
             "routeEpoch": 0,
             "trigger": "scroll",
             "visualEvidence": "fresh",
@@ -628,32 +629,32 @@
           }
         },
         {
-          "id": "event-16",
+          "id": "event-a9cad5e4-dcec-4dee-81bf-96699f871e3b",
           "atMs": 1350,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-14",
+          "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
+          "afterFrame": "frame-8",
           "data": {
             "version": 1,
             "outcome": "fresh_accepted",
-            "requestId": "capture_request-10",
-            "executionId": "capture_execution-15",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-5",
+            "executionId": "capture_execution-9",
+            "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
             "routeEpoch": 0,
             "trigger": "interaction",
             "visualEvidence": "fresh",
             "interactionEvidence": "linked",
-            "relatedEventId": "event-3"
+            "relatedEventId": "event-574ba6c7-67fb-46e7-a302-d45e0c5250ff"
           }
         },
         {
-          "id": "event-2",
+          "id": "event-4ae79301-5c1f-476a-9d94-fd07ff5112f2",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-14",
+          "captureSessionId": "session-65e3b7c0-ae0b-4751-b1f0-87f86aec6502",
+          "afterFrame": "frame-8",
           "data": {
             "interactionSchema": 2,
             "gesture": "scroll",

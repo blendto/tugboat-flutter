@@ -37,7 +37,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "1d44ecba4fb1d3011e43ccd63ac46fc8a6bda37b71691976fbfbadf6a2ddd52a"
           }
         },
         "expect": {
@@ -45,11 +46,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-2027ea0e-16ce-4489-b041-e5e9ea778856",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-0c8d4f6a-bbc8-4231-9b99-a1c27ba51872"
               },
               "userId": null
             }
@@ -328,7 +329,7 @@
               "kind": "frame",
               "handle": "h-capture_request-3",
               "frame": {
-                "id": "frame-6",
+                "id": "frame-3",
                 "atMs": 460,
                 "width": 1080,
                 "height": 2400,
@@ -337,24 +338,24 @@
                 "trigger": "interaction",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-0c8d4f6a-bbc8-4231-9b99-a1c27ba51872"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-9e44b2cb-008d-47ea-995c-d5fca170fd11",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0c8d4f6a-bbc8-4231-9b99-a1c27ba51872",
                 "targetAnchor": {
                   "widgetType": "ListView",
                   "role": "scrollable",
                   "fingerprint": "fp-list",
                   "canonicalPath": "Scaffold/ListView"
                 },
-                "afterFrame": "frame-6",
+                "afterFrame": "frame-3",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "scroll",
@@ -382,8 +383,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-0c8d4f6a-bbc8-4231-9b99-a1c27ba51872",
+        "captureSessionId": "session-0c8d4f6a-bbc8-4231-9b99-a1c27ba51872",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -404,7 +405,7 @@
       },
       "frames": [
         {
-          "id": "frame-6",
+          "id": "frame-3",
           "atMs": 460,
           "width": 1080,
           "height": 2400,
@@ -413,30 +414,30 @@
           "trigger": "interaction",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-0c8d4f6a-bbc8-4231-9b99-a1c27ba51872"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-2027ea0e-16ce-4489-b041-e5e9ea778856",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-0c8d4f6a-bbc8-4231-9b99-a1c27ba51872"
         },
         {
-          "id": "event-3",
+          "id": "event-9e44b2cb-008d-47ea-995c-d5fca170fd11",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0c8d4f6a-bbc8-4231-9b99-a1c27ba51872",
           "targetAnchor": {
             "widgetType": "ListView",
             "role": "scrollable",
             "fingerprint": "fp-list",
             "canonicalPath": "Scaffold/ListView"
           },
-          "afterFrame": "frame-6",
+          "afterFrame": "frame-3",
           "data": {
             "interactionSchema": 2,
             "gesture": "scroll",
@@ -466,7 +467,7 @@
         {
           "atMs": 400,
           "offset": 500.0,
-          "afterFrame": "frame-6",
+          "afterFrame": "frame-3",
           "scrollableFingerprint": "fp-list",
           "axis": "vertical",
           "offsetNorm": 0.45

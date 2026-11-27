@@ -31,7 +31,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "34e849dd6721310b097c45201cde64425410e88ca80eb71d22a10e2573c929ba"
           }
         },
         "expect": {
@@ -39,11 +40,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-1f3540fe-8eb5-4d44-94d1-bb23d1e2b41c",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-0a2d1849-9097-4911-b210-3ee15e7f2053"
               },
               "userId": null
             }
@@ -142,7 +143,7 @@
             },
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-3",
+              "timerId": "interaction.settle.event-5bb24121-d128-43ad-9494-096a53f0f168",
               "atMonoUs": 5250000
             }
           ]
@@ -155,7 +156,7 @@
             "monoUs": 5250000
           },
           "input": {
-            "timerId": "interaction.settle.event-3"
+            "timerId": "interaction.settle.event-5bb24121-d128-43ad-9494-096a53f0f168"
           }
         },
         "expect": {
@@ -163,7 +164,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.settle.event-3",
+              "timerId": "interaction.settle.event-5bb24121-d128-43ad-9494-096a53f0f168",
               "atMonoUs": 6400000
             }
           ]
@@ -197,7 +198,7 @@
             },
             {
               "type": "timer.cancel",
-              "timerId": "interaction.settle.event-3"
+              "timerId": "interaction.settle.event-5bb24121-d128-43ad-9494-096a53f0f168"
             },
             {
               "type": "timer.schedule",
@@ -276,7 +277,7 @@
               "kind": "frame",
               "handle": "h-detail",
               "frame": {
-                "id": "frame-5",
+                "id": "frame-3",
                 "atMs": 750,
                 "width": 1080,
                 "height": 2400,
@@ -285,23 +286,23 @@
                 "trigger": "route",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-0a2d1849-9097-4911-b210-3ee15e7f2053"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-7",
+                "id": "event-ac3e1596-19a5-4df3-b93f-9714b89436bd",
                 "atMs": 750,
                 "type": "route_change",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-5",
+                "captureSessionId": "session-0a2d1849-9097-4911-b210-3ee15e7f2053",
+                "afterFrame": "frame-3",
                 "result": "navigated",
                 "data": {
                   "route": "/detail",
                   "navigation": "route_push",
-                  "captureRequestId": "capture_request-4",
+                  "captureRequestId": "capture_request-2",
                   "routeName": "/detail",
                   "routeType": "MaterialPageRoute<dynamic>",
                   "routeNamed": true,
@@ -311,8 +312,8 @@
                   "overlayKind": "page",
                   "visualObservationGeneration": 1,
                   "navigationOrigin": "interaction",
-                  "causeEventId": "event-3",
-                  "causedByInteractionId": "event-3",
+                  "causeEventId": "event-5bb24121-d128-43ad-9494-096a53f0f168",
+                  "causedByInteractionId": "event-5bb24121-d128-43ad-9494-096a53f0f168",
                   "interactionAttribution": "delayed_likely",
                   "routeStack": [
                     {
@@ -332,16 +333,16 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-5bb24121-d128-43ad-9494-096a53f0f168",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0a2d1849-9097-4911-b210-3ee15e7f2053",
                 "targetAnchor": {
                   "role": "button",
                   "fingerprint": "fp-buy"
                 },
-                "afterFrame": "frame-5",
+                "afterFrame": "frame-3",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap",
@@ -384,8 +385,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-0a2d1849-9097-4911-b210-3ee15e7f2053",
+        "captureSessionId": "session-0a2d1849-9097-4911-b210-3ee15e7f2053",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -406,7 +407,7 @@
       },
       "frames": [
         {
-          "id": "frame-5",
+          "id": "frame-3",
           "atMs": 750,
           "width": 1080,
           "height": 2400,
@@ -415,29 +416,29 @@
           "trigger": "route",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-0a2d1849-9097-4911-b210-3ee15e7f2053"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-1f3540fe-8eb5-4d44-94d1-bb23d1e2b41c",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-0a2d1849-9097-4911-b210-3ee15e7f2053"
         },
         {
-          "id": "event-7",
+          "id": "event-ac3e1596-19a5-4df3-b93f-9714b89436bd",
           "atMs": 750,
           "type": "route_change",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-5",
+          "captureSessionId": "session-0a2d1849-9097-4911-b210-3ee15e7f2053",
+          "afterFrame": "frame-3",
           "result": "navigated",
           "data": {
             "route": "/detail",
             "navigation": "route_push",
-            "captureRequestId": "capture_request-4",
+            "captureRequestId": "capture_request-2",
             "routeName": "/detail",
             "routeType": "MaterialPageRoute<dynamic>",
             "routeNamed": true,
@@ -447,8 +448,8 @@
             "overlayKind": "page",
             "visualObservationGeneration": 1,
             "navigationOrigin": "interaction",
-            "causeEventId": "event-3",
-            "causedByInteractionId": "event-3",
+            "causeEventId": "event-5bb24121-d128-43ad-9494-096a53f0f168",
+            "causedByInteractionId": "event-5bb24121-d128-43ad-9494-096a53f0f168",
             "interactionAttribution": "delayed_likely",
             "routeStack": [
               {
@@ -464,16 +465,16 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-5bb24121-d128-43ad-9494-096a53f0f168",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0a2d1849-9097-4911-b210-3ee15e7f2053",
           "targetAnchor": {
             "role": "button",
             "fingerprint": "fp-buy"
           },
-          "afterFrame": "frame-5",
+          "afterFrame": "frame-3",
           "data": {
             "interactionSchema": 2,
             "gesture": "tap",

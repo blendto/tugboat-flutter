@@ -25,7 +25,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "d664de6a008234969a49c2721a773096f3666a4f56ec9284d501d6a2c7138710"
           }
         },
         "expect": {
@@ -33,11 +34,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-d8a66c93-05ce-4d19-9091-33231f5103ee",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-0cbe555a-0130-4ae1-ba58-63d6288e6d04"
               },
               "userId": null
             }
@@ -779,11 +780,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-4b87006b-5a38-4d53-a1a4-14774575fbee",
                 "atMs": 100,
                 "type": "external_event",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-0cbe555a-0130-4ae1-ba58-63d6288e6d04",
                 "data": {
                   "name": "after",
                   "parameterKeys": [],
@@ -806,8 +807,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-0cbe555a-0130-4ae1-ba58-63d6288e6d04",
+        "captureSessionId": "session-0cbe555a-0130-4ae1-ba58-63d6288e6d04",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -829,18 +830,18 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-d8a66c93-05ce-4d19-9091-33231f5103ee",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-0cbe555a-0130-4ae1-ba58-63d6288e6d04"
         },
         {
-          "id": "event-2",
+          "id": "event-4b87006b-5a38-4d53-a1a4-14774575fbee",
           "atMs": 100,
           "type": "external_event",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-0cbe555a-0130-4ae1-ba58-63d6288e6d04",
           "data": {
             "name": "after",
             "parameterKeys": [],

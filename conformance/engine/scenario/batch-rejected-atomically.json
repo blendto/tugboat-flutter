@@ -28,7 +28,8 @@
                   "height": 915.0
                 },
                 "platform": "android",
-                "sessionEpoch": 0
+                "sessionEpoch": 0,
+                "idSeed": "3e10c11d64a55862686362f722c7c0e61df6fe9074d2778e53c47f518c061441"
               }
             },
             {
@@ -81,7 +82,8 @@
                   "height": 915.0
                 },
                 "platform": "android",
-                "sessionEpoch": 0
+                "sessionEpoch": 0,
+                "idSeed": "5c8535f8267c4f269539b994ed14e971f745cb403512a913970fd10fe9ea708a"
               }
             },
             {
@@ -116,7 +118,8 @@
                   "height": 915.0
                 },
                 "platform": "android",
-                "sessionEpoch": 0
+                "sessionEpoch": 0,
+                "idSeed": "e69ebbbcb2991007b871b8b85f8399d58c7635e818a5321f5738f4de105cc79d"
               }
             },
             {
@@ -150,7 +153,8 @@
                   "height": 915.0
                 },
                 "platform": "android",
-                "sessionEpoch": 0
+                "sessionEpoch": 0,
+                "idSeed": "99975a2461fed68c6b3a7a8759470b4de39f499b8054e56acce41561b202cfaa"
               }
             },
             {
@@ -182,7 +186,8 @@
                   "height": 915.0
                 },
                 "platform": "android",
-                "sessionEpoch": 0
+                "sessionEpoch": 0,
+                "idSeed": "349cb13895d25a75b335c005407436563f54b30649d1e4a427f9184dff09ac65"
               }
             },
             {
@@ -214,7 +219,8 @@
                   "height": 915.0
                 },
                 "platform": "android",
-                "sessionEpoch": 0
+                "sessionEpoch": 0,
+                "idSeed": "74964a14ceca57d64d1bb3faba15c4f96036b00365107416be941a16ca07bdb2"
               }
             },
             7

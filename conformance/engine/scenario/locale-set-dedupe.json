@@ -30,7 +30,8 @@
               "language": "en",
               "country": "US",
               "tag": "en-US"
-            }
+            },
+            "idSeed": "0f844f5e4679ae13f81d374f646db85d9f46fe911930128e95c9abb190dbecc7"
           }
         },
         "expect": {
@@ -38,11 +39,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-df45bd60-6805-48d9-9b32-873b8c4872d2",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-124b433f-2ccb-41bf-b0c9-7264ee03d438",
                 "locale": {
                   "language": "en",
                   "country": "US",
@@ -113,11 +114,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-f9551880-4f39-4cfa-8d3e-d4ced7bd12d0",
                 "atMs": 200,
                 "type": "locale_changed",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-124b433f-2ccb-41bf-b0c9-7264ee03d438",
                 "data": {
                   "previousLocale": {
                     "language": "en",
@@ -181,11 +182,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-1411287e-71b7-4ee6-a315-9414499886aa",
                 "atMs": 400,
                 "type": "locale_changed",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-124b433f-2ccb-41bf-b0c9-7264ee03d438",
                 "data": {
                   "previousLocale": {
                     "language": "pt",
@@ -230,11 +231,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-5ebcdaa2-e066-44c3-902b-6ebcbe7353db",
                 "atMs": 500,
                 "type": "external_event",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-124b433f-2ccb-41bf-b0c9-7264ee03d438",
                 "data": {
                   "name": "after"
                 },
@@ -256,8 +257,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-124b433f-2ccb-41bf-b0c9-7264ee03d438",
+        "captureSessionId": "session-124b433f-2ccb-41bf-b0c9-7264ee03d438",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -284,11 +285,11 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-df45bd60-6805-48d9-9b32-873b8c4872d2",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-124b433f-2ccb-41bf-b0c9-7264ee03d438",
           "locale": {
             "language": "en",
             "country": "US",
@@ -296,11 +297,11 @@
           }
         },
         {
-          "id": "event-2",
+          "id": "event-f9551880-4f39-4cfa-8d3e-d4ced7bd12d0",
           "atMs": 200,
           "type": "locale_changed",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-124b433f-2ccb-41bf-b0c9-7264ee03d438",
           "data": {
             "previousLocale": {
               "language": "en",
@@ -320,11 +321,11 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-1411287e-71b7-4ee6-a315-9414499886aa",
           "atMs": 400,
           "type": "locale_changed",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-124b433f-2ccb-41bf-b0c9-7264ee03d438",
           "data": {
             "previousLocale": {
               "language": "pt",
@@ -344,11 +345,11 @@
           }
         },
         {
-          "id": "event-4",
+          "id": "event-5ebcdaa2-e066-44c3-902b-6ebcbe7353db",
           "atMs": 500,
           "type": "external_event",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-124b433f-2ccb-41bf-b0c9-7264ee03d438",
           "data": {
             "name": "after"
           },

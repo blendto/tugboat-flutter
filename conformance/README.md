@@ -407,11 +407,13 @@ Fixtures contain no ambient state:
 - Ids: session, event, frame, run, action, and traits ids are literal
   strings. The engine does not generate them in these operations.
 - Scenarios: time comes only from each message's `at`, and the engine mints
-  ids from a fresh handle (`session-<wallUs>`, `event-N` from 0; scenarios
-  send no `idSeed`), so the same steps always produce the same records. A
-  host that sends `session.start.idSeed` gets `session-<UUIDv4>` and
-  `event-<UUIDv4>` instead; `capture_id_vectors.json` pins that format for
-  the engine and Dart (below).
+  ids from a fresh handle: every scenario's `session.start` carries an
+  `idSeed`, from which the engine derives `session-<UUIDv4>` and
+  `event-<UUIDv4>` (and the `collector-…-<UUIDv4>` gap ids); `frame-N`,
+  `capture_request-N` and `capture_execution-N` count from 0. The same steps
+  always produce the same records. `capture_id_vectors.json` pins the id
+  format for the engine and Dart (below), and `engine/scenario/session-id-seed`
+  pins the seed rules.
 - Session and app metadata: everything comes from `host` and `session`.
   Transport settings are not inputs.
 - Contract constants (`interactionSchema` 2, `routeChangeSchema` 2,

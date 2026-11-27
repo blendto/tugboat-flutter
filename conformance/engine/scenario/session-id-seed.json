@@ -1,0 +1,415 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "session-id-seed",
+  "description": "session.start needs idSeed, 64 lowercase hex characters (32 random bytes from the host): a missing, empty, short, long, upper-case or non-hex seed is rejected at $.input.idSeed. With a seed the engine mints session-<UUIDv4> and event-<UUIDv4> from SHA-256(seed || stream index): the session id is stream index 0, then each event takes the next index. A replacing session.start (with its own seed) ends the first session with a session_end under the old stream, then restarts the stream. The id format is also pinned by conformance/capture_id_vectors.json, which Dart runs too.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "configure": {
+      "host": {
+        "$preset": "default-host"
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.idSeed"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "idSeed": ""
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.idSeed"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "idSeed": "11"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.idSeed"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "idSeed": "186f7ef0cac2f13276de75f8b37a3380a7c6259a3a5cd679c1f09926f799a9a"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.idSeed"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "idSeed": "186f7ef0cac2f13276de75f8b37a3380a7c6259a3a5cd679c1f09926f799a9a50"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.idSeed"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "idSeed": "186F7EF0CAC2F13276DE75F8B37A3380A7C6259A3A5CD679C1F09926F799A9A5"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.idSeed"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "idSeed": "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg"
+          }
+        },
+        "expect": {
+          "error": {
+            "status": "invalid_message",
+            "path": "$.input.idSeed"
+          }
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "idSeed": "186f7ef0cac2f13276de75f8b37a3380a7c6259a3a5cd679c1f09926f799a9a5"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-097b40eb-631b-4eb4-996d-c63909ca4f2b",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-268c3cf5-24ea-4d91-9d78-71b03bbf913d"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 5100000
+          },
+          "input": {
+            "state": "inactive"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-a48b0797-b252-449e-8932-9f282900d6f7",
+                "atMs": 100,
+                "type": "app_inactive",
+                "stream": "semantic",
+                "captureSessionId": "session-268c3cf5-24ea-4d91-9d78-71b03bbf913d",
+                "data": {
+                  "state": "inactive"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827300000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "idSeed": "46e5a8e9c98a22bd1e396d7000a1239f398c3ab246411e40f8f69dbeb4410bb2"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-818e621d-3825-40e2-8134-cfaa76e60506",
+                "atMs": 0,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-268c3cf5-24ea-4d91-9d78-71b03bbf913d"
+              },
+              "userId": null
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-a168411b-6f67-4626-82e4-b8512e9cf285",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-9df50e75-7a89-4cd0-b1e1-bb63ffd9703c"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 5200000
+          },
+          "input": {
+            "state": "inactive"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-f66c48eb-e49d-448f-a205-f0d3639a5fc5",
+                "atMs": 200,
+                "type": "app_inactive",
+                "stream": "semantic",
+                "captureSessionId": "session-9df50e75-7a89-4cd0-b1e1-bb63ffd9703c",
+                "data": {
+                  "state": "inactive"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-9df50e75-7a89-4cd0-b1e1-bb63ffd9703c",
+        "captureSessionId": "session-9df50e75-7a89-4cd0-b1e1-bb63ffd9703c",
+        "startedAt": "2026-06-19T00:01:40.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-a168411b-6f67-4626-82e4-b8512e9cf285",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-9df50e75-7a89-4cd0-b1e1-bb63ffd9703c"
+        },
+        {
+          "id": "event-f66c48eb-e49d-448f-a205-f0d3639a5fc5",
+          "atMs": 200,
+          "type": "app_inactive",
+          "stream": "semantic",
+          "captureSessionId": "session-9df50e75-7a89-4cd0-b1e1-bb63ffd9703c",
+          "data": {
+            "state": "inactive"
+          }
+        }
+      ]
+    }
+  }
+}

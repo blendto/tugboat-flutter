@@ -39,8 +39,8 @@ struct StartInput {
   OptString activation_request_id;
   OptString exploration_run_id;
   int64_t session_epoch = 0;
-  // Host entropy for session and event ids (BLE-618); absent: legacy ids.
-  std::optional<std::array<uint8_t, 32>> id_seed;
+  // Host entropy for session and event ids (BLE-618); required.
+  std::array<uint8_t, 32> id_seed{};
 };
 
 class SessionStart final : public Command {
@@ -87,7 +87,7 @@ class SessionStart final : public Command {
   SessionHeader header(EngineState& state) const {
     SessionHeader header;
     // One wall-clock reading for both (Dart reads DateTime.now() twice).
-    header.id = state.ids.next_session_id(*at_.wall_us);
+    header.id = state.ids.next_session_id();
     header.started_at_wall_us = *at_.wall_us;
     header.start_mono_us = at_.mono_us;
     header.platform = input_.platform;
@@ -125,16 +125,14 @@ bool decode_viewport(const ObjectReader& r, StartInput* out, Error* error) {
 }
 
 // `idSeed`: 64 lowercase hex characters (32 random bytes from the host's
-// secure random source). Absent keeps the legacy deterministic ids.
-bool decode_id_seed(const ObjectReader& r,
-                    std::optional<std::array<uint8_t, 32>>* out) {
-  OptString text;
-  if (!r.opt_string("idSeed", &text)) {
+// secure random source). Required: a missing seed is rejected like a
+// malformed one, so the engine never mints counter ids.
+bool decode_id_seed(const ObjectReader& r, std::array<uint8_t, 32>* out) {
+  std::string text_value;
+  if (!r.req_string("idSeed", &text_value)) {
     return false;
   }
-  if (!text) {
-    return true;
-  }
+  const std::string* text = &text_value;
   if (text->size() != 64) {
     return r.reject("idSeed", "must be 64 lowercase hex characters");
   }

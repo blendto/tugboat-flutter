@@ -29,7 +29,7 @@ constexpr char kScrollEndTimerPrefix[] = "interaction.scrollEnd.";
 
 // One scrollable between scroll start and scroll end (Dart `_ScrollTracker`).
 struct ScrollTracker {
-  std::string start_id;  // `event-N`, minted at scroll start
+  std::string start_id;  // `event-<UUIDv4>`, minted at scroll start
   int64_t route_epoch = 0;
   double start_offset = 0;
   OptString before_frame;

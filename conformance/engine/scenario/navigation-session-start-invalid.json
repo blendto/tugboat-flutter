@@ -11,8 +11,8 @@
     },
     "steps": [
       {
-        "send": {"type": "session.start", "at": {"monoUs": 5000000, "wallUs": 1781827200000000}, "input": {"viewport": {"width": 412.0, "height": 915.0}, "platform": "android", "sessionEpoch": 0}},
-        "expect": {"records": [{"kind": "event", "event": {"id": "event-0", "atMs": 0, "type": "session_start", "stream": "semantic", "captureSessionId": "session-1781827200000000"}, "userId": null}], "effects": [{"type": "capture.request", "requestId": "capture-0", "trigger": "initial", "force": true, "requireFreshPaint": true, "dropWhenBusy": false, "notBeforeMonoUs": 5000000, "context": {"routeEpoch": 0, "boundaryGeneration": 0}, "scale": 1.0}, {"type": "timer.schedule", "timerId": "capture.answer.capture-0", "atMonoUs": 10000000}]}
+        "send": {"type": "session.start", "at": {"monoUs": 5000000, "wallUs": 1781827200000000}, "input": {"viewport": {"width": 412.0, "height": 915.0}, "platform": "android", "sessionEpoch": 0, "idSeed": "9506202d528376b30e542dafc93b20f5b09494dc94faaa1aa005393ab7e05564"}},
+        "expect": {"records": [{"kind": "event", "event": {"id": "event-9576969f-1639-4a5b-bb46-8cdecf9a488f", "atMs": 0, "type": "session_start", "stream": "semantic", "captureSessionId": "session-e348abec-6c1a-410b-88d1-4eb41b41d681"}, "userId": null}], "effects": [{"type": "capture.request", "requestId": "capture-0", "trigger": "initial", "force": true, "requireFreshPaint": true, "dropWhenBusy": false, "notBeforeMonoUs": 5000000, "context": {"routeEpoch": 0, "boundaryGeneration": 0}, "scale": 1.0}, {"type": "timer.schedule", "timerId": "capture.answer.capture-0", "atMonoUs": 10000000}]}
       },
       {
         "send": {"type": "capture.result", "at": {"monoUs": 5000000}, "input": {"requestId": "capture-0", "outcome": "failed"}},
@@ -47,9 +47,9 @@
   "expected": {
     "finalSnapshot": {
       "schemaVersion": 10,
-      "session": {"id": "session-1781827200000000", "captureSessionId": "session-1781827200000000", "startedAt": "2026-06-19T00:00:00.000Z", "platform": "android", "viewport": {"x": 0.0, "y": 0.0, "width": 412.0, "height": 915.0}, "truncated": false, "appInfo": {"name": "Example App", "version": "2.4.0", "buildNumber": "240", "installationId": "inst-0001", "appId": "com.example.app", "packageName": "com.example.app"}},
+      "session": {"id": "session-e348abec-6c1a-410b-88d1-4eb41b41d681", "captureSessionId": "session-e348abec-6c1a-410b-88d1-4eb41b41d681", "startedAt": "2026-06-19T00:00:00.000Z", "platform": "android", "viewport": {"x": 0.0, "y": 0.0, "width": 412.0, "height": 915.0}, "truncated": false, "appInfo": {"name": "Example App", "version": "2.4.0", "buildNumber": "240", "installationId": "inst-0001", "appId": "com.example.app", "packageName": "com.example.app"}},
       "frames": [],
-      "events": [{"id": "event-0", "atMs": 0, "type": "session_start", "stream": "semantic", "captureSessionId": "session-1781827200000000"}]
+      "events": [{"id": "event-9576969f-1639-4a5b-bb46-8cdecf9a488f", "atMs": 0, "type": "session_start", "stream": "semantic", "captureSessionId": "session-e348abec-6c1a-410b-88d1-4eb41b41d681"}]
     }
   }
 }

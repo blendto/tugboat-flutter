@@ -37,8 +37,7 @@ std::string format_uuid_v4(const std::array<uint8_t, 16>& in) {
   return out;
 }
 
-void IdCounter::begin_session(
-    const std::optional<std::array<uint8_t, 32>>& seed) {
+void IdCounter::begin_session(const std::array<uint8_t, 32>& seed) {
   seed_ = seed;
   stream_ = 0;
 }
@@ -46,7 +45,7 @@ void IdCounter::begin_session(
 std::string IdCounter::next_uuid_id(const char* prefix) {
   // SHA-256(seed || big-endian stream index): 16 of its 32 bytes feed the
   // UUID, so ids neither repeat nor reveal the seed.
-  std::string input(seed_->begin(), seed_->end());
+  std::string input(seed_.begin(), seed_.end());
   for (int shift = 56; shift >= 0; shift -= 8) {
     input.push_back(static_cast<char>((stream_ >> shift) & 0xff));
   }
@@ -59,15 +58,14 @@ std::string IdCounter::next_uuid_id(const char* prefix) {
   return std::string(prefix) + "-" + format_uuid_v4(bytes);
 }
 
-std::string IdCounter::next_session_id(int64_t wall_us) {
-  if (!seed_) {
-    return "session-" + std::to_string(wall_us);
-  }
-  return next_uuid_id("session");
+std::string IdCounter::next_session_id() { return next_uuid_id("session"); }
+
+std::string IdCounter::next_id(const char* prefix) {
+  return next_uuid_id(prefix);
 }
 
 std::string IdCounter::next_event() {
-  return seed_ ? next_uuid_id("event") : next("event");
+  return next_uuid_id("event");
 }
 
 int64_t Session::at_ms(int64_t mono_us) const {

@@ -32,7 +32,8 @@
               "tag": "en-US"
             },
             "activationRequestId": "activation-7",
-            "explorationRunId": "run-7"
+            "explorationRunId": "run-7",
+            "idSeed": "7ef29faaea246761c3dcdd8eebcde453d2d1d69a06231e8bede3836bdca66418"
           }
         },
         "expect": {
@@ -40,11 +41,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-3a8c8ada-8620-4296-a137-d33560b350bc",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-876cbd6c-fea6-424d-9853-3d4183ad68ce",
                 "activationRequestId": "activation-7",
                 "locale": {
                   "language": "en",
@@ -108,11 +109,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-1f6e22e0-adf4-4d8a-b8c3-49ce37877403",
                 "atMs": 250,
                 "type": "external_event",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-876cbd6c-fea6-424d-9853-3d4183ad68ce",
                 "activationRequestId": "activation-7",
                 "data": {
                   "name": "checkout_started",
@@ -161,11 +162,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-4a84da7e-8f49-4aa6-b085-53d129feb3ee",
                 "atMs": 500,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-876cbd6c-fea6-424d-9853-3d4183ad68ce",
                 "activationRequestId": "activation-7",
                 "data": {
                   "component": "native_capture",
@@ -236,11 +237,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-056419d0-7cbb-41d2-858b-c7bb0b781177",
                 "atMs": 1000,
                 "type": "viewport_semantic_map",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-876cbd6c-fea6-424d-9853-3d4183ad68ce",
                 "activationRequestId": "activation-7",
                 "locale": {
                   "language": "en",
@@ -261,8 +262,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-876cbd6c-fea6-424d-9853-3d4183ad68ce",
+        "captureSessionId": "session-876cbd6c-fea6-424d-9853-3d4183ad68ce",
         "activationRequestId": "activation-7",
         "explorationRunId": "run-7",
         "startedAt": "2026-06-19T00:00:00.000Z",
@@ -291,11 +292,11 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-3a8c8ada-8620-4296-a137-d33560b350bc",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-876cbd6c-fea6-424d-9853-3d4183ad68ce",
           "activationRequestId": "activation-7",
           "locale": {
             "language": "en",
@@ -305,11 +306,11 @@
           "explorationRunId": "run-7"
         },
         {
-          "id": "event-2",
+          "id": "event-1f6e22e0-adf4-4d8a-b8c3-49ce37877403",
           "atMs": 250,
           "type": "external_event",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-876cbd6c-fea6-424d-9853-3d4183ad68ce",
           "activationRequestId": "activation-7",
           "data": {
             "name": "checkout_started",
@@ -331,11 +332,11 @@
           "explorationRunId": "run-7"
         },
         {
-          "id": "event-3",
+          "id": "event-4a84da7e-8f49-4aa6-b085-53d129feb3ee",
           "atMs": 500,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-876cbd6c-fea6-424d-9853-3d4183ad68ce",
           "activationRequestId": "activation-7",
           "data": {
             "component": "native_capture",
@@ -350,11 +351,11 @@
           "explorationRunId": "run-7"
         },
         {
-          "id": "event-4",
+          "id": "event-056419d0-7cbb-41d2-858b-c7bb0b781177",
           "atMs": 1000,
           "type": "viewport_semantic_map",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-876cbd6c-fea6-424d-9853-3d4183ad68ce",
           "activationRequestId": "activation-7",
           "locale": {
             "language": "en",

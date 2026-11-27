@@ -28,7 +28,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "08845d95cfe6d50d3097d2b55563f3b35b17b3a4dce3b219905c3c35065f3bb6"
           }
         },
         "expect": {
@@ -36,11 +37,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-914c7cf3-83fa-4535-a1b1-95ca59ad6fb5",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f"
               },
               "userId": null
             }
@@ -86,17 +87,17 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-e6ceaa00-19f9-4239-8aac-84617f30045f",
                 "atMs": 50,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
                 "data": {
                   "version": 1,
                   "outcome": "capture_processing_failed",
-                  "requestId": "capture_request-1",
-                  "executionId": "capture_execution-2",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-0",
+                  "executionId": "capture_execution-1",
+                  "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
                   "routeEpoch": 0,
                   "trigger": "initial",
                   "visualEvidence": "unavailable",
@@ -130,11 +131,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-78eca839-a9ee-40bc-8343-6107709280de",
                 "atMs": 100,
                 "type": "app_backgrounded",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
                 "data": {
                   "state": "paused"
                 }
@@ -160,11 +161,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-6",
+                "id": "event-a6ef9627-3e00-48ba-b340-89cc329d2030",
                 "atMs": 200,
                 "type": "app_foregrounded",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
                 "data": {
                   "state": "resumed"
                 }
@@ -307,17 +308,17 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-10",
+                "id": "event-7a77309a-0d7f-463c-ab92-f436b2e60868",
                 "atMs": 1350,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
                 "data": {
                   "version": 1,
                   "outcome": "capture_processing_failed",
-                  "requestId": "capture_request-8",
-                  "executionId": "capture_execution-9",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-4",
+                  "executionId": "capture_execution-5",
+                  "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
                   "routeEpoch": 1,
                   "navigatorId": "nav-0",
                   "routeInstanceId": "route-0",
@@ -332,18 +333,18 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-11",
+                "id": "event-312313cb-2fb8-4edd-b023-8ded916bfd7e",
                 "atMs": 1350,
                 "type": "route_change",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
                 "result": "navigated",
                 "data": {
                   "route": "/pin",
                   "navigation": "route_push",
                   "captureOutcome": "failed",
                   "captureFailure": "capture_processing_failed",
-                  "captureRequestId": "capture_request-8",
+                  "captureRequestId": "capture_request-4",
                   "routeName": "/pin",
                   "routeType": "ComposeDestination",
                   "routeNamed": true,
@@ -385,8 +386,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-672f7624-2f13-46ba-af31-eda42404b12f",
+        "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -408,24 +409,24 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-914c7cf3-83fa-4535-a1b1-95ca59ad6fb5",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f"
         },
         {
-          "id": "event-3",
+          "id": "event-e6ceaa00-19f9-4239-8aac-84617f30045f",
           "atMs": 50,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
           "data": {
             "version": 1,
             "outcome": "capture_processing_failed",
-            "requestId": "capture_request-1",
-            "executionId": "capture_execution-2",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-0",
+            "executionId": "capture_execution-1",
+            "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
             "routeEpoch": 0,
             "trigger": "initial",
             "visualEvidence": "unavailable",
@@ -434,37 +435,37 @@
           }
         },
         {
-          "id": "event-4",
+          "id": "event-78eca839-a9ee-40bc-8343-6107709280de",
           "atMs": 100,
           "type": "app_backgrounded",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
           "data": {
             "state": "paused"
           }
         },
         {
-          "id": "event-6",
+          "id": "event-a6ef9627-3e00-48ba-b340-89cc329d2030",
           "atMs": 200,
           "type": "app_foregrounded",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
           "data": {
             "state": "resumed"
           }
         },
         {
-          "id": "event-10",
+          "id": "event-7a77309a-0d7f-463c-ab92-f436b2e60868",
           "atMs": 1350,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
           "data": {
             "version": 1,
             "outcome": "capture_processing_failed",
-            "requestId": "capture_request-8",
-            "executionId": "capture_execution-9",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-4",
+            "executionId": "capture_execution-5",
+            "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
             "routeEpoch": 1,
             "navigatorId": "nav-0",
             "routeInstanceId": "route-0",
@@ -475,18 +476,18 @@
           }
         },
         {
-          "id": "event-11",
+          "id": "event-312313cb-2fb8-4edd-b023-8ded916bfd7e",
           "atMs": 1350,
           "type": "route_change",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-672f7624-2f13-46ba-af31-eda42404b12f",
           "result": "navigated",
           "data": {
             "route": "/pin",
             "navigation": "route_push",
             "captureOutcome": "failed",
             "captureFailure": "capture_processing_failed",
-            "captureRequestId": "capture_request-8",
+            "captureRequestId": "capture_request-4",
             "routeName": "/pin",
             "routeType": "ComposeDestination",
             "routeNamed": true,
