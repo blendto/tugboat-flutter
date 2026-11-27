@@ -38,8 +38,9 @@ struct LayerAllowlist: Equatable {
   ///   `CAShapeLayer` subclass without contents). Plain colour fills are
   ///   contents-less `CALayer`s and stay visible.
   /// - iOS 27.2 (simulator runtime 27.2, build 24B8117; probe 2026-11-28,
-  ///   a throwaway test dumping layer classes and frame IoU): the same three class names. Text layers are
-  ///   `CGDrawingLayer` (IoU 1.00 on a title and a body line), bitmap images
+  ///   `LayerProbeTests`, which dumps layer classes and frame IoU and can be
+  ///   re-run on any simulator or device): the same three class names. Text
+  ///   layers are `CGDrawingLayer` (IoU 1.00 on a title and a body line), bitmap images
   ///   `SwiftUI.ImageLayer` (IoU 1.00), a resizable SF Symbol and a
   ///   font-sized one `ColorShapeLayer` (IoU 1.00 and 0.73, both inside the
   ///   mask), and a `Label`'s symbol an `ImageLayer` (19 pt, padded by the

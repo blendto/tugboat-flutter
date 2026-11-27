@@ -25,8 +25,8 @@ import Foundation
 /// (`BridgedNavigationView`), and `TabView` (`UIKitAdaptableTabView`).
 /// The same five hosts were checked again on the iOS 27.2 simulator
 /// (2026-11-28, same `ContainerHostTests` dumps): the host type names are
-/// unchanged. Sheets and full-screen covers present a hosting controller directly
-/// (no platform-view host), so they need no entry.
+/// unchanged. Sheets and full-screen covers present a hosting controller
+/// directly (no platform-view host), so they need no entry.
 enum KnownPlatformViews {
   static let swiftUIModule = "SwiftUI"
 

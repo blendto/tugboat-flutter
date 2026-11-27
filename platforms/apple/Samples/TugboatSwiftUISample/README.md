@@ -160,10 +160,10 @@ With the local collector running on port 3000:
   - no `stateAnchor` on any v2 interaction.
 - `pmkit.frame_captures` and S3 `pmkit-frames/<sessionId>/<frameNo>.jpg`:
   frames with `requestedBackend` / `resolvedBackend` `iosViewHierarchy`.
-  On iOS 26 text and images inside the `NavigationStack` are masked per
+  On iOS 26 and 27 text and images inside the `NavigationStack` are masked per
   layer (dark `#1a1a1a` boxes over text, images and SF Symbols; the rest of
   the screen is visible) and `capture_masking` says `precise`; on iOS 15–25
-  every frame is masked whole (unverified layer allowlist) and says
+  (and any major above 27) every frame is masked whole (unverified layer allowlist) and says
   `wholeFrame`. Landscape frames after step 7 have the
   rotated size.
 - Collector logs: no 400 responses; one 404 for `GET /orders/42` (the
