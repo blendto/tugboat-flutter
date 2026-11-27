@@ -57,7 +57,7 @@ void record_event(EngineState* state, Session& session, Event event,
 Event make_event(EngineState* state, const Session& session,
                  const char* type, int64_t mono_us) {
   Event event;
-  event.id = state->ids.next("event");
+  event.id = state->ids.next_event();
   event.at_ms = session.at_ms(mono_us);
   event.type = type;
   return event;

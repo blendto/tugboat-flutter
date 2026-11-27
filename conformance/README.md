@@ -32,6 +32,7 @@ conformance/
   README.md
   change_ids.json                   section 11 change ids (not a fixture)
   retry_after_vectors.json          shared Retry-After parser vectors (not a fixture)
+  capture_id_vectors.json           shared session/event id format vectors (not a fixture)
   fingerprint/
     identity_parts/<name>.json      kind fingerprint.identityParts
     label_hash/<name>.json          kind fingerprint.labelHash
@@ -51,7 +52,22 @@ conformance/
 One case per file. The file name stem equals the fixture `name`, and the
 directory is fixed by `kind`. A runner loads every `*.json` under
 `conformance/` recursively except the shared inputs `change_ids.json`,
-`retry_after_vectors.json`, and `engine/presets.json`.
+`retry_after_vectors.json`, `capture_id_vectors.json`, and `engine/presets.json`.
+
+## Session and event id vectors
+
+`capture_id_vectors.json` (kind `capture_id.vectors`, not an envelope
+fixture) pins the shape of session and event ids (BLE-618, Dart 0.12.3):
+`<prefix>-<UUIDv4>` with `prefix` `session` or `event`, lowercase canonical,
+version nibble `4`, variant `10xx`. Each vector gives 16 random bytes
+(`bytesHex`) and the id they must produce; `idPattern` is the regular
+expression every minted id must match. The C++ engine
+(`tb_session_engine_stateful_test`) and Dart (`capture_id_conformance_test`)
+both run the file. Where the bytes come from is not shared: Dart draws them
+from `Random.secure()`; the engine, which is I/O-free (ADR 0009), derives
+them from a host-supplied 32-byte `session.start.idSeed` as the first 16 bytes
+of `SHA-256(seed || big-endian stream index)`, pinned by the engine's own
+unit test.
 
 ## Fixture envelope
 
@@ -147,7 +163,7 @@ settings (base URL, API key, batching).
 | `app.name` | string | Display name. Never sent. |
 | `app.version` | string | Version name, sent as `versionName` / `appInfo.version`. |
 | `app.buildNumber` | string | Build number. |
-| `app.installationId` | string | Per-install id. Not sent in session records. |
+| `app.installationId` | string | Per-install id. Sent as `appInfo.installationId` on `session_start`. |
 | `app.appId` | string | Package or bundle id. Also sent as `packageName`. |
 | `device.id` | string | Device id. |
 | `device.platform` | string | `android`, `ios`, and so on. Part of build identity. |
@@ -391,8 +407,11 @@ Fixtures contain no ambient state:
 - Ids: session, event, frame, run, action, and traits ids are literal
   strings. The engine does not generate them in these operations.
 - Scenarios: time comes only from each message's `at`, and the engine mints
-  ids from a fresh handle (`session-<wallUs>`, `event-N` from 0), so the
-  same steps always produce the same records.
+  ids from a fresh handle (`session-<wallUs>`, `event-N` from 0; scenarios
+  send no `idSeed`), so the same steps always produce the same records. A
+  host that sends `session.start.idSeed` gets `session-<UUIDv4>` and
+  `event-<UUIDv4>` instead; `capture_id_vectors.json` pins that format for
+  the engine and Dart (below).
 - Session and app metadata: everything comes from `host` and `session`.
   Transport settings are not inputs.
 - Contract constants (`interactionSchema` 2, `routeChangeSchema` 2,

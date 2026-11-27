@@ -3,6 +3,7 @@
 #ifndef TUGBOAT_SESSION_ENGINE_SESSION_H
 #define TUGBOAT_SESSION_ENGINE_SESSION_H
 
+#include <array>
 #include <cstdint>
 #include <deque>
 #include <optional>
@@ -20,15 +21,38 @@ namespace engine {
 // One counter per engine handle for `event-N`, `frame-N`,
 // `capture_request-N`, and `capture_execution-N`, starting at 0. Never reset
 // per session (change C7: kept as Dart has it).
+//
+// Session and event ids are different (BLE-618, Dart 0.12.3): when the host
+// sends a 32-byte `idSeed` with `session.start`, `begin_session` seeds a
+// per-session stream and `next_session_id` / `next_event` return
+// `session-<UUIDv4>` / `event-<UUIDv4>`. Without a seed they keep the
+// deterministic legacy ids (`session-<wallUs>`, `event-N`) that the pinned
+// engine.scenario fixtures use; production hosts always send the seed.
 class IdCounter {
  public:
   std::string next(const char* prefix);
   // Also stores the minted number (the `N` of `<prefix>-N`) in `*number`.
   std::string next(const char* prefix, int64_t* number);
 
+  // Starts the id stream of a new session. `seed` is host entropy (nullopt:
+  // legacy ids). The stream restarts, so a seed must never be reused.
+  void begin_session(const std::optional<std::array<uint8_t, 32>>& seed);
+  // `session-<UUIDv4>`, or `session-<wall_us>` without a seed.
+  std::string next_session_id(int64_t wall_us);
+  // `event-<UUIDv4>`, or `event-N` without a seed.
+  std::string next_event();
+
  private:
+  std::string next_uuid_id(const char* prefix);
+
   int64_t next_ = 0;
+  std::optional<std::array<uint8_t, 32>> seed_;
+  uint64_t stream_ = 0;
 };
+
+// The 16 bytes as a lowercase canonical UUID with the version (4) and
+// variant bits forced, exactly as Dart's `generateTugboatUuidV4`.
+std::string format_uuid_v4(const std::array<uint8_t, 16>& bytes);
 
 // What `session.start` fixes for the session's lifetime.
 struct SessionHeader {

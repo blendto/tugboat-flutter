@@ -115,7 +115,7 @@ void link_cause(RouteCaptures* routes, const RouteWorkPtr& prior,
 std::string record(Turn& turn, const RouteWork& work,
                    const OptString& after_frame,
                    const RouteChangeCapture& capture) {
-  const std::string event_id = turn.state->ids.next("event");
+  const std::string event_id = turn.state->ids.next_event();
   if (const std::string* cause = work.change.cause_event_id()) {
     attach_route_frame(turn.state, *cause, after_frame);
   }

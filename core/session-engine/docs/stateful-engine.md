@@ -152,7 +152,7 @@ the delivery result). Strict decoding still rejects a non-string
 
 | State | Today | Notes |
 | --- | --- | --- |
-| Session id, `startedAt` | controller `start()` | `session-<wallUs>` from `session.start` `at.wallUs`; `startedAt` from the same value (Dart reads `DateTime.now()` twice) |
+| Session id, `startedAt` | controller `start()` | `session-<UUIDv4>` when `session.start` carries `idSeed` (BLE-618), else the legacy `session-<wallUs>` from `at.wallUs`; `startedAt` from `at.wallUs` (Dart reads `DateTime.now()` twice) |
 | Id counter | `_nextId` | One counter for `event-N`, `frame-N`, `capture_request-N`, `capture_execution-N`. Per engine handle and never reset per session, as today. |
 | Navigator / route-instance counters | `_surfaces` | `nav-N` / `route-N` are reset per session. Adapters send opaque ids; the engine maps them (section 8.1). |
 | Viewport, platform, app info, locale | `TugboatSession` | From `session.start` and `engine.configure`. |

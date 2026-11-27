@@ -1,0 +1,80 @@
+{
+  "fixtureFormat": 1,
+  "kind": "capture_id.vectors",
+  "description": "Shared session/event id vectors (BLE-618) for the C++ engine and Dart generateTugboatCaptureId: 16 random bytes become `<prefix>-<UUIDv4>`, lowercase canonical, version nibble 4, variant 10xx. Both runners also check the `idPattern` regex on every id they mint.",
+  "idPattern": "^(session|event)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+  "vectors": [
+    {
+      "name": "zeros-session",
+      "prefix": "session",
+      "bytesHex": "00000000000000000000000000000000",
+      "expected": "session-00000000-0000-4000-8000-000000000000"
+    },
+    {
+      "name": "zeros-event",
+      "prefix": "event",
+      "bytesHex": "00000000000000000000000000000000",
+      "expected": "event-00000000-0000-4000-8000-000000000000"
+    },
+    {
+      "name": "ones-session",
+      "prefix": "session",
+      "bytesHex": "ffffffffffffffffffffffffffffffff",
+      "expected": "session-ffffffff-ffff-4fff-bfff-ffffffffffff"
+    },
+    {
+      "name": "ones-event",
+      "prefix": "event",
+      "bytesHex": "ffffffffffffffffffffffffffffffff",
+      "expected": "event-ffffffff-ffff-4fff-bfff-ffffffffffff"
+    },
+    {
+      "name": "sequence-session",
+      "prefix": "session",
+      "bytesHex": "000102030405060708090a0b0c0d0e0f",
+      "expected": "session-00010203-0405-4607-8809-0a0b0c0d0e0f"
+    },
+    {
+      "name": "sequence-event",
+      "prefix": "event",
+      "bytesHex": "000102030405060708090a0b0c0d0e0f",
+      "expected": "event-00010203-0405-4607-8809-0a0b0c0d0e0f"
+    },
+    {
+      "name": "descending-session",
+      "prefix": "session",
+      "bytesHex": "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0",
+      "expected": "session-fffefdfc-fbfa-49f8-b7f6-f5f4f3f2f1f0"
+    },
+    {
+      "name": "descending-event",
+      "prefix": "event",
+      "bytesHex": "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0",
+      "expected": "event-fffefdfc-fbfa-49f8-b7f6-f5f4f3f2f1f0"
+    },
+    {
+      "name": "rfc-example-session",
+      "prefix": "session",
+      "bytesHex": "f47ac10b58cc4372a5670e02b2c3d479",
+      "expected": "session-f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    },
+    {
+      "name": "rfc-example-event",
+      "prefix": "event",
+      "bytesHex": "f47ac10b58cc4372a5670e02b2c3d479",
+      "expected": "event-f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    },
+    {
+      "name": "version-variant-already-set-session",
+      "prefix": "session",
+      "bytesHex": "00000000000040008000000000000000",
+      "expected": "session-00000000-0000-4000-8000-000000000000"
+    },
+    {
+      "name": "version-variant-already-set-event",
+      "prefix": "event",
+      "bytesHex": "00000000000040008000000000000000",
+      "expected": "event-00000000-0000-4000-8000-000000000000"
+    }
+  ]
+}

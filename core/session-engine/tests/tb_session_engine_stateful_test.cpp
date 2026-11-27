@@ -4,11 +4,17 @@
 // configuration across sessions. Behaviour visible through the public
 // protocol is pinned by conformance/engine/scenario/ instead.
 #include <algorithm>
+#include <array>
+#include <fstream>
+#include <regex>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "clock.h"
+#include "conformance_files.h"
+#include "session.h"
 #include "engine.h"
 #include "json.h"
 #include "lifecycle.h"
@@ -466,6 +472,97 @@ void test_configure_between_sessions() {
   tb_session_engine_destroy(engine);
 }
 
+std::string seeded_start(int64_t mono_us, const std::string& seed_hex) {
+  return "{\"type\":\"session.start\",\"at\":{\"monoUs\":" +
+         std::to_string(mono_us) + ",\"wallUs\":" + std::to_string(mono_us) +
+         "},\"input\":{\"viewport\":{\"width\":1,\"height\":2},"
+         "\"platform\":\"android\",\"sessionEpoch\":0,\"idSeed\":\"" +
+         seed_hex + "\"}}";
+}
+
+// BLE-618: with a host `idSeed` the engine mints `session-<UUIDv4>` and
+// `event-<UUIDv4>` from SHA-256(seed || stream index); without it, the
+// legacy counters. The expected ids are pinned (computed with Python
+// hashlib); the shared format vectors are in
+// conformance/capture_id_vectors.json.
+void test_seeded_ids() {
+  const std::string seed_a(64, '1');
+  tb_session_engine* engine = make_engine();
+  CHECK(submit(engine, configure("null")).status == TB_SESSION_OK);
+  auto started = submit(engine, seeded_start(0, seed_a));
+  CHECK(started.status == TB_SESSION_OK);
+  CHECK(contains(started.json,
+                 "\"id\":\"event-1ebd4283-1ae2-41e9-b44f-398b13182428\""));
+  CHECK(contains(started.json,
+                 "session-f81644b2-12d3-462e-b98c-29d15b723874"));
+  auto record = submit(engine,
+                       fact("event.record", 10,
+                            "{\"eventType\":\"external_event\",\"stream\":"
+                            "\"evidence\",\"attachActionContext\":false}"));
+  CHECK(contains(record.json,
+                 "\"id\":\"event-ebeddfd2-b7f9-409e-89ce-bbf04e2f85c6\""));
+  CHECK(submit(engine, fact("session.end", 20, "{}")).status ==
+        TB_SESSION_OK);
+  // A new session with a new seed: new ids, no counter carried over.
+  const std::string seed_b =
+      "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+  started = submit(engine, seeded_start(100, seed_b));
+  CHECK(contains(started.json,
+                 "session-a9d6e500-293a-48bd-b8cb-e213d07ab71f"));
+  CHECK(contains(started.json,
+                 "\"id\":\"event-6061c438-6d7a-4788-ba52-e2e8b2ee6fe6\""));
+  CHECK(submit(engine, fact("session.end", 120, "{}")).status ==
+        TB_SESSION_OK);
+  // No seed: the legacy deterministic ids the pinned scenarios use.
+  started = submit(engine, start_message(200));
+  CHECK(contains(started.json, "session-200"));
+  CHECK(contains(started.json, "\"id\":\"event-"));
+  CHECK(!contains(started.json, "event-6061"));
+  CHECK(submit(engine, fact("session.end", 220, "{}")).status ==
+        TB_SESSION_OK);
+  // A malformed seed is rejected: wrong length, upper case, not hex.
+  const std::string good = seed_b;
+  for (const std::string& bad :
+       {std::string(), std::string("11"), good + "00",
+        std::string(64, 'A'), std::string(64, 'g')}) {
+    auto rejected = submit(engine, seeded_start(300, bad));
+    CHECK(rejected.status == TB_SESSION_INVALID_MESSAGE &&
+          contains(rejected.json, "$.input.idSeed"));
+  }
+  tb_session_engine_destroy(engine);
+}
+
+// The shared vectors (conformance/capture_id_vectors.json) that Dart's
+// generateTugboatCaptureId also passes, and the id pattern both check.
+void test_capture_id_vectors() {
+  std::ifstream in(std::string(TB_CONFORMANCE_DIR) + "/" +
+                   conformance::kCaptureIdVectorsFile);
+  std::stringstream buffer;
+  buffer << in.rdbuf();
+  Value doc;
+  tugboat::engine::ParseError parse_error;
+  CHECK(tugboat::engine::parse_json(buffer.str(), 64, &doc, &parse_error));
+  const Value* vectors = doc.find("vectors");
+  CHECK(vectors && vectors->is_array());
+  const std::regex pattern(doc.find("idPattern")->as_string());
+  size_t count = 0;
+  for (const Value& entry : vectors->items()) {
+    const std::string hex = entry.find("bytesHex")->as_string();
+    CHECK(hex.size() == 32);
+    std::array<uint8_t, 16> bytes{};
+    for (size_t i = 0; i < bytes.size(); ++i) {
+      bytes[i] = static_cast<uint8_t>(
+          std::stoi(hex.substr(i * 2, 2), nullptr, 16));
+    }
+    const std::string id = entry.find("prefix")->as_string() + "-" +
+                           tugboat::engine::format_uuid_v4(bytes);
+    CHECK_EQ(id, entry.find("expected")->as_string());
+    CHECK(std::regex_match(id, pattern));
+    ++count;
+  }
+  CHECK(count >= 8);
+}
+
 // `engine.config` echoes the effective configuration: the defaults on a
 // fresh handle, then what `engine.configure` set (absent fields default).
 void test_engine_config_query() {
@@ -580,6 +677,8 @@ int main() {
   test_records_json();
   test_effects_json();
   test_configure_between_sessions();
+  test_seeded_ids();
+  test_capture_id_vectors();
   test_engine_config_query();
   test_configure_in_batch();
   test_periodic_flush_catch_up();
