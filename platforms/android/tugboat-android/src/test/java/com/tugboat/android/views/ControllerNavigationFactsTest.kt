@@ -116,11 +116,11 @@ class ControllerNavigationFactsTest {
 
         NavigationObservation.onNavDestination(activity, NavEntry("h", "Tabs/Home", 0), null)
 
-        // Cart and Shipping leave invisibly (no route_change), then Payment pops.
+        // One pop per screen above Home, top first: the engine ends with [Home].
         val facts = navigation()
-        assertEquals(listOf("remove", "remove", "pop"), facts.map { it.getString("kind") })
-        assertEquals(listOf("Cart", "Shipping", "Payment"), facts.map { it.getJSONObject("departing").getString("name") })
-        assertEquals("Tabs/Home", facts.last().getJSONObject("route").getString("name"))
+        assertEquals(listOf("pop", "pop", "pop"), facts.map { it.getString("kind") })
+        assertEquals(listOf("Payment", "Shipping", "Cart"), facts.map { it.getJSONObject("departing").getString("name") })
+        assertEquals(listOf("Shipping", "Cart", "Tabs/Home"), facts.map { it.getJSONObject("route").getString("name") })
 
         // The next screen stacks on Home only.
         NavigationObservation.onNavDestination(activity, NavEntry("pr", "Tabs/Profile", 0), null)

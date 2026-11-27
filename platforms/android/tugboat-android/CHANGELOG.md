@@ -15,11 +15,11 @@ wiring, window capture, and the Android Views adapter.
 
 - A pop back to a screen several levels down (`Tugboat.setScreen` with an
   instance id already on the stack, or a `NavController` `popBackStack` to an
-  earlier destination) now removes every screen above it. The engine's `pop`
-  removes one route, so the screens in between leave first as `remove` facts
-  (no `route_change`, as Flutter's `popUntil`), then the top pops: one
-  `route_pop`, `routeStack` the remaining screens. It kept the in-between
-  screens, so later routes stacked on top of them.
+  earlier destination) now reports one `pop` per screen above it, top first,
+  as Flutter's `popUntil` does. The engine's `pop` removes one route, so the
+  single `pop` sent before left the in-between screens in `routeStack` and
+  later routes stacked on them. The session records one `route_pop` whose
+  `routeStack` is the remaining screens.
 
 - Seams for the React Native SDK (no change for apps that do not use them):
   `Tugboat.setScreen(name, instanceId = name)` names the current screen
