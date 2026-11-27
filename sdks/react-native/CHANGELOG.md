@@ -4,8 +4,10 @@
 
 - Taps carry `routeKey`, as in the Flutter SDK (needs the `tugboat-android` of this tree).
 - One initial route: the activity is no longer a route of its own, so the first
-  route is the first screen named by `setScreen` / `trackNavigation` (it was the
-  activity, then that screen). An app that never names a screen reports no routes.
+  route is the first screen named by `setScreen` / `trackNavigation`, reported as
+  the session's initial route (`session_start`, with a frame of that screen), as
+  in Flutter (it was the activity, then that screen). An app that never names a
+  screen reports no routes.
 
 ## 0.0.2
 
