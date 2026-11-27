@@ -26,12 +26,38 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
+# Monorepo checkout: the example always builds against the
+# TugboatCaptureRuntime source in this repo, whatever its version. The
+# plugin's tugboat.podspec pins the runtime release published on trunk; that
+# pin is rewritten to the in-repo version for this resolve only, so the
+# published podspec stays as it is.
+repo_root = File.expand_path('../../../../../../', __dir__)
+in_repo_runtime = Pod::Specification.from_file(File.join(repo_root, 'TugboatCaptureRuntime.podspec'))
+
+module TugboatInRepoRuntime
+  class << self
+    attr_accessor :version
+  end
+
+  def dependencies(platform = nil)
+    pinned = super
+    return pinned unless root.name == 'tugboat'
+
+    pinned.map do |dependency|
+      next dependency unless dependency.name == 'TugboatCaptureRuntime'
+
+      Pod::Dependency.new(dependency.name, TugboatInRepoRuntime.version)
+    end
+  end
+end
+TugboatInRepoRuntime.version = in_repo_runtime.version.to_s
+Pod::Specification.prepend(TugboatInRepoRuntime)
+
 target 'Runner' do
   use_frameworks!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-  # Monorepo checkout: compile TugboatCaptureRuntime from this repo instead of trunk.
-  pod 'TugboatCaptureRuntime', :path => File.expand_path('../../../../../../', __dir__)
+  pod 'TugboatCaptureRuntime', :path => repo_root
   target 'RunnerTests' do
     inherit! :search_paths
   end
