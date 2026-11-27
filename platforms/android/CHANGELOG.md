@@ -1,5 +1,15 @@
 # Android capture-runtime
 
+## 0.3.1
+
+Unpublished. Behaviour fix; no API change.
+
+- `CaptureRuntime.dispose()` now answers every capture that was queued and
+  had not started with `CaptureStatus.Disposed`, on the calling thread,
+  before it returns. They were dropped without a callback, against the
+  documented "pending captures complete with `Disposed`". The capture
+  running at that moment still answers once, as before.
+
 ## 0.3.0
 
 Unpublished; supersedes the never-published 0.2.0. Additive.

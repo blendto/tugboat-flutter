@@ -4,7 +4,8 @@ import java.io.ByteArrayOutputStream
 import java.security.MessageDigest
 
 /**
- * The engine's `fingerprint.identityParts` hash (fingerprint schema v6),
+ * The engine's `fingerprint.identityParts` hash (at
+ * [com.tugboat.android.engine.EngineContract.fingerprintSchemaVersion]),
  * computed in Kotlin because the engine thread is not synchronous with the
  * main thread. Verified against every
  * `conformance/fingerprint/identity_parts` vector.
@@ -15,7 +16,6 @@ import java.security.MessageDigest
  * SHA-256 over the UTF-8 bytes, or `""` for no parts.
  */
 internal object IdentityHash {
-    const val FINGERPRINT_SCHEMA_VERSION = 6
     private const val HEX_LENGTH = 16
 
     fun canonicalString(parts: Map<String, String>): String =

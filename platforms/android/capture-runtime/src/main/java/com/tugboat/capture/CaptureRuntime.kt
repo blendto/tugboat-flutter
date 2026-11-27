@@ -79,9 +79,18 @@ class CaptureRuntime(
         cancelledId.set(requestId)
     }
 
+    /**
+     * Stops the runtime. Every capture queued and not yet started completes
+     * with [CaptureStatus.Disposed], on the calling thread, before this
+     * returns; the capture running now still answers once (`Disposed`, or its
+     * result if it was already past the last check). Later captures complete
+     * with `Disposed` at once.
+     */
     fun dispose() {
         if (!disposed.compareAndSet(false, true)) return
-        executor.shutdownNow()
+        // The tasks shutdownNow returns never started, so no one else answers them.
+        val neverStarted = executor.shutdownNow()
+        neverStarted.forEach { task -> (task as? QueuedCapture)?.completeDisposed() }
         runCatching { executor.awaitTermination(500, TimeUnit.MILLISECONDS) }
     }
 
@@ -95,9 +104,23 @@ class CaptureRuntime(
             return
         }
         try {
-            executor.execute { runCapture(source, request, onComplete) }
+            executor.execute(QueuedCapture(request, onComplete) { runCapture(source, request, onComplete) })
         } catch (_: RejectedExecutionException) {
             onComplete(framelessResult(request, CaptureStatus.Disposed))
+        }
+    }
+
+    /** A capture waiting its turn: [dispose] can answer it without running it. */
+    private class QueuedCapture(
+        private val request: CaptureRequest,
+        private val onComplete: (CaptureResult) -> Unit,
+        private val run: () -> Unit,
+    ) : Runnable {
+        override fun run() = run.invoke()
+
+        /** One callback that throws does not keep the others from being answered. */
+        fun completeDisposed() {
+            runCatching { onComplete(framelessResult(request, CaptureStatus.Disposed)) }
         }
     }
 

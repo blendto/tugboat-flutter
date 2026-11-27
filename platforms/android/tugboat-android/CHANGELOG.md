@@ -5,6 +5,14 @@
 Unpublished. The native Android SDK for Views apps: public facade, engine
 wiring, window capture, and the Android Views adapter.
 
+- Host cleanups (BLE-664): when the engine host disables itself (a fatal
+  engine status), the outbox drainer and every observer stop, which ends the
+  per-frame fact encoding; a closed host takes no post without releasing its
+  frames. The `session_start` fields are checked once per start. The
+  fingerprint schema version in `targetAnchor` is read from the engine
+  (`tb_session_engine_fingerprint_schema_version`, through a handle-free JNI
+  binding) instead of a hard-coded 6. Needs `capture-runtime` 0.3.1.
+
 - Session and event ids, installation id (contract change: identity, BLE-618):
   session ids are `session-<UUIDv4>` and event ids `event-<UUIDv4>` (were
   `session-<epoch microseconds>` and `event-<counter>`), as Flutter 0.12.3;

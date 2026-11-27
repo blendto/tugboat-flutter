@@ -200,7 +200,13 @@ object Tugboat {
         if (config.durableOutbox) outbox.sweepAtStart(OutboxSettings.of(config))
         NavigationObservation.ensureInstalled(application)
         NavigationObservation.onResumed = launch::onActivityResumed
-        reconcile()
+        // Only the session this start begins reuses the check above; a later one (activate) reads a fresh device snapshot.
+        startValidated = true
+        try {
+            reconcile()
+        } finally {
+            startValidated = false
+        }
     }
 
     /**
@@ -427,6 +433,9 @@ object Tugboat {
         startSession(app, cfg, epoch, id)
     }
 
+    /** Main thread: true only while [start] runs [reconcile], right after [TugboatRuntime.refusal] passed. */
+    private var startValidated = false
+
     private fun startSession(application: Application, config: TugboatConfig, epoch: Int, id: String?) {
         val transport = openTransportForTesting ?: { JniEngineTransport.open() }
         val started = TugboatRuntime.start(
@@ -435,6 +444,8 @@ object Tugboat {
             sessionEpoch,
             activationRequestId = id,
             openTransport = transport,
+            // Only inside `start`, which just refused blank fields; a later session checks its own snapshot.
+            validated = startValidated,
         )
         if (started == null) return markFailed(epoch)
         sessionEpoch++

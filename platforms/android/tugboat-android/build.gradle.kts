@@ -11,6 +11,12 @@ plugins {
 // only repository below is the untracked `.local-maven`.
 val tugboatAndroidVersion = "0.1.0"
 
+// The fingerprint schema version in the engine's C header: the one source JVM tests (which cannot load
+// libtugboat_engine; EngineContract) and the device test (NativeEngineTest) compare the engine against.
+val engineHeader = rootProject.projectDir.resolve("../../core/session-engine/include/tugboat/tb_session_engine.h").canonicalFile
+val fingerprintSchemaVersion = Regex("""#define\s+TB_SESSION_ENGINE_FINGERPRINT_SCHEMA_VERSION\s+(\d+)""")
+    .find(engineHeader.readText())!!.groupValues[1]
+
 android {
     namespace = "com.tugboat.android"
     compileSdk = 36
@@ -20,6 +26,7 @@ android {
         minSdk = 24
         consumerProguardFiles("consumer-rules.pro")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunnerArguments["engineFingerprintSchemaVersion"] = fingerprintSchemaVersion
         buildConfigField("String", "SDK_VERSION", "\"$tugboatAndroidVersion\"")
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
@@ -71,6 +78,8 @@ android {
         // Evidence messages as the engine takes them, and the data it records (EvidenceConformanceTest).
         val evidenceFixtures = rootProject.projectDir.resolve("../../conformance/evidence").canonicalFile
         unitTests.all { test ->
+            test.systemProperty("tugboat.engine.fingerprintSchemaVersion", fingerprintSchemaVersion)
+            test.inputs.file(engineHeader)
             test.systemProperty("tugboat.engineSources", engineSources.path)
             test.inputs.file(engineSources.resolve("src/transport.cpp"))
             test.inputs.file(statusFixture)

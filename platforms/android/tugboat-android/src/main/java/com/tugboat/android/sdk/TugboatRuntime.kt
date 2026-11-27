@@ -82,11 +82,7 @@ internal class TugboatRuntime private constructor(
         if (stopped) return
         stopped = true
         evidence.close()
-        drainer?.stop()
-        adapter.stop()
-        lifecycle.stop()
-        locale.stop()
-        foreground.stop()
+        detach()
         stopSequence.run(
             watcher = watcher,
             endSession = { host.post(SessionMessages.SESSION_END, SessionMessages.sessionEnd(), clock.now()) },
@@ -95,6 +91,34 @@ internal class TugboatRuntime private constructor(
                 captures.dispose()
             },
         )
+    }
+
+    /**
+     * The engine host shut itself down (main thread). The session has nobody
+     * to report to, so what feeds or replays for it stops now: the drainer
+     * and every observer, which also ends the per-frame fact encoding, and the
+     * pixel runtime, so its idle thread does not linger until [stop]. [stop]
+     * still runs the rest of its sequence and is safe after this (disposing the
+     * capture runtime twice is a no-op).
+     */
+    private fun onHostDisabled() {
+        if (stopped) return
+        Log.w(TAG, "the engine host stopped; detaching the Tugboat observers and the outbox drainer")
+        detach()
+        // The disposal may wait for the capture thread (up to 500 ms): never on the main thread.
+        Thread({ captures.dispose() }, "tugboat-dispose").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    /** Stops the drainer and detaches every observer; each part ignores a second call. */
+    private fun detach() {
+        drainer?.stop()
+        adapter.stop()
+        lifecycle.stop()
+        locale.stop()
+        foreground.stop()
     }
 
     companion object {
@@ -112,6 +136,9 @@ internal class TugboatRuntime private constructor(
         /**
          * Configures a new engine and starts a session; null (logged) when a
          * `session_start` field is missing or the engine library cannot load.
+         * [validated] is for a caller that already ran [refusal] on [config]
+         * (`Tugboat.start` does, before it stores the config): the fields are
+         * not checked again, so the main thread does that work once.
          */
         fun start(
             application: Application,
@@ -121,14 +148,17 @@ internal class TugboatRuntime private constructor(
             activationRequestId: String? = null,
             openTransport: () -> EngineTransport? = { JniEngineTransport.open() },
             stopSequence: StopSequence = StopSequence(),
+            validated: Boolean = false,
         ): TugboatRuntime? {
             val device = DeviceSnapshot.read(application)
-            // Validates what the config and device give; the installation id is resolved later, off the main thread.
+            // The installation id is resolved later, off the main thread.
             val metadata = HostMetadata(config.app, device)
-            val missing = metadata.missingFields() + collectorProblems(config)
-            if (missing.isNotEmpty()) {
-                Log.e(TAG, "Tugboat not started: required session_start fields are missing: $missing")
-                return null
+            if (!validated) {
+                val missing = metadata.missingFields() + collectorProblems(config)
+                if (missing.isNotEmpty()) {
+                    Log.e(TAG, "Tugboat not started: required session_start fields are missing: $missing")
+                    return null
+                }
             }
             val transport = openTransport() ?: run {
                 Log.e(TAG, "Tugboat not started: the session engine is unavailable")
@@ -246,6 +276,8 @@ internal class TugboatRuntime private constructor(
                     }
                 },
             )
+            // Set below, before `assemble` returns; the hook only runs later, on the main thread.
+            var runtime: TugboatRuntime? = null
             val host = EngineHost.start(
                 transport,
                 frames,
@@ -255,6 +287,8 @@ internal class TugboatRuntime private constructor(
                     captures.onCaptureRequest(request)
                 },
                 scenes = adapter,
+                // On the engine thread: the observers and the drainer belong to the main thread's owner.
+                onDisabled = { main.post { runtime?.onHostDisabled() } },
             )
             engineHost.value = host
             // The installation id (the host's when non-blank, else the SDK's own file) is read, or minted
@@ -300,7 +334,7 @@ internal class TugboatRuntime private constructor(
             return TugboatRuntime(
                 host, adapter, lifecycle, localeBridge, foreground, captures, watcher, clock, stopSequence, drainer,
                 IdSeed.sessionId(idSeed), evidence,
-            )
+            ).also { runtime = it }
         }
     }
 }

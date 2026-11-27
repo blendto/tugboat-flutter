@@ -168,7 +168,14 @@ private object ActiveCalls {
     }
 }
 
-/** Dart's `String.trim`: its whitespace code units, from both ends (the engine's `dart_trim`). */
+/**
+ * Dart's `String.trim`: its whitespace code units, from both ends. Native
+ * behaviour matches Flutter, and `tugboat_dio` trims the route, so this stays.
+ * It is the one Kotlin copy of the engine's `dart_trim`
+ * (`core/session-engine/src/text.cpp`, which `normalize_network_route` uses to
+ * reject a padded route). BLE-664 follow-up: replace it with an engine
+ * function once the C ABI exports one.
+ */
 internal fun dartTrim(value: String): String = value.trim(::isDartWhitespace)
 
 private fun isDartWhitespace(c: Char): Boolean = when (c.code) {

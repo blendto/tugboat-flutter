@@ -1,6 +1,7 @@
 package com.tugboat.android.engine
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -24,6 +25,16 @@ class NativeEngineTest {
         assertEquals(EngineStatus.OK, response.status)
         val json = JSONObject(response.text())
         assertEquals("6cc8519b91584e8b", json.getJSONObject("result").getString("hash"))
+    }
+
+    @Test
+    fun theFingerprintSchemaVersionComesFromTheEngine() {
+        // The handle-free JNI binding the Views identity serializes (tb_session_engine_fingerprint_schema_version).
+        // The expected value is the header's own (build.gradle.kts passes it as an instrumentation argument).
+        val expected = checkNotNull(InstrumentationRegistry.getArguments().getString("engineFingerprintSchemaVersion")) {
+            "engineFingerprintSchemaVersion runner argument missing"
+        }.toInt()
+        assertEquals(expected, NativeEngine.fingerprintSchemaVersion())
     }
 
     @Test

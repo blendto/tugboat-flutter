@@ -127,3 +127,10 @@ Java_com_tugboat_android_engine_NativeEngine_destroy(JNIEnv* /* env */,
                                                      jlong handle) {
   tb_session_engine_destroy(from_handle(handle));
 }
+
+// Handle-free: the fingerprint schema version this engine produces.
+extern "C" JNIEXPORT jint JNICALL
+Java_com_tugboat_android_engine_NativeEngine_fingerprintSchemaVersion(
+    JNIEnv* /* env */, jobject /* thiz */) {
+  return static_cast<jint>(tb_session_engine_fingerprint_schema_version());
+}

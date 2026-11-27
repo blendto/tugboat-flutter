@@ -103,6 +103,10 @@ internal class Outbox(
         if (changed) sessionListeners.forEach { listener -> guarded("session listener") { listener() } }
     }
 
+    /** Whether a drainer listens for session changes (tests). */
+    internal val hasSessionListeners: Boolean
+        get() = sessionListeners.isNotEmpty()
+
     fun addSessionListener(listener: () -> Unit) = sessionListeners.add(listener)
 
     fun removeSessionListener(listener: () -> Unit) = sessionListeners.remove(listener)

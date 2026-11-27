@@ -86,6 +86,32 @@ class TugboatActivationTest {
         assertEquals("a", Tugboat.activationRequestId)
     }
 
+    /**
+     * BLE-664: `start` checks the device snapshot once, for the session it begins. A session started
+     * later by `activate` reads a fresh snapshot, which is checked as on main: refused with a log,
+     * nothing sent (a blank locale language is a 400 on `session_start`).
+     */
+    @Test
+    fun aSessionStartedByActivateChecksTheFreshDeviceSnapshot() {
+        Tugboat.start(application, config)
+        idle()
+        assertEquals(DORMANT, Tugboat.lifecycleState)
+        // Between start and activate the device's locale becomes one with no language.
+        val configuration = android.content.res.Configuration(application.resources.configuration)
+        configuration.setLocales(android.os.LocaleList(java.util.Locale.ROOT))
+        application.resources.updateConfiguration(configuration, application.resources.displayMetrics)
+
+        Tugboat.activate("a")
+        idle()
+
+        assertTrue("no engine was opened for a session_start the collector would reject", transports.isEmpty())
+        assertEquals(DORMANT, Tugboat.lifecycleState)
+        assertTrue(
+            "the refusal is logged: ${ShadowLog.getLogs().map { it.msg }}",
+            ShadowLog.getLogs().any { "locale.language" in it.msg.orEmpty() },
+        )
+    }
+
     @Test
     fun theSameIdTwiceIsOneSessionAndANewIdReplacesItWithoutStopping() {
         Tugboat.start(application, config)

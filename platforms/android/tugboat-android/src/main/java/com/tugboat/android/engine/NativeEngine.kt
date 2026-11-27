@@ -23,4 +23,7 @@ internal object NativeEngine {
 
     /** Frees the handle; 0 is a no-op. */
     external fun destroy(handle: Long)
+
+    /** `tb_session_engine_fingerprint_schema_version()`: needs no handle. */
+    external fun fingerprintSchemaVersion(): Int
 }

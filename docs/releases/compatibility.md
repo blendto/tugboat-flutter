@@ -31,7 +31,7 @@
 | Flutter `tugboat` | 0.10.0 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; Device Farm launch inputs owned by the SDK; `hidden` + `paused` coalesce into one `app_backgrounded`. |
 | Flutter `tugboat` | 0.9.0 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; mode-free capture API with additive evidence capabilities. |
 | Flutter `tugboat` | 0.8.17 | Android `capture-runtime` `0.1.0`; Apple `TugboatCaptureRuntime` `0.1.1`; blank iOS engine captures retry with explicit hierarchy coverage. |
-| Android `tugboat-android` | 0.1.0 | Unpublished. Native Android SDK on the session engine, with Android `capture-runtime` `0.3.0`. Includes coded events (`Tugboat.eventHook`) and manual `network_call` evidence (`Tugboat.beginNetworkCall`), with the same payload as Flutter, bounded in the engine. |
+| Android `tugboat-android` | 0.1.0 | Unpublished. Native Android SDK on the session engine, with Android `capture-runtime` `0.3.1`. Includes coded events (`Tugboat.eventHook`) and manual `network_call` evidence (`Tugboat.beginNetworkCall`), with the same payload as Flutter, bounded in the engine. |
 | Android `tugboat-okhttp` | 0.1.0 | Unpublished. OkHttp interceptor for `network_call` evidence; needs `tugboat-android` 0.1.0 and OkHttp 3.14.9 or later (`compileOnly`). |
 | Apple `Tugboat` (SwiftPM) | 0.1.0 | Unpublished. Native SwiftUI SDK on the session engine, with Apple `TugboatCaptureRuntime` `0.2.0`. Includes coded events, manual `network_call` evidence, an opt-in instrumented `URLSession`, and the `async` `Tugboat.data(for:)` helper (no swizzling). |
 | Apple `TugboatAlamofire` (SwiftPM) | 0.1.0 | Unpublished. Alamofire `EventMonitor` for `network_call` evidence; its own package, needing `Tugboat` 0.1.0 and Alamofire 5.9.0 or later. |
@@ -53,12 +53,13 @@ Flutter `0.8.16` compiles on Flutter 3.35 and consumes Android
 `TugboatCaptureRuntime` `0.1.0` from CocoaPods. Native capture stays
 opt-in. The first native-default adapter is still planned as Flutter `0.9.0`.
 
-Android `capture-runtime` `0.3.0` is unpublished (0.2.0 was never
+Android `capture-runtime` `0.3.1` is unpublished (0.2.0 was never
 published). It adds window capture (`windowComposite`),
 `CaptureStatus.SecureWindow`, and masks supplied on the main thread at copy
-time (`WindowMaskSupplier`) for native Android hosts. Only the unpublished
-native SDK (`tugboat-android`) consumes it; Flutter `tugboat` still pins
-`0.1.0`.
+time (`WindowMaskSupplier`) for native Android hosts. `0.3.1` also makes
+`CaptureRuntime.dispose()` answer queued captures with `Disposed` (no API
+change). Only the unpublished native SDK (`tugboat-android`) consumes it;
+Flutter `tugboat` still pins `0.1.0`.
 
 Apple `TugboatCaptureRuntime` `0.2.0` is unpublished. It adds a mask
 supplier that runs in the same main-thread turn as the draw, for the native

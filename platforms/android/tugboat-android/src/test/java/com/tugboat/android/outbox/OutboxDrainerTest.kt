@@ -183,6 +183,23 @@ class OutboxDrainerTest {
         assertEquals(1, entryJson().getInt("replays"))
     }
 
+    /**
+     * The retry is requested while the pass that asks for it is still the scheduler's `pending`, and
+     * that pass's delay is a hair below zero. A millisecond comparison read it as "due now" and
+     * dropped the retry (2 of 10 runs before the fix).
+     */
+    @Test
+    fun aRetryRequestedDuringAPassIsNotDroppedAsDueSooner() {
+        leftByADeadProcess(lifecycle())
+        server.reply = { Response(503) }
+        val scheduler = JustRunScheduler()
+
+        drainer(OutboxFixtures.outbox(root, "epoch-b"), scheduler = scheduler).start()
+        passes(1)
+
+        assertEquals("the backoff retry was scheduled", listOf(0L, 2_000L), scheduler.delays)
+    }
+
     @Test
     fun replaysGoOldestFirstEvenWhenTheKeysSortTheOtherWay() {
         var now = System.currentTimeMillis() - 10_000
@@ -402,6 +419,19 @@ class OutboxDrainerTest {
         override fun schedule(command: Runnable, delay: Long, unit: TimeUnit): ScheduledFuture<*> {
             delays += unit.toMillis(delay)
             return super.schedule(command, delay, unit)
+        }
+    }
+
+    /** Reports every scheduled pass as overdue by 1 µs, as a pass that started on time is while it runs. */
+    private class JustRunScheduler : ScheduledThreadPoolExecutor(1) {
+        val delays = CopyOnWriteArrayList<Long>()
+
+        override fun schedule(command: Runnable, delay: Long, unit: TimeUnit): ScheduledFuture<*> {
+            delays += unit.toMillis(delay)
+            val real = super.schedule(command, delay, unit)
+            return object : ScheduledFuture<Any?> by (real as ScheduledFuture<Any?>) {
+                override fun getDelay(unit: TimeUnit): Long = unit.convert(-1_000, TimeUnit.NANOSECONDS)
+            }
         }
     }
 }
