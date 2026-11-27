@@ -16,7 +16,7 @@ constexpr char kConfigure[] =
     R"({"type":"engine.configure","input":{"host":{"app":{"name":"Example App","version":"2.4.0","buildNumber":"240","installationId":"inst-0001","appId":"com.example.app"},"device":{"id":"device-0001","platform":"android","screenSize":{"width":412.0,"height":915.0},"screenDensity":2.625,"screenDpi":420,"screenPixelDensity":2.625},"ip":{"ip":"203.0.113.7"},"locale":{},"configuredUserId":null}}})";
 
 constexpr char kSessionStart[] =
-    R"({"type":"session.start","at":{"monoUs":0,"wallUs":1781827200000000},"input":{"viewport":{"width":412.0,"height":915.0},"platform":"android","sessionEpoch":0}})";
+    R"({"type":"session.start","at":{"monoUs":0,"wallUs":1781827200000000},"input":{"viewport":{"width":412.0,"height":915.0},"platform":"android","sessionEpoch":0,"idSeed":"1111111111111111111111111111111111111111111111111111111111111111"}})";
 
 // The message's `at.monoUs`: when a network call ends (default its start),
 // or when an external event happens (default 0).

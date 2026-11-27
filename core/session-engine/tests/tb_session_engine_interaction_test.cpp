@@ -290,7 +290,7 @@ void test_claim_api() {
   CHECK(send(&engine,
              "{\"type\":\"session.start\",\"at\":{\"monoUs\":0,\"wallUs\":0},"
              "\"input\":{\"viewport\":{\"width\":1,\"height\":1},\"platform\":"
-             "\"android\",\"sessionEpoch\":0}}"));
+             "\"android\",\"sessionEpoch\":0,\"idSeed\":\"1111111111111111111111111111111111111111111111111111111111111111\"}}"));
   EngineState& state = engine.state();
   At at{50000, std::nullopt};
   CHECK(claim_interaction_cause(&state, at, std::nullopt).outcome ==
@@ -300,8 +300,9 @@ void test_claim_api() {
   InteractionClaim claim = claim_interaction_cause(&state, at, OptString("n"));
   CHECK(claim.outcome == ClaimOutcome::kClaimed);
   CHECK(claim.attribution == ClaimAttribution::kDirect);
-  // event-0 is session_start, capture_request-1 the initial capture.
-  CHECK_EQ(claim.interaction_id, "event-2");
+  // Stream index 0 is the session id, 1 the session_start event, 2 the
+  // pointer-down (ids from seed 0x11 * 32).
+  CHECK_EQ(claim.interaction_id, "event-ebeddfd2-b7f9-409e-89ce-bbf04e2f85c6");
   // Single use.
   CHECK(claim_interaction_cause(&state, at, std::nullopt).outcome ==
         ClaimOutcome::kNone);
@@ -317,7 +318,7 @@ void test_claim_api() {
   claim = claim_interaction_cause(&state, at, std::nullopt);
   CHECK(claim.outcome == ClaimOutcome::kClaimed);
   CHECK(claim.attribution == ClaimAttribution::kDelayedLikely);
-  CHECK_EQ(claim.interaction_id, "event-4");
+  CHECK_EQ(claim.interaction_id, "event-d334c9d8-6307-404f-8841-d777c7614a76");
   // Past the window (fact time) nothing is eligible.
   CHECK(send(&engine, pointer("down", 4, 50000)));
   CHECK(send(&engine, pointer("up", 4, 51000)));
@@ -344,7 +345,7 @@ void test_wake_claimed_tap() {
   CHECK(send(&engine,
              "{\"type\":\"session.start\",\"at\":{\"monoUs\":0,\"wallUs\":0},"
              "\"input\":{\"viewport\":{\"width\":1,\"height\":1},\"platform\":"
-             "\"android\",\"sessionEpoch\":0}}"));
+             "\"android\",\"sessionEpoch\":0,\"idSeed\":\"1111111111111111111111111111111111111111111111111111111111111111\"}}"));
   // The initial capture resolves, so the tap's capture is not queued.
   CHECK(send(&engine,
              "{\"type\":\"capture.result\",\"at\":{\"monoUs\":5000},"
@@ -355,7 +356,7 @@ void test_wake_claimed_tap() {
   std::string json;
   CHECK(send(&engine,
              "{\"type\":\"timer.fired\",\"at\":{\"monoUs\":1020000},\"input\":"
-             "{\"timerId\":\"interaction.settle.event-3\"}}",
+             "{\"timerId\":\"interaction.settle.event-ebeddfd2-b7f9-409e-89ce-bbf04e2f85c6\"}}",
              &json));
   CHECK(unit::contains(json, "\"atMonoUs\":1270000"));  // claim-window wait
   EngineState& state = engine.state();
@@ -363,12 +364,12 @@ void test_wake_claimed_tap() {
   CHECK(claim_interaction_cause(&state, at, std::nullopt).outcome ==
         ClaimOutcome::kClaimed);
   Output out;
-  wake_claimed_tap(&state, "event-3", at, &out);
+  wake_claimed_tap(&state, "event-ebeddfd2-b7f9-409e-89ce-bbf04e2f85c6", at, &out);
   const std::string effects = to_json(effects_json(out.effects));
   CHECK(unit::contains(effects, "\"timer.cancel\""));
   CHECK(unit::contains(effects, "\"capture.request\""));
   Output again;
-  wake_claimed_tap(&state, "event-3", at, &again);  // already capturing
+  wake_claimed_tap(&state, "event-ebeddfd2-b7f9-409e-89ce-bbf04e2f85c6", at, &again);  // already capturing
   CHECK(again.effects.empty());
 }
 

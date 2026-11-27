@@ -19,18 +19,23 @@ final class TugboatRuntime {
   private let outbox: OutboxParts?
   private var stopped = false
 
-  /// The `session.start` wall clock: the session id is `session-<this>`.
-  let sessionWallUs: Int64
+  /// The session's id (`session-<UUIDv4>`, what the collector sees), derived
+  /// from the `idSeed` this session started with.
+  let captureSessionId: String
 
   /// The engine handle each session opens; tests wrap it to record what the
   /// SDK submits. Main thread only.
   static var openTransport: () -> EngineTransport? = { EngineBridge.open() }
 
+  /// The store the installation id lives in (tests replace it); read on the
+  /// engine queue, never on the main thread.
+  static var installationIds: InstallationIdStore = .shared
+
   /// Keeps the process running for the background flush; tests replace it.
   /// Main thread only.
   static var backgroundTasks: BackgroundTasks = ApplicationBackgroundTasks()
 
-  private init(parts: Parts) {
+  private init(parts: Parts, captureSessionId: String) {
     host = parts.host
     adapter = parts.adapter
     lifecycle = parts.lifecycle
@@ -41,7 +46,7 @@ final class TugboatRuntime {
     clock = parts.clock
     locale = parts.locale
     outbox = parts.outbox
-    sessionWallUs = parts.sessionStartAt.wallUs
+    self.captureSessionId = captureSessionId
   }
 
   /// False once the engine host closed or disabled itself; any thread.
@@ -104,6 +109,7 @@ final class TugboatRuntime {
   /// `explorationRunId` go on `session.start` when non-blank.
   static func start(config: TugboatConfig, sessionEpoch: Int, activationRequestId: String?) -> TugboatRuntime? {
     let device = DeviceSnapshot.read()
+    // Validates what the config and device give; the installation id is resolved later, off the main thread.
     let metadata = HostMetadata(app: config.app, device: device)
     let missing = problems(config: config, metadata: metadata)
     guard missing.isEmpty else {
@@ -115,21 +121,30 @@ final class TugboatRuntime {
       return nil
     }
     let parts = Parts.assemble(config: config, transport: transport, initialLocale: device.locale)
-    parts.host.postUntimed(
-      type: SessionMessages.engineConfigure,
-      inputJSON: EngineConfiguration.build(config: config, host: metadata, gesture: parts.adapter.gesture).json)
+    // The installation id (the host's when non-blank, else the SDK's own file, seeded with
+    // `identifierForVendor`) is read, or minted and written, on the engine queue when this message is
+    // reached: `start` does not wait for the disk, and the id is in place before `session.start` and so
+    // before the first `session_start`.
+    let vendorId = device.id == "ios-unknown" ? nil : device.id
+    let gesture = parts.adapter.gesture
+    let installationIds = Self.installationIds
+    parts.host.postUntimed(type: SessionMessages.engineConfigure) {
+      let app = config.app.resolvingInstallationId(vendorId: vendorId, store: installationIds)
+      return EngineConfiguration.build(config: config, host: HostMetadata(app: app, device: device), gesture: gesture).json
+    }
+    let idSeed = IdSeed.generate()
     parts.host.post(
       type: SessionMessages.sessionStart,
       inputJSON: SessionMessages.sessionStartInput(
         viewport: KeyWindow.viewport(fallback: device), host: metadata, sessionEpoch: sessionEpoch,
-        activationRequestId: activationRequestId, explorationRunId: config.explorationRunId),
+        activationRequestId: activationRequestId, explorationRunId: config.explorationRunId, idSeed: idSeed),
       at: parts.sessionStartAt)
     parts.outbox?.startReplay()
     parts.lifecycle.start()
     parts.locale.start()
     parts.surfaces.start()
     parts.adapter.start()
-    return TugboatRuntime(parts: parts)
+    return TugboatRuntime(parts: parts, captureSessionId: IdSeed.sessionId(idSeed))
   }
 
   /// The fields a session could not start without, by wire path; empty when

@@ -21,7 +21,8 @@
           },
           "input": {
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "80d1718731390fd2ae621dbeb194bb18ca125c2985c470ea013d62ad7c7639b2"
           }
         },
         "expect": {
@@ -44,7 +45,8 @@
               "height": 1
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "22bcdef6b93d56597e3ecbfa3641657a7f686ee53740e34edee44bc0704b7772"
           }
         },
         "expect": {
@@ -67,7 +69,8 @@
               "height": "1"
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "0257c769a5ef92f25e4f8dd5cecd4d0a9a1a0932f1c43d28ef9d35f9a57b7c4a"
           }
         },
         "expect": {
@@ -89,7 +92,8 @@
               "width": 1,
               "height": 1
             },
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "528e3b6e5751b1b1db2a2b62b56c0fd061184bc70dc99005e4369d5aa37e59f1"
           }
         },
         "expect": {
@@ -111,7 +115,8 @@
               "width": 1,
               "height": 1
             },
-            "platform": "android"
+            "platform": "android",
+            "idSeed": "9bfe0b4c1911ce77d9b197211841c4fefa0c47c67b7ce70a12bb7b10e613d45c"
           }
         },
         "expect": {
@@ -134,7 +139,8 @@
               "height": 1
             },
             "platform": "android",
-            "sessionEpoch": -1
+            "sessionEpoch": -1,
+            "idSeed": "e4516a84bd780ebb3de81bce06f59e3c571c2ffab96aba299ca8f7586a18d56b"
           }
         },
         "expect": {
@@ -160,7 +166,8 @@
             "sessionEpoch": 0,
             "locale": {
               "language": "en"
-            }
+            },
+            "idSeed": "552b743d92b4eec8ee031662b3de510f77e7cb34e7a2cf22df573b52e0b18a8f"
           }
         },
         "expect": {
@@ -184,7 +191,8 @@
             },
             "platform": "android",
             "sessionEpoch": 0,
-            "userId": "u"
+            "userId": "u",
+            "idSeed": "fd9942d7d20d6eaf4a545d8e68a3f3e14034b60b308e70b93859d3b56da57ebb"
           }
         },
         "expect": {

@@ -25,7 +25,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "b3dab0701d19f0b98b815dff15efc773e2efa544d8d2b962e21e40ac08f18122"
           }
         },
         "expect": {
@@ -33,11 +34,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-a9908b7e-3200-4ed4-b500-e7b8b7e13186",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c"
               },
               "userId": null
             }
@@ -80,11 +81,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-ddc6b47e-2ec3-4edf-992c-df705aa46992",
                 "atMs": 10,
                 "type": "app_foregrounded",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c",
                 "data": {
                   "state": "resumed"
                 }
@@ -125,11 +126,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-7acc1e2a-d718-4d2b-94f0-f648a2a6d6ea",
                 "atMs": 30,
                 "type": "app_backgrounded",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c",
                 "data": {
                   "state": "hidden"
                 }
@@ -190,11 +191,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-10",
+                "id": "event-3a78207a-8656-4b93-9373-ffa2c91f3673",
                 "atMs": 60,
                 "type": "app_foregrounded",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c",
                 "data": {
                   "state": "resumed"
                 }
@@ -240,11 +241,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-12",
+                "id": "event-819d31e3-4fbf-43c0-befc-eb7a16090ded",
                 "atMs": 70,
                 "type": "app_backgrounded",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c",
                 "data": {
                   "state": "paused"
                 }
@@ -275,11 +276,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-13",
+                "id": "event-5d9b9c36-972c-4c5a-a569-403f4246a9bd",
                 "atMs": 80,
                 "type": "app_inactive",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c",
                 "data": {
                   "state": "inactive"
                 }
@@ -311,8 +312,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-38460c11-6dca-4391-a391-d11acee3da0c",
+        "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -334,58 +335,58 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-a9908b7e-3200-4ed4-b500-e7b8b7e13186",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c"
         },
         {
-          "id": "event-3",
+          "id": "event-ddc6b47e-2ec3-4edf-992c-df705aa46992",
           "atMs": 10,
           "type": "app_foregrounded",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c",
           "data": {
             "state": "resumed"
           }
         },
         {
-          "id": "event-8",
+          "id": "event-7acc1e2a-d718-4d2b-94f0-f648a2a6d6ea",
           "atMs": 30,
           "type": "app_backgrounded",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c",
           "data": {
             "state": "hidden"
           }
         },
         {
-          "id": "event-10",
+          "id": "event-3a78207a-8656-4b93-9373-ffa2c91f3673",
           "atMs": 60,
           "type": "app_foregrounded",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c",
           "data": {
             "state": "resumed"
           }
         },
         {
-          "id": "event-12",
+          "id": "event-819d31e3-4fbf-43c0-befc-eb7a16090ded",
           "atMs": 70,
           "type": "app_backgrounded",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c",
           "data": {
             "state": "paused"
           }
         },
         {
-          "id": "event-13",
+          "id": "event-5d9b9c36-972c-4c5a-a569-403f4246a9bd",
           "atMs": 80,
           "type": "app_inactive",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-38460c11-6dca-4391-a391-d11acee3da0c",
           "data": {
             "state": "inactive"
           }

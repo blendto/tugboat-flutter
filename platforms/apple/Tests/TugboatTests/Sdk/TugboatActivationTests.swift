@@ -425,23 +425,23 @@ final class TugboatActivationTests: XCTestCase {
   /// m1: HEALTH reads the running session when it prints.
   func testTheLaunchReadingFollowsTheRunningSession() {
     Tugboat.start(config())
-    XCTAssertNil(Tugboat.launchReading().sessionWallUs)
+    XCTAssertNil(Tugboat.launchReading().captureSessionId)
     Tugboat.activate(activationRequestId: "act-1")
     drainMain()
-    let first = Tugboat.runtime?.sessionWallUs
+    let first = Tugboat.runtime?.captureSessionId
     Tugboat.activate(activationRequestId: "act-2")
     drainMain()
     let reading = Tugboat.launchReading()
     XCTAssertEqual(reading.activationRequestId, "act-2")
     XCTAssertEqual(reading.state, .active)
-    XCTAssertNotNil(reading.sessionWallUs)
-    XCTAssertEqual(reading.sessionWallUs, Tugboat.runtime?.sessionWallUs)
-    XCTAssertNotEqual(reading.sessionWallUs, first)
+    XCTAssertNotNil(reading.captureSessionId)
+    XCTAssertEqual(reading.captureSessionId, Tugboat.runtime?.captureSessionId)
+    XCTAssertNotEqual(reading.captureSessionId, first)
     Tugboat.deactivate()
     drainMain()
     let dormant = Tugboat.launchReading()
     XCTAssertEqual(dormant.state, .dormant)
-    XCTAssertNil(dormant.sessionWallUs)
+    XCTAssertNil(dormant.captureSessionId)
     XCTAssertNil(dormant.activationRequestId)
   }
 

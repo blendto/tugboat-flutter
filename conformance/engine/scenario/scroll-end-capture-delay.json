@@ -33,7 +33,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "2ae97435ff49cd8993da8b29ce7304ed6deac13b47b62408b7b98c8f67ad1ea7"
           }
         },
         "expect": {
@@ -41,11 +42,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-23449356-52fd-45f0-9d71-3e961427000b",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-8793c632-3d8b-4235-b13b-5b62411d8cf0"
               },
               "userId": null
             }
@@ -234,7 +235,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.scrollEnd.event-4",
+              "timerId": "interaction.scrollEnd.event-4f47808d-816a-4262-b217-79f730beeb5d",
               "atMonoUs": 6150000
             }
           ]
@@ -247,7 +248,7 @@
             "monoUs": 6150000
           },
           "input": {
-            "timerId": "interaction.scrollEnd.event-4"
+            "timerId": "interaction.scrollEnd.event-4f47808d-816a-4262-b217-79f730beeb5d"
           }
         },
         "expect": {
@@ -307,7 +308,7 @@
               "kind": "frame",
               "handle": "h-capture_request-3",
               "frame": {
-                "id": "frame-6",
+                "id": "frame-3",
                 "atMs": 1190,
                 "width": 1080,
                 "height": 2400,
@@ -316,24 +317,24 @@
                 "trigger": "interaction",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-8793c632-3d8b-4235-b13b-5b62411d8cf0"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-cfce2b4d-3461-49e8-aab3-265da4c53d52",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-8793c632-3d8b-4235-b13b-5b62411d8cf0",
                 "targetAnchor": {
                   "widgetType": "ListView",
                   "role": "scrollable",
                   "fingerprint": "fp-list",
                   "canonicalPath": "Scaffold/ListView"
                 },
-                "afterFrame": "frame-6",
+                "afterFrame": "frame-3",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "scroll",
@@ -494,7 +495,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.scrollEnd.event-9",
+              "timerId": "interaction.scrollEnd.event-8bc02119-23bb-4f47-ade6-f0bdff5de1c5",
               "atMonoUs": 7350000
             }
           ]
@@ -519,18 +520,18 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-15dbcebb-b788-4a85-8dca-40a6626c6d01",
                 "atMs": 1300,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-8793c632-3d8b-4235-b13b-5b62411d8cf0",
                 "targetAnchor": {
                   "widgetType": "ListView",
                   "role": "scrollable",
                   "fingerprint": "fp-list",
                   "canonicalPath": "Scaffold/ListView"
                 },
-                "beforeFrame": "frame-6",
+                "beforeFrame": "frame-3",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "scroll",
@@ -551,7 +552,7 @@
           "effects": [
             {
               "type": "timer.cancel",
-              "timerId": "interaction.scrollEnd.event-9"
+              "timerId": "interaction.scrollEnd.event-8bc02119-23bb-4f47-ade6-f0bdff5de1c5"
             }
           ]
         }
@@ -739,7 +740,7 @@
           "effects": [
             {
               "type": "timer.schedule",
-              "timerId": "interaction.scrollEnd.event-13",
+              "timerId": "interaction.scrollEnd.event-8f684a44-4408-4f99-87f3-390c9f905585",
               "atMonoUs": 7550000
             }
           ]
@@ -764,18 +765,18 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-12",
+                "id": "event-b04cca9d-a0d6-4c62-abb2-35739bf4fe21",
                 "atMs": 1500,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-8793c632-3d8b-4235-b13b-5b62411d8cf0",
                 "targetAnchor": {
                   "widgetType": "ListView",
                   "role": "scrollable",
                   "fingerprint": "fp-list",
                   "canonicalPath": "Scaffold/ListView"
                 },
-                "beforeFrame": "frame-6",
+                "beforeFrame": "frame-3",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "scroll",
@@ -796,7 +797,7 @@
           "effects": [
             {
               "type": "timer.cancel",
-              "timerId": "interaction.scrollEnd.event-13"
+              "timerId": "interaction.scrollEnd.event-8f684a44-4408-4f99-87f3-390c9f905585"
             }
           ]
         }
@@ -807,8 +808,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-8793c632-3d8b-4235-b13b-5b62411d8cf0",
+        "captureSessionId": "session-8793c632-3d8b-4235-b13b-5b62411d8cf0",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -829,7 +830,7 @@
       },
       "frames": [
         {
-          "id": "frame-6",
+          "id": "frame-3",
           "atMs": 1190,
           "width": 1080,
           "height": 2400,
@@ -838,30 +839,30 @@
           "trigger": "interaction",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-8793c632-3d8b-4235-b13b-5b62411d8cf0"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-23449356-52fd-45f0-9d71-3e961427000b",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-8793c632-3d8b-4235-b13b-5b62411d8cf0"
         },
         {
-          "id": "event-3",
+          "id": "event-cfce2b4d-3461-49e8-aab3-265da4c53d52",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-8793c632-3d8b-4235-b13b-5b62411d8cf0",
           "targetAnchor": {
             "widgetType": "ListView",
             "role": "scrollable",
             "fingerprint": "fp-list",
             "canonicalPath": "Scaffold/ListView"
           },
-          "afterFrame": "frame-6",
+          "afterFrame": "frame-3",
           "data": {
             "interactionSchema": 2,
             "gesture": "scroll",
@@ -873,18 +874,18 @@
           }
         },
         {
-          "id": "event-8",
+          "id": "event-15dbcebb-b788-4a85-8dca-40a6626c6d01",
           "atMs": 1300,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-8793c632-3d8b-4235-b13b-5b62411d8cf0",
           "targetAnchor": {
             "widgetType": "ListView",
             "role": "scrollable",
             "fingerprint": "fp-list",
             "canonicalPath": "Scaffold/ListView"
           },
-          "beforeFrame": "frame-6",
+          "beforeFrame": "frame-3",
           "data": {
             "interactionSchema": 2,
             "gesture": "scroll",
@@ -900,18 +901,18 @@
           }
         },
         {
-          "id": "event-12",
+          "id": "event-b04cca9d-a0d6-4c62-abb2-35739bf4fe21",
           "atMs": 1500,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-8793c632-3d8b-4235-b13b-5b62411d8cf0",
           "targetAnchor": {
             "widgetType": "ListView",
             "role": "scrollable",
             "fingerprint": "fp-list",
             "canonicalPath": "Scaffold/ListView"
           },
-          "beforeFrame": "frame-6",
+          "beforeFrame": "frame-3",
           "data": {
             "interactionSchema": 2,
             "gesture": "scroll",

@@ -27,7 +27,6 @@ struct HostMetadata {
     text("app.version", app.version)
     text("app.buildNumber", app.buildNumber)
     text("app.appId", app.appId)
-    text("app.installationId", app.installationId)
     text("device.id", device.id)
     positive("device.screenSize.width", device.screenWidth)
     positive("device.screenSize.height", device.screenHeight)

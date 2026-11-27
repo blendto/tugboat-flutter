@@ -300,7 +300,7 @@ message `input`. The field-level vocabulary is in
 | --- | --- | --- | --- |
 | `engine.dispose` | optional | `{}` | The host's last message before `tb_session_engine_destroy`, between sessions (a live session is `invalid_message`: end it first). Reports the delivery work the collector never confirmed (below) and releases every frame delivery still references; the engine then admits no further command. |
 | `engine.configure` | optional | `{host?, limits?, gesture?, interaction?, navigation?, capture?, collector?, capabilities?}` | Replaces the configuration (below). Only before the first session or between sessions. |
-| `session.start` | mono + wall | `{viewport: {width, height}, platform, sessionEpoch, locale?, activationRequestId?, explorationRunId?}` | Ends a live session first (C10), resets per-session state, and records `session_start`. The session id is `session-<wallUs>` and `startedAt` is the same instant. Needs a configured `host`. |
+| `session.start` | mono + wall | `{viewport: {width, height}, platform, sessionEpoch, locale?, activationRequestId?, explorationRunId?, idSeed}` | Ends a live session first (C10), resets per-session state, and records `session_start`. `startedAt` is `at.wallUs`. `idSeed` is required (64 lowercase hex characters, 32 random bytes from the host's secure random source, fresh for every session; a missing or malformed seed is `invalid_message` at `$.input.idSeed`). The session id is `session-<UUIDv4>`, every `event-` id is `event-<UUIDv4>` and so are the delivery gap diagnostics' `collector-frame-upload-` / `collector-event-upload-` ids, as Dart 0.12.3 (BLE-618). Never reuse a seed: the same seed gives the same ids. Needs a configured `host`. |
 | `session.end` | mono + wall | `{reason?}` (`session_end` or `dispose`) | Tears down in-flight work and records `session_end`. Idempotent. |
 | `app.lifecycle` | mono | `{state}`: `paused`, `hidden`, `inactive`, `resumed`, `detached` | `paused`/`hidden`/`detached` tear down in-flight work. Records `app_backgrounded`, `app_foregrounded`, `app_inactive`, or `app_detached` with `data.state`, dropping consecutive duplicates by state or event type. `detached` then ends the session. |
 | `event.record` | mono | `{eventType, stream, attachActionContext, data?, targetAnchor?, atMonoUs?}` | Records a toolkit-produced event (`scene_inventory`, `network_call`, `external_event`, …). `atMonoUs` (default `at.monoUs`) is the fact time. `stream` is `semantic`, `evidence`, or `diagnostic` (session schema 10). Types the engine records itself are rejected. |
@@ -329,9 +329,10 @@ event has none; with `attachActionContext` the session's capture,
 activation, and exploration ids are stamped, and without it only where the
 event has none. Events are appended to the session, emitted as records, then
 trimmed: beyond `limits.maxEvents` the oldest are dropped and the session's
-`truncated` becomes and stays `true`. One counter mints `event-N`,
+`truncated` becomes and stays `true`. One counter mints
 `frame-N`, `capture_request-N`, and `capture_execution-N` per engine
-handle, in Dart's order; it is never reset per session (C7, kept). The
+handle, in Dart's order; it is never reset per session (C7, kept). Event ids
+are `event-<UUIDv4>` from the session's seeded id stream, not the counter. The
 host's `capture-N` request ids have their own counter. The exploration action window (`actionId` stamping) is
 not part of the engine; `actionId` passes through.
 

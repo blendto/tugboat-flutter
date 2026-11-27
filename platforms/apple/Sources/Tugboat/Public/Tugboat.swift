@@ -65,7 +65,7 @@ public enum Tugboat {
   /// main thread.
   static func launchReading() -> LaunchCorrelation.Reading {
     LaunchCorrelation.Reading.of(
-      activation.current, session: driver.session.map { ($0.sessionWallUs, $0.isHostRunning) })
+      activation.current, session: driver.session.map { ($0.captureSessionId, $0.isHostRunning) })
   }
 
   /// The running session's runtime; main thread.

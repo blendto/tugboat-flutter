@@ -158,11 +158,15 @@ public struct TugboatConfig {
     public var buildNumber: String
     /// The bundle identifier. Also sent as the `X-App-Id` header.
     public var appId: String
-    /// Stable per install; the app owns it (for example a UUID kept in its
-    /// user defaults).
+    /// Stable per install. Optional: when blank the SDK mints a random UUID
+    /// on first launch (seeded with `identifierForVendor`, which survives a
+    /// reinstall while another app from the same vendor stays installed) and
+    /// keeps it in its own file under the app support directory, where
+    /// Flutter keeps it (a plain app file: removing app data removes it).
+    /// A non-blank id the app passes wins over the SDK's.
     public var installationId: String
 
-    public init(name: String, version: String, buildNumber: String, appId: String, installationId: String) {
+    public init(name: String, version: String, buildNumber: String, appId: String, installationId: String = "") {
       self.name = name
       self.version = version
       self.buildNumber = buildNumber

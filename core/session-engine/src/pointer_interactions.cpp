@@ -49,7 +49,7 @@ void pointer_down(Turn& turn, const PointerDownSignal& signal) {
       before != nullptr ? before : frames.surface_compatible_latest(context);
 
   InteractionOrigin origin;
-  origin.interaction_id = state.ids.next("event");
+  origin.interaction_id = state.ids.next_event();
   origin.route = current_route_stamp(state);
   origin.coordinate =
       sample_coordinate(signal.position, coordinate_frame, context);

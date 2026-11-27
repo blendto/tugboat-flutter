@@ -20,7 +20,7 @@ import com.tugboat.android.views.AdapterGuard
  * (`Tugboat.stop`) or [stop] cancels a pending HEALTH line.
  */
 internal class LaunchCorrelation(
-    /** `session-<wallUs>` of the running session, null when none runs. */
+    /** `session-<UUIDv4>` of the running session (the id the collector sees), null when none runs. */
     private val captureSessionId: () -> String?,
     private val lifecycle: () -> LifecycleSnapshot,
     private val handler: Handler = Handler(Looper.getMainLooper()),
@@ -66,9 +66,6 @@ internal class LaunchCorrelation(
             cancelPendingHealth()
             LaunchCorrelationLatch.launchLogged = false
         }
-
-        /** The `captureSessionId` of a session whose `session.start` is at [wallUs]. */
-        fun captureSessionId(wallUs: Long): String = "session-$wallUs"
     }
 }
 

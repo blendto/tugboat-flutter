@@ -55,7 +55,7 @@ void start_scroll(Turn& turn, const ScrollFact& fact) {
     const FrameProvenance* before = state.captures.frames().compatible_latest(
         current_request_context(state, FrameTrigger::kScroll));
     if (before != nullptr) tracker.before_frame = before->frame_id;
-    tracker.start_id = state.ids.next("event");
+    tracker.start_id = state.ids.next_event();
     tracker.route_epoch = state.navigation.route_epoch;
     tracker.start_offset = fact.offset;
     tracker.anchor = fact.anchor;

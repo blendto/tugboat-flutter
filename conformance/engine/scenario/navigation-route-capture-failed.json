@@ -28,7 +28,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "1e61c49a9f1b110cdd9f243cabfa498e63dd5a11972191d6ec0f7a8477c8e433"
           }
         },
         "expect": {
@@ -36,11 +37,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-19d5b29a-aeef-4c96-8bfc-d2468a5427a8",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-4a8e04db-f11f-4082-b34d-0b7678ecbd08"
               },
               "userId": null
             }
@@ -178,18 +179,18 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-5",
+                "id": "event-b46c839c-a4ba-428f-a287-680ff4588e36",
                 "atMs": 1150,
                 "type": "route_change",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-4a8e04db-f11f-4082-b34d-0b7678ecbd08",
                 "result": "navigated",
                 "data": {
                   "route": "/home",
                   "navigation": "route_push",
                   "captureOutcome": "failed",
                   "captureFailure": "paint_readiness_timeout",
-                  "captureRequestId": "capture_request-3",
+                  "captureRequestId": "capture_request-2",
                   "routeName": "/home",
                   "routeType": "MaterialPageRoute<dynamic>",
                   "routeNamed": true,
@@ -231,8 +232,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-4a8e04db-f11f-4082-b34d-0b7678ecbd08",
+        "captureSessionId": "session-4a8e04db-f11f-4082-b34d-0b7678ecbd08",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -254,25 +255,25 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-19d5b29a-aeef-4c96-8bfc-d2468a5427a8",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-4a8e04db-f11f-4082-b34d-0b7678ecbd08"
         },
         {
-          "id": "event-5",
+          "id": "event-b46c839c-a4ba-428f-a287-680ff4588e36",
           "atMs": 1150,
           "type": "route_change",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-4a8e04db-f11f-4082-b34d-0b7678ecbd08",
           "result": "navigated",
           "data": {
             "route": "/home",
             "navigation": "route_push",
             "captureOutcome": "failed",
             "captureFailure": "paint_readiness_timeout",
-            "captureRequestId": "capture_request-3",
+            "captureRequestId": "capture_request-2",
             "routeName": "/home",
             "routeType": "MaterialPageRoute<dynamic>",
             "routeNamed": true,

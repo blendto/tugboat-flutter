@@ -4,6 +4,7 @@
 
 #include "clock.h"
 #include "dart_time.h"
+#include "text.h"
 #include "tugboat/tb_session_engine.h"
 
 namespace tugboat {
@@ -17,6 +18,54 @@ std::string IdCounter::next(const char* prefix) {
 std::string IdCounter::next(const char* prefix, int64_t* number) {
   *number = next_++;
   return std::string(prefix) + "-" + std::to_string(*number);
+}
+
+std::string format_uuid_v4(const std::array<uint8_t, 16>& in) {
+  std::array<uint8_t, 16> bytes = in;
+  bytes[6] = static_cast<uint8_t>((bytes[6] & 0x0f) | 0x40);
+  bytes[8] = static_cast<uint8_t>((bytes[8] & 0x3f) | 0x80);
+  static const char kHex[] = "0123456789abcdef";
+  std::string out;
+  out.reserve(36);
+  for (size_t i = 0; i < bytes.size(); ++i) {
+    if (i == 4 || i == 6 || i == 8 || i == 10) {
+      out.push_back('-');
+    }
+    out.push_back(kHex[bytes[i] >> 4]);
+    out.push_back(kHex[bytes[i] & 0x0f]);
+  }
+  return out;
+}
+
+void IdCounter::begin_session(const std::array<uint8_t, 32>& seed) {
+  seed_ = seed;
+  stream_ = 0;
+}
+
+std::string IdCounter::next_uuid_id(const char* prefix) {
+  // SHA-256(seed || big-endian stream index): 16 of its 32 bytes feed the
+  // UUID, so ids neither repeat nor reveal the seed.
+  std::string input(seed_.begin(), seed_.end());
+  for (int shift = 56; shift >= 0; shift -= 8) {
+    input.push_back(static_cast<char>((stream_ >> shift) & 0xff));
+  }
+  ++stream_;
+  const std::array<uint8_t, 32> digest = sha256(input);
+  std::array<uint8_t, 16> bytes;
+  for (size_t i = 0; i < bytes.size(); ++i) {
+    bytes[i] = digest[i];
+  }
+  return std::string(prefix) + "-" + format_uuid_v4(bytes);
+}
+
+std::string IdCounter::next_session_id() { return next_uuid_id("session"); }
+
+std::string IdCounter::next_id(const char* prefix) {
+  return next_uuid_id(prefix);
+}
+
+std::string IdCounter::next_event() {
+  return next_uuid_id("event");
 }
 
 int64_t Session::at_ms(int64_t mono_us) const {

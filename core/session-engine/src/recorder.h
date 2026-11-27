@@ -35,13 +35,13 @@ Event enrich(Event event, const Session& session,
 void record_event(EngineState* state, Session& session, Event event,
                   bool attach_action_context, Output* out);
 
-// Mints `event-N` and builds an engine-produced event at `mono_us`.
+// Mints `event-<UUIDv4>` and builds an engine-produced event at `mono_us`.
 Event make_event(EngineState* state, const Session& session,
                  const char* type, int64_t mono_us);
 
 // An engine-produced `capture_diagnostic`: `data` on the diagnostic stream
-// under a minted `event-N`, unless `id` and `stream` say otherwise
-// (collector delivery gaps keep Dart's `collector-…` ids and stream).
+// under a minted `event-<UUIDv4>`, unless `id` and `stream` say otherwise
+// (collector delivery gaps use Dart's `collector-…-<UUIDv4>` ids and stream).
 struct Diagnostic {
   Value data = Value::object();
   OptString after_frame;

@@ -24,7 +24,7 @@ final class LaunchCorrelationTests: XCTestCase {
   }
 
   private func correlation(
-    sessionWallUs: Int64? = 1_781_827_200_000_000,
+    captureSessionId: String? = "session-1781827200000000",
     state: TugboatLifecycleState = .active,
     activationRequestId: String? = nil,
     schedule: @escaping (_ delay: TimeInterval, _ block: @escaping () -> Void) -> DispatchWorkItem = { _, block in
@@ -35,7 +35,7 @@ final class LaunchCorrelationTests: XCTestCase {
   ) -> LaunchCorrelation {
     LaunchCorrelation(
       lifecycle: {
-        LaunchCorrelation.Reading(state: state, activationRequestId: activationRequestId, sessionWallUs: sessionWallUs)
+        LaunchCorrelation.Reading(state: state, activationRequestId: activationRequestId, captureSessionId: captureSessionId)
       },
       schedule: schedule,
       emit: { [unowned self] in self.lines.append($0) }
@@ -45,7 +45,7 @@ final class LaunchCorrelationTests: XCTestCase {
   /// A correlation whose reading the test changes, with HEALTH held until
   /// the test fires it.
   private final class Clock10s {
-    var reading = LaunchCorrelation.Reading(state: .dormant, activationRequestId: nil, sessionWallUs: nil)
+    var reading = LaunchCorrelation.Reading(state: .dormant, activationRequestId: nil, captureSessionId: nil)
     var pending: (() -> Void)?
   }
 
@@ -65,10 +65,10 @@ final class LaunchCorrelationTests: XCTestCase {
 
   func testLaunchOncePerProcess() {
     let options = captureOptions()
-    let first = correlation(sessionWallUs: 100)
+    let first = correlation(captureSessionId: "session-100")
     first.startIfNeeded(parsed: options)
     drainMain()
-    let second = correlation(sessionWallUs: 200)
+    let second = correlation(captureSessionId: "session-200")
     second.startIfNeeded(parsed: options)
     drainMain()
     let launches = launchLines()
@@ -78,11 +78,11 @@ final class LaunchCorrelationTests: XCTestCase {
 
   func testStopThenSecondStartDoesNotLogAgain() {
     let options = captureOptions(accept: true)
-    let first = correlation(sessionWallUs: 50)
+    let first = correlation(captureSessionId: "session-50")
     first.startIfNeeded(parsed: options)
     drainMain()
     first.stop()
-    let second = correlation(sessionWallUs: 60)
+    let second = correlation(captureSessionId: "session-60")
     second.startIfNeeded(parsed: options)
     drainMain()
     XCTAssertEqual(launchLines().count, 1)
@@ -106,7 +106,7 @@ final class LaunchCorrelationTests: XCTestCase {
   }
 
   func testHealthDormantOmitsSessionId() {
-    let correlation = correlation(sessionWallUs: nil, state: .dormant)
+    let correlation = correlation(captureSessionId: nil, state: .dormant)
     correlation.startIfNeeded(parsed: captureOptions())
     drainMain()
     XCTAssertEqual(lines.count, 2)
@@ -118,26 +118,26 @@ final class LaunchCorrelationTests: XCTestCase {
   /// The HEALTH JSON: `lifecycle` is the state's name; `activationRequestId`
   /// when one is set; `captureSessionId` only while a session runs.
   func testHealthJSONShape() throws {
-    func health(_ state: TugboatLifecycleState, _ id: String?, _ wall: Int64?) throws -> [String: Any] {
-      let line = LaunchOptions.healthLine(lifecycle: state.rawValue, activationRequestId: id, sessionWallUs: wall)
+    func health(_ state: TugboatLifecycleState, _ id: String?, _ wall: String?) throws -> [String: Any] {
+      let line = LaunchOptions.healthLine(lifecycle: state.rawValue, activationRequestId: id, captureSessionId: wall)
       XCTAssertTrue(line.hasPrefix("TUGBOAT_HEALTH {"))
       let json = String(line.dropFirst("TUGBOAT_HEALTH ".count))
       return try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
     }
     XCTAssertEqual(try health(.dormant, nil, nil) as NSDictionary, ["lifecycle": "dormant"])
     XCTAssertEqual(
-      try health(.active, "run-1", 7) as NSDictionary,
+      try health(.active, "run-1", "session-7") as NSDictionary,
       ["lifecycle": "active", "activationRequestId": "run-1", "captureSessionId": "session-7"])
     XCTAssertEqual(try health(.starting, "x", nil) as NSDictionary, ["lifecycle": "starting", "activationRequestId": "x"])
     XCTAssertEqual(
-      try health(.stopping, "x\"y", 7) as NSDictionary,
+      try health(.stopping, "x\"y", "session-7") as NSDictionary,
       ["lifecycle": "stopping", "activationRequestId": "x\"y", "captureSessionId": "session-7"])
   }
 
   /// HEALTH does not keep the correlation alive.
   func testHealthDoesNotHoldTheCorrelation() {
     let held = Clock10s()
-    held.reading = LaunchCorrelation.Reading(state: .active, activationRequestId: "a", sessionWallUs: 5)
+    held.reading = LaunchCorrelation.Reading(state: .active, activationRequestId: "a", captureSessionId: "session-5")
     weak var weakCorrelation: LaunchCorrelation?
     do {
       let correlation = heldCorrelation(held)
@@ -154,11 +154,11 @@ final class LaunchCorrelationTests: XCTestCase {
   /// running when it prints, with that session's id.
   func testHealthAfterANewIdNamesTheCurrentSession() {
     let held = Clock10s()
-    held.reading = LaunchCorrelation.Reading(state: .active, activationRequestId: "a", sessionWallUs: 100)
+    held.reading = LaunchCorrelation.Reading(state: .active, activationRequestId: "a", captureSessionId: "session-100")
     heldCorrelation(held).startIfNeeded(parsed: captureOptions())
     drainMain()
     XCTAssertTrue(lines.first?.contains("\"captureSessionId\":\"session-100\"") ?? false)
-    held.reading = LaunchCorrelation.Reading(state: .active, activationRequestId: "b", sessionWallUs: 300)
+    held.reading = LaunchCorrelation.Reading(state: .active, activationRequestId: "b", captureSessionId: "session-300")
     held.pending?()
     XCTAssertEqual(
       lines.last, "TUGBOAT_HEALTH {\"lifecycle\":\"active\",\"activationRequestId\":\"b\",\"captureSessionId\":\"session-300\"}")
@@ -167,10 +167,10 @@ final class LaunchCorrelationTests: XCTestCase {
   /// m1: deactivated within ten seconds: dormant, no session id.
   func testHealthAfterDeactivateHasNoSessionId() {
     let held = Clock10s()
-    held.reading = LaunchCorrelation.Reading(state: .active, activationRequestId: "a", sessionWallUs: 100)
+    held.reading = LaunchCorrelation.Reading(state: .active, activationRequestId: "a", captureSessionId: "session-100")
     heldCorrelation(held).startIfNeeded(parsed: captureOptions())
     drainMain()
-    held.reading = LaunchCorrelation.Reading(state: .dormant, activationRequestId: nil, sessionWallUs: nil)
+    held.reading = LaunchCorrelation.Reading(state: .dormant, activationRequestId: nil, captureSessionId: nil)
     held.pending?()
     XCTAssertEqual(lines.last, "TUGBOAT_HEALTH {\"lifecycle\":\"dormant\"}")
   }
@@ -181,22 +181,22 @@ final class LaunchCorrelationTests: XCTestCase {
     var lifecycle = ActivationState.Snapshot()
     lifecycle.state = .active
     lifecycle.activationRequestId = "a"
-    let stopped = LaunchCorrelation.Reading.of(lifecycle, session: (wallUs: 7, hostRunning: false))
+    let stopped = LaunchCorrelation.Reading.of(lifecycle, session: (captureSessionId: "session-7", hostRunning: false))
     XCTAssertEqual(stopped.state, .dormant)
     XCTAssertNil(stopped.activationRequestId)
-    XCTAssertNil(stopped.sessionWallUs)
+    XCTAssertNil(stopped.captureSessionId)
     XCTAssertEqual(
       LaunchOptions.healthLine(
         lifecycle: stopped.state.rawValue, activationRequestId: stopped.activationRequestId,
-        sessionWallUs: stopped.sessionWallUs),
+        captureSessionId: stopped.captureSessionId),
       "TUGBOAT_HEALTH {\"lifecycle\":\"dormant\"}")
-    let live = LaunchCorrelation.Reading.of(lifecycle, session: (wallUs: 7, hostRunning: true))
+    let live = LaunchCorrelation.Reading.of(lifecycle, session: (captureSessionId: "session-7", hostRunning: true))
     XCTAssertEqual(live.state, .active)
     XCTAssertEqual(live.activationRequestId, "a")
-    XCTAssertEqual(live.sessionWallUs, 7)
+    XCTAssertEqual(live.captureSessionId, "session-7")
     let none = LaunchCorrelation.Reading.of(lifecycle, session: nil)
     XCTAssertEqual(none.state, .active)
-    XCTAssertNil(none.sessionWallUs)
+    XCTAssertNil(none.captureSessionId)
   }
 
   /// m2: a dormant start logs LAUNCH (no session id) and a dormant HEALTH.
@@ -215,7 +215,7 @@ final class LaunchCorrelationTests: XCTestCase {
 
   func testAutomationRunIdEscapesControlCharacters() throws {
     let runId = "run\u{01}\"x"
-    let line = captureOptions(runId: runId).launchLine(sessionWallUs: 1)
+    let line = captureOptions(runId: runId).launchLine(captureSessionId: "session-1")
     let jsonPart = String(line.dropFirst("TUGBOAT_LAUNCH ".count))
     let object = try XCTUnwrap(
       try JSONSerialization.jsonObject(with: Data(jsonPart.utf8)) as? [String: Any])

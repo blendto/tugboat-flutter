@@ -28,7 +28,7 @@ class RecordEvent final : public Command {
   void apply(const ModuleRegistry&, EngineState* state,
              Output* out) override {
     Session& session = *state->live_session();
-    event_.id = state->ids.next("event");
+    event_.id = state->ids.next_event();
     event_.at_ms = session.at_ms(fact_mono_us_);
     record_event(state, session, std::move(event_), attach_action_context_,
                  out);

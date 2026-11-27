@@ -11,13 +11,13 @@
     },
     "steps": [
       {
-        "send": {"type": "session.start", "at": {"monoUs": 5000000, "wallUs": 1781827200000000}, "input": {"viewport": {"width": 412.0, "height": 915.0}, "platform": "android", "sessionEpoch": 0}},
-        "expect": {"records": [{"kind": "event", "event": {"id": "event-0", "atMs": 0, "type": "session_start", "stream": "semantic", "captureSessionId": "session-1781827200000000"}, "userId": null}], "effects": [{"type": "capture.request", "requestId": "capture-0", "trigger": "initial", "force": true, "requireFreshPaint": true, "dropWhenBusy": false, "notBeforeMonoUs": 5000000, "context": {"routeEpoch": 0, "boundaryGeneration": 0}, "scale": 1.0}, {"type": "timer.schedule", "timerId": "capture.answer.capture-0", "atMonoUs": 10000000}]}
+        "send": {"type": "session.start", "at": {"monoUs": 5000000, "wallUs": 1781827200000000}, "input": {"viewport": {"width": 412.0, "height": 915.0}, "platform": "android", "sessionEpoch": 0, "idSeed": "8246d3b6d5f9654c0d8fd152f98dff4d8594ae1e67e0b74807888d243b24bb0f"}},
+        "expect": {"records": [{"kind": "event", "event": {"id": "event-64e5a997-89a9-4091-a4ed-8f79b2483c7f", "atMs": 0, "type": "session_start", "stream": "semantic", "captureSessionId": "session-f7a0a6c5-8da5-42e7-938a-2c9dc5f1f9fb"}, "userId": null}], "effects": [{"type": "capture.request", "requestId": "capture-0", "trigger": "initial", "force": true, "requireFreshPaint": true, "dropWhenBusy": false, "notBeforeMonoUs": 5000000, "context": {"routeEpoch": 0, "boundaryGeneration": 0}, "scale": 1.0}, {"type": "timer.schedule", "timerId": "capture.answer.capture-0", "atMonoUs": 10000000}]}
       },
       {"send": {"type": "capture.result", "at": {"monoUs": 5000000}, "input": {"requestId": "capture-0", "outcome": "failed"}}, "expect": {"records": [], "effects": [{"type": "timer.cancel", "timerId": "capture.answer.capture-0"}]}},
       {
         "send": {"type": "navigation", "at": {"monoUs": 5050000}, "input": {"kind": "session_start", "navigatorId": "root", "routes": [{"instanceId": "a-home", "name": "/home", "type": "Page", "overlayKind": "page", "transitionMs": 0}]}},
-        "expect": {"records": [{"kind": "event", "event": {"id": "event-3", "atMs": 50, "type": "route_change", "stream": "evidence", "captureSessionId": "session-1781827200000000", "result": "unknown", "data": {"route": "/home", "navigation": "session_start", "routeName": "/home", "routeType": "Page", "routeNamed": true, "navigatorId": "nav-0", "routeInstanceId": "route-0", "stackRevision": 1, "overlayKind": "page", "visualObservationGeneration": 1, "navigationOrigin": "automatic_or_unknown", "routeStack": [{"routeInstanceId": "route-0", "route": "/home", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-0"}]}}, "userId": null}], "effects": []}
+        "expect": {"records": [{"kind": "event", "event": {"id": "event-89a10ffc-7387-43c0-88f4-8dbdbe2cc253", "atMs": 50, "type": "route_change", "stream": "evidence", "captureSessionId": "session-f7a0a6c5-8da5-42e7-938a-2c9dc5f1f9fb", "result": "unknown", "data": {"route": "/home", "navigation": "session_start", "routeName": "/home", "routeType": "Page", "routeNamed": true, "navigatorId": "nav-0", "routeInstanceId": "route-0", "stackRevision": 1, "overlayKind": "page", "visualObservationGeneration": 1, "navigationOrigin": "automatic_or_unknown", "routeStack": [{"routeInstanceId": "route-0", "route": "/home", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-0"}]}}, "userId": null}], "effects": []}
       },
       {"send": {"type": "input.pointer", "at": {"monoUs": 5100000}, "input": {"pointerId": 1, "phase": "down", "x": 100.0, "y": 200.0, "device": "touch"}}, "expect": {"records": [], "effects": []}},
       {
@@ -36,22 +36,22 @@
         "send": {"type": "capture.result", "at": {"monoUs": 6450000}, "input": {"requestId": "capture-1", "outcome": "captured", "frame": {"handle": "h-checkout", "width": 1080, "height": 2400, "contentHash": "hash-h-checkout", "masked": true, "byteLength": 48000, "captureMicros": 12000}, "boundaryRect": {"x": 0.0, "y": 0.0, "width": 412.0, "height": 915.0}}},
         "expect": {
           "records": [
-            {"kind": "frame", "handle": "h-checkout", "frame": {"id": "frame-6", "atMs": 1450, "width": 1080, "height": 2400, "contentHash": "hash-h-checkout", "masked": true, "trigger": "route", "byteLength": 48000, "captureMicros": 12000, "captureSessionId": "session-1781827200000000"}},
+            {"kind": "frame", "handle": "h-checkout", "frame": {"id": "frame-3", "atMs": 1450, "width": 1080, "height": 2400, "contentHash": "hash-h-checkout", "masked": true, "trigger": "route", "byteLength": 48000, "captureMicros": 12000, "captureSessionId": "session-f7a0a6c5-8da5-42e7-938a-2c9dc5f1f9fb"}},
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-5db1e428-126f-4f64-bc5e-9fe1152ae226",
                 "atMs": 1450,
                 "type": "route_change",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-6",
+                "captureSessionId": "session-f7a0a6c5-8da5-42e7-938a-2c9dc5f1f9fb",
+                "afterFrame": "frame-3",
                 "result": "navigated",
                 "data": {
                   "fromRoute": "/home",
                   "route": "/checkout",
                   "navigation": "route_push",
-                  "captureRequestId": "capture_request-5",
+                  "captureRequestId": "capture_request-2",
                   "routeName": "/checkout",
                   "routeType": "MaterialPageRoute<dynamic>",
                   "routeNamed": true,
@@ -65,8 +65,8 @@
                   "overlayKind": "page",
                   "visualObservationGeneration": 2,
                   "navigationOrigin": "interaction",
-                  "causeEventId": "event-4",
-                  "causedByInteractionId": "event-4",
+                  "causeEventId": "event-ff52a5e4-ba4a-4fa2-8e7c-4beda6910a71",
+                  "causedByInteractionId": "event-ff52a5e4-ba4a-4fa2-8e7c-4beda6910a71",
                   "interactionAttribution": "same_turn",
                   "causeTargetFingerprint": "fp-buy",
                   "causeGesture": "tap",
@@ -78,13 +78,13 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-ff52a5e4-ba4a-4fa2-8e7c-4beda6910a71",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-f7a0a6c5-8da5-42e7-938a-2c9dc5f1f9fb",
                 "targetAnchor": {"role": "button", "fingerprint": "fp-buy"},
-                "afterFrame": "frame-6",
+                "afterFrame": "frame-3",
                 "data": {"interactionSchema": 2, "gesture": "tap", "route": "/home", "targetFingerprint": "fp-buy"}
               },
               "userId": null
@@ -98,13 +98,13 @@
   "expected": {
     "finalSnapshot": {
       "schemaVersion": 10,
-      "session": {"id": "session-1781827200000000", "captureSessionId": "session-1781827200000000", "startedAt": "2026-06-19T00:00:00.000Z", "platform": "android", "viewport": {"x": 0.0, "y": 0.0, "width": 412.0, "height": 915.0}, "truncated": false, "appInfo": {"name": "Example App", "version": "2.4.0", "buildNumber": "240", "installationId": "inst-0001", "appId": "com.example.app", "packageName": "com.example.app"}},
-      "frames": [{"id": "frame-6", "atMs": 1450, "width": 1080, "height": 2400, "contentHash": "hash-h-checkout", "masked": true, "trigger": "route", "byteLength": 48000, "captureMicros": 12000, "captureSessionId": "session-1781827200000000"}],
+      "session": {"id": "session-f7a0a6c5-8da5-42e7-938a-2c9dc5f1f9fb", "captureSessionId": "session-f7a0a6c5-8da5-42e7-938a-2c9dc5f1f9fb", "startedAt": "2026-06-19T00:00:00.000Z", "platform": "android", "viewport": {"x": 0.0, "y": 0.0, "width": 412.0, "height": 915.0}, "truncated": false, "appInfo": {"name": "Example App", "version": "2.4.0", "buildNumber": "240", "installationId": "inst-0001", "appId": "com.example.app", "packageName": "com.example.app"}},
+      "frames": [{"id": "frame-3", "atMs": 1450, "width": 1080, "height": 2400, "contentHash": "hash-h-checkout", "masked": true, "trigger": "route", "byteLength": 48000, "captureMicros": 12000, "captureSessionId": "session-f7a0a6c5-8da5-42e7-938a-2c9dc5f1f9fb"}],
       "events": [
-        {"id": "event-0", "atMs": 0, "type": "session_start", "stream": "semantic", "captureSessionId": "session-1781827200000000"},
-        {"id": "event-3", "atMs": 50, "type": "route_change", "stream": "evidence", "captureSessionId": "session-1781827200000000", "result": "unknown", "data": {"route": "/home", "navigation": "session_start", "routeName": "/home", "routeType": "Page", "routeNamed": true, "navigatorId": "nav-0", "routeInstanceId": "route-0", "stackRevision": 1, "overlayKind": "page", "visualObservationGeneration": 1, "navigationOrigin": "automatic_or_unknown", "routeStack": [{"routeInstanceId": "route-0", "route": "/home", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-0"}]}},
-        {"id": "event-8", "atMs": 1450, "type": "route_change", "stream": "evidence", "captureSessionId": "session-1781827200000000", "afterFrame": "frame-6", "result": "navigated", "data": {"fromRoute": "/home", "route": "/checkout", "navigation": "route_push", "captureRequestId": "capture_request-5", "routeName": "/checkout", "routeType": "MaterialPageRoute<dynamic>", "routeNamed": true, "fromRouteName": "/home", "fromRouteType": "Page", "fromRouteNamed": true, "navigatorId": "nav-0", "routeInstanceId": "route-1", "fromRouteInstanceId": "route-0", "stackRevision": 2, "overlayKind": "page", "visualObservationGeneration": 2, "navigationOrigin": "interaction", "causeEventId": "event-4", "causedByInteractionId": "event-4", "interactionAttribution": "same_turn", "causeTargetFingerprint": "fp-buy", "causeGesture": "tap", "routeStack": [{"routeInstanceId": "route-0", "route": "/home", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-0"}, {"routeInstanceId": "route-1", "route": "/checkout", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-0"}]}},
-        {"id": "event-4", "atMs": 100, "type": "interaction", "stream": "semantic", "captureSessionId": "session-1781827200000000", "targetAnchor": {"role": "button", "fingerprint": "fp-buy"}, "afterFrame": "frame-6", "data": {"interactionSchema": 2, "gesture": "tap", "route": "/home", "targetFingerprint": "fp-buy"}}
+        {"id": "event-64e5a997-89a9-4091-a4ed-8f79b2483c7f", "atMs": 0, "type": "session_start", "stream": "semantic", "captureSessionId": "session-f7a0a6c5-8da5-42e7-938a-2c9dc5f1f9fb"},
+        {"id": "event-89a10ffc-7387-43c0-88f4-8dbdbe2cc253", "atMs": 50, "type": "route_change", "stream": "evidence", "captureSessionId": "session-f7a0a6c5-8da5-42e7-938a-2c9dc5f1f9fb", "result": "unknown", "data": {"route": "/home", "navigation": "session_start", "routeName": "/home", "routeType": "Page", "routeNamed": true, "navigatorId": "nav-0", "routeInstanceId": "route-0", "stackRevision": 1, "overlayKind": "page", "visualObservationGeneration": 1, "navigationOrigin": "automatic_or_unknown", "routeStack": [{"routeInstanceId": "route-0", "route": "/home", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-0"}]}},
+        {"id": "event-5db1e428-126f-4f64-bc5e-9fe1152ae226", "atMs": 1450, "type": "route_change", "stream": "evidence", "captureSessionId": "session-f7a0a6c5-8da5-42e7-938a-2c9dc5f1f9fb", "afterFrame": "frame-3", "result": "navigated", "data": {"fromRoute": "/home", "route": "/checkout", "navigation": "route_push", "captureRequestId": "capture_request-2", "routeName": "/checkout", "routeType": "MaterialPageRoute<dynamic>", "routeNamed": true, "fromRouteName": "/home", "fromRouteType": "Page", "fromRouteNamed": true, "navigatorId": "nav-0", "routeInstanceId": "route-1", "fromRouteInstanceId": "route-0", "stackRevision": 2, "overlayKind": "page", "visualObservationGeneration": 2, "navigationOrigin": "interaction", "causeEventId": "event-ff52a5e4-ba4a-4fa2-8e7c-4beda6910a71", "causedByInteractionId": "event-ff52a5e4-ba4a-4fa2-8e7c-4beda6910a71", "interactionAttribution": "same_turn", "causeTargetFingerprint": "fp-buy", "causeGesture": "tap", "routeStack": [{"routeInstanceId": "route-0", "route": "/home", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-0"}, {"routeInstanceId": "route-1", "route": "/checkout", "routeNamed": true, "overlayKind": "page", "navigatorId": "nav-0"}]}},
+        {"id": "event-ff52a5e4-ba4a-4fa2-8e7c-4beda6910a71", "atMs": 100, "type": "interaction", "stream": "semantic", "captureSessionId": "session-f7a0a6c5-8da5-42e7-938a-2c9dc5f1f9fb", "targetAnchor": {"role": "button", "fingerprint": "fp-buy"}, "afterFrame": "frame-3", "data": {"interactionSchema": 2, "gesture": "tap", "route": "/home", "targetFingerprint": "fp-buy"}}
       ]
     }
   }

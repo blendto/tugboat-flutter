@@ -248,6 +248,7 @@ int main(int argc, char** argv) {
       std::string relative = fs::relative(entry.path(), root).generic_string();
       if (relative != conformance::kChangeIdsFile &&
           relative != conformance::kRetryAfterVectorsFile &&
+          relative != conformance::kCaptureIdVectorsFile &&
           relative != conformance::kPresetsFile &&
           relative.find(filter) != std::string::npos) {
         files.emplace_back(std::move(relative), entry.path());

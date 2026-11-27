@@ -43,7 +43,7 @@ struct CaptureCoordinate {
 
 // Immutable pointer-down facts (Dart `InteractionOrigin`).
 struct InteractionOrigin {
-  std::string interaction_id;  // `event-N`, minted at pointer-down
+  std::string interaction_id;  // `event-<UUIDv4>`, minted at pointer-down
   RouteStamp route;
   CaptureCoordinate coordinate;
   OptString before_frame;

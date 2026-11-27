@@ -23,9 +23,11 @@
 namespace tugboat {
 namespace engine {
 
-// A gap to record: the event id and its `data`.
+// A gap to record: the event id prefix and its `data`. The recorder mints
+// the id as `<prefix>-<UUIDv4>` from the session's id stream (Dart 0.12.3
+// `generateTugboatCaptureId`).
 struct GapReport {
-  std::string id;
+  std::string id_prefix;
   Value data;
 };
 
@@ -49,7 +51,6 @@ class FrameGaps {
                    int64_t frame_count);
 
   bool failure_reported_ = false;
-  int64_t sequence_ = 0;
   int64_t dropped_frames_ = 0;
 };
 
@@ -63,7 +64,6 @@ class EventGaps {
                                    std::optional<int64_t> status);
 
  private:
-  int64_t sequence_ = 0;
   int64_t dropped_events_ = 0;
 };
 

@@ -32,7 +32,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "07347102aca34ee3cc8880b8154804ddb459b5e1bd00f6eb9df6b7b9d8d3daed"
           }
         },
         "expect": {
@@ -40,11 +41,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-0c927687-e615-4f91-aaa1-0adf46f3f195",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-8b95f8c6-8784-4fcc-bf57-ec0300d140bb"
               },
               "userId": null
             }
@@ -189,7 +190,7 @@
               "kind": "frame",
               "handle": "h-capture_request-2",
               "frame": {
-                "id": "frame-5",
+                "id": "frame-3",
                 "atMs": 50,
                 "width": 1080,
                 "height": 2400,
@@ -198,18 +199,18 @@
                 "trigger": "interaction",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-8b95f8c6-8784-4fcc-bf57-ec0300d140bb"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-0ee6b518-b7f8-4f9a-837f-f456dfff558a",
                 "atMs": 10,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-5",
+                "captureSessionId": "session-8b95f8c6-8784-4fcc-bf57-ec0300d140bb",
+                "afterFrame": "frame-3",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap"
@@ -449,7 +450,7 @@
               "kind": "frame",
               "handle": "h-capture_request-7",
               "frame": {
-                "id": "frame-11",
+                "id": "frame-6",
                 "atMs": 200,
                 "width": 1080,
                 "height": 2400,
@@ -458,19 +459,19 @@
                 "trigger": "interaction",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-8b95f8c6-8784-4fcc-bf57-ec0300d140bb"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-7",
+                "id": "event-362aa2af-1807-4fb0-ad24-3f52ec7927c5",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
-                "beforeFrame": "frame-5",
-                "afterFrame": "frame-11",
+                "captureSessionId": "session-8b95f8c6-8784-4fcc-bf57-ec0300d140bb",
+                "beforeFrame": "frame-3",
+                "afterFrame": "frame-6",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "swipe",
@@ -508,8 +509,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-8b95f8c6-8784-4fcc-bf57-ec0300d140bb",
+        "captureSessionId": "session-8b95f8c6-8784-4fcc-bf57-ec0300d140bb",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -530,7 +531,7 @@
       },
       "frames": [
         {
-          "id": "frame-5",
+          "id": "frame-3",
           "atMs": 50,
           "width": 1080,
           "height": 2400,
@@ -539,10 +540,10 @@
           "trigger": "interaction",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-8b95f8c6-8784-4fcc-bf57-ec0300d140bb"
         },
         {
-          "id": "frame-11",
+          "id": "frame-6",
           "atMs": 200,
           "width": 1080,
           "height": 2400,
@@ -551,37 +552,37 @@
           "trigger": "interaction",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-8b95f8c6-8784-4fcc-bf57-ec0300d140bb"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-0c927687-e615-4f91-aaa1-0adf46f3f195",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-8b95f8c6-8784-4fcc-bf57-ec0300d140bb"
         },
         {
-          "id": "event-3",
+          "id": "event-0ee6b518-b7f8-4f9a-837f-f456dfff558a",
           "atMs": 10,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-5",
+          "captureSessionId": "session-8b95f8c6-8784-4fcc-bf57-ec0300d140bb",
+          "afterFrame": "frame-3",
           "data": {
             "interactionSchema": 2,
             "gesture": "tap"
           }
         },
         {
-          "id": "event-7",
+          "id": "event-362aa2af-1807-4fb0-ad24-3f52ec7927c5",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
-          "beforeFrame": "frame-5",
-          "afterFrame": "frame-11",
+          "captureSessionId": "session-8b95f8c6-8784-4fcc-bf57-ec0300d140bb",
+          "beforeFrame": "frame-3",
+          "afterFrame": "frame-6",
           "data": {
             "interactionSchema": 2,
             "gesture": "swipe",

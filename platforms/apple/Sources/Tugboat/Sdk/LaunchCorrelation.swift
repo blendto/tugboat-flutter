@@ -15,22 +15,22 @@ final class LaunchCorrelation {
   struct Reading {
     let state: TugboatLifecycleState
     let activationRequestId: String?
-    /// The running session's start (`session.start` wall clock); nil when
-    /// no session runs.
-    let sessionWallUs: Int64?
+    /// The running session's id (`session-<UUIDv4>`, the one the collector
+    /// sees); nil when no session runs.
+    let captureSessionId: String?
 
     /// The reading for `lifecycle` and the running session (`session`, nil
     /// when none runs). As on Android, a session whose engine host stopped
     /// (it disabled itself, or the engine ended the session on `detached`)
     /// reads `dormant`, with no ids.
     static func of(
-      _ lifecycle: ActivationState.Snapshot, session: (wallUs: Int64, hostRunning: Bool)?
+      _ lifecycle: ActivationState.Snapshot, session: (captureSessionId: String, hostRunning: Bool)?
     ) -> Reading {
       if let session = session, !session.hostRunning {
-        return Reading(state: .dormant, activationRequestId: nil, sessionWallUs: nil)
+        return Reading(state: .dormant, activationRequestId: nil, captureSessionId: nil)
       }
       return Reading(
-        state: lifecycle.state, activationRequestId: lifecycle.activationRequestId, sessionWallUs: session?.wallUs)
+        state: lifecycle.state, activationRequestId: lifecycle.activationRequestId, captureSessionId: session?.captureSessionId)
     }
   }
 
@@ -63,7 +63,7 @@ final class LaunchCorrelation {
     queue.async {
       guard !Self.processLaunchLogged, let options = options else { return }
       Self.processLaunchLogged = true
-      self.emit(options.launchLine(sessionWallUs: self.lifecycle().sessionWallUs))
+      self.emit(options.launchLine(captureSessionId: self.lifecycle().captureSessionId))
       // Holds what HEALTH needs, not this object.
       let lifecycle = self.lifecycle
       let emit = self.emit
@@ -76,7 +76,7 @@ final class LaunchCorrelation {
         emit(
           LaunchOptions.healthLine(
             lifecycle: reading.state.rawValue, activationRequestId: reading.activationRequestId,
-            sessionWallUs: reading.sessionWallUs))
+            captureSessionId: reading.captureSessionId))
       }
       if !fired {
         Self.pendingHealth = (work, self.cancel)

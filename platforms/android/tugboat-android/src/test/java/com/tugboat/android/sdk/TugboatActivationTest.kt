@@ -322,13 +322,13 @@ class TugboatActivationTest {
 
         Tugboat.activate("h")
         idle()
-        val wallUs = awaitSessionStart(0).getJSONObject("at").getLong("wallUs")
+        val seed = awaitSessionStart(0).getJSONObject("input").getString("idSeed")
         assertEquals(1, logLines("TUGBOAT_LAUNCH").size)
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LaunchCorrelation.HEALTH_DELAY_MS))
         val health = JSONObject(logLines("TUGBOAT_HEALTH").single().removePrefix("TUGBOAT_HEALTH ").trim())
         assertEquals("active", health.getString("lifecycle"))
         assertEquals("h", health.getString("activationRequestId"))
-        assertEquals("session-$wallUs", health.getString("captureSessionId"))
+        assertEquals(IdSeed.sessionId(seed), health.getString("captureSessionId"))
     }
 
     @Test
@@ -380,12 +380,12 @@ class TugboatActivationTest {
         assertEquals(1, logLines("TUGBOAT_LAUNCH").size)
         Tugboat.activate("h2")
         idle()
-        val secondWallUs = awaitSessionStart(1).getJSONObject("at").getLong("wallUs")
+        val secondSeed = awaitSessionStart(1).getJSONObject("input").getString("idSeed")
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(LaunchCorrelation.HEALTH_DELAY_MS))
         val health = JSONObject(logLines("TUGBOAT_HEALTH").single().removePrefix("TUGBOAT_HEALTH ").trim())
         assertEquals("active", health.getString("lifecycle"))
         assertEquals("h2", health.getString("activationRequestId"))
-        assertEquals("session-$secondWallUs", health.getString("captureSessionId"))
+        assertEquals(IdSeed.sessionId(secondSeed), health.getString("captureSessionId"))
     }
 
     @Test

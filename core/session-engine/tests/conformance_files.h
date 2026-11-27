@@ -8,6 +8,9 @@ namespace conformance {
 // Shared Retry-After parser vectors (C++ engine and Dart sink).
 constexpr char kRetryAfterVectorsFile[] = "retry_after_vectors.json";
 
+// Shared session/event id format vectors (C++ engine and Dart), BLE-618.
+constexpr char kCaptureIdVectorsFile[] = "capture_id_vectors.json";
+
 }  // namespace conformance
 
 #endif  // TUGBOAT_SESSION_ENGINE_TESTS_CONFORMANCE_FILES_H

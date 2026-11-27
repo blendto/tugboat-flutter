@@ -17,7 +17,6 @@ internal class HostMetadata(private val app: AppInfo, private val device: Device
         requireText("app.version", app.version)
         requireText("app.buildNumber", app.buildNumber)
         requireText("app.appId", app.appId)
-        requireText("app.installationId", app.installationId)
         requireText("device.id", device.id)
         requirePositive("device.screenSize.width", device.screenWidthDp)
         requirePositive("device.screenSize.height", device.screenHeightDp)

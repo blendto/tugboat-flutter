@@ -61,7 +61,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "1c492ad3fc169ce23237a9d85b89dfdc69916bf6c95c72072cb3fe9d8d2f5223"
           }
         },
         "expect": {
@@ -69,11 +70,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-0f98268e-40bd-4f00-b83a-7553714900bd",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-8ee2cb25-f110-4b47-90e7-4258cdbfb775"
               },
               "userId": null
             }
@@ -136,11 +137,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-fef0ec9c-77aa-43b0-9309-d8ad8143178c",
                 "atMs": 2000,
                 "type": "external_event",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-8ee2cb25-f110-4b47-90e7-4258cdbfb775",
                 "data": {
                   "source": "analytics",
                   "name": "USER_LOGIN",
@@ -209,11 +210,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-9b1f6769-afe9-451d-b225-95c3fcd3f31a",
                 "atMs": 4000,
                 "type": "external_event",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-8ee2cb25-f110-4b47-90e7-4258cdbfb775",
                 "data": {
                   "name": "search",
                   "parameterKeys": [
@@ -238,8 +239,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-8ee2cb25-f110-4b47-90e7-4258cdbfb775",
+        "captureSessionId": "session-8ee2cb25-f110-4b47-90e7-4258cdbfb775",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -261,18 +262,18 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-0f98268e-40bd-4f00-b83a-7553714900bd",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-8ee2cb25-f110-4b47-90e7-4258cdbfb775"
         },
         {
-          "id": "event-2",
+          "id": "event-fef0ec9c-77aa-43b0-9309-d8ad8143178c",
           "atMs": 2000,
           "type": "external_event",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-8ee2cb25-f110-4b47-90e7-4258cdbfb775",
           "data": {
             "source": "analytics",
             "name": "USER_LOGIN",
@@ -291,11 +292,11 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-9b1f6769-afe9-451d-b225-95c3fcd3f31a",
           "atMs": 4000,
           "type": "external_event",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-8ee2cb25-f110-4b47-90e7-4258cdbfb775",
           "data": {
             "name": "search",
             "parameterKeys": [

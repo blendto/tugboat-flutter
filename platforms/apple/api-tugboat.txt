@@ -84,7 +84,7 @@ public struct TugboatConfig
     public var buildNumber: String
     public var appId: String
     public var installationId: String
-    public init(name: String, version: String, buildNumber: String, appId: String, installationId: String)
+    public init(name: String, version: String, buildNumber: String, appId: String, installationId: String = "")
   public enum MaskLevel
     case allTextAndMedia
 

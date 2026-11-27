@@ -83,6 +83,7 @@ enum ConformanceRunner { cpp, dart }
 /// the C++ runner. Not a fixture.
 const conformanceChangeIdsFile = 'change_ids.json';
 const conformanceRetryAfterVectorsFile = 'retry_after_vectors.json';
+const conformanceCaptureIdVectorsFile = 'capture_id_vectors.json';
 
 /// Shared `engine.scenario` configuration presets, shared with the C++
 /// runner (conformance/README.md "Presets"). Not a fixture.
@@ -159,6 +160,7 @@ List<File> listFixtureFiles(Directory root) {
         final relative = fixtureRelativePath(root, file);
         return relative != conformanceChangeIdsFile &&
             relative != conformanceRetryAfterVectorsFile &&
+            relative != conformanceCaptureIdVectorsFile &&
             relative != conformancePresetsFile;
       })
       .toList();

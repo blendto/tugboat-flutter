@@ -8,11 +8,10 @@ import Tugboat
 /// dormant (default `YES`); `-TugboatCaptureDiagnostics YES` turns on
 /// `captureDiagnostics`; `-TugboatDurableOutbox YES` turns on
 /// `durableOutbox` (a launch without it wipes pending entries). App fields
-/// come from the bundle; the installation id is kept in user defaults.
+/// come from the bundle; the SDK keeps the installation id.
 enum SampleConfiguration {
   static let defaultCollectorURL = "http://127.0.0.1:3000"
   static let defaultCollectorKey = "pmk_blend-app-dev-secret"
-  private static let installationIdKey = "TugboatSampleInstallationId"
 
   /// Nil only when neither the launch argument nor the default is a URL.
   static func tugboat(defaults: UserDefaults = .standard, bundle: Bundle = .main) -> TugboatConfig? {
@@ -25,8 +24,8 @@ enum SampleConfiguration {
         name: info(bundle, "CFBundleDisplayName") ?? "Tugboat Sample",
         version: info(bundle, "CFBundleShortVersionString") ?? "",
         buildNumber: info(bundle, "CFBundleVersion") ?? "",
-        appId: bundle.bundleIdentifier ?? "",
-        installationId: installationId(defaults)
+        appId: bundle.bundleIdentifier ?? ""
+        // No installationId: the SDK mints and keeps its own.
       ),
       // Tugboat is dormant by default; the sample records from launch so
       // device scripts see a session without calling `Tugboat.activate`.
@@ -65,14 +64,5 @@ enum SampleConfiguration {
 
   private static func info(_ bundle: Bundle, _ key: String) -> String? {
     bundle.object(forInfoDictionaryKey: key) as? String
-  }
-
-  private static func installationId(_ defaults: UserDefaults) -> String {
-    if let existing = defaults.string(forKey: installationIdKey) {
-      return existing
-    }
-    let created = UUID().uuidString
-    defaults.set(created, forKey: installationIdKey)
-    return created
   }
 }

@@ -101,6 +101,22 @@ final class EngineHost {
     enqueue(json: EngineMessage(type: type, inputJSON: inputJSON, at: nil).json, frameHandles: [])
   }
 
+  /// Like `postUntimed(type:inputJSON:)`, but `input` runs on the engine
+  /// queue when the message is reached, after everything posted before it.
+  /// `input` cannot throw: the engine configuration is built from values the
+  /// host already validated, so there is no failure to turn into a shutdown
+  /// here (the Android host shuts down if its builder throws). For an input
+  /// that needs blocking work (the installation id file): the
+  /// caller does not wait, and the messages queued behind it still go out in
+  /// order.
+  func postUntimed(type: String, input: @escaping () -> String) {
+    guard accepting.current else { return }
+    queue.async {
+      guard self.active else { return }
+      self.process(json: EngineMessage(type: type, inputJSON: input(), at: nil).json, frameHandles: [])
+    }
+  }
+
   /// Runs `work` on the engine queue once every message posted before this
   /// call was submitted and its effects dispatched (so a flush's
   /// `http.send`s have started); even after `close`. Any thread.

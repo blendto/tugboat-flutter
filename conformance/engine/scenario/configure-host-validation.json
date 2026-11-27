@@ -473,7 +473,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "82475e6963ab9f7eaf44e4bd9563054b99ec66b8d1fa297781525061df06a548"
           }
         },
         "expect": {

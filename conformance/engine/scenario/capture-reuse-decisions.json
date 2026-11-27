@@ -35,7 +35,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "823375b819d60f2aa800a33a7bb9ad8827d44cf73b855a5fca34f5f509c335cb"
           }
         },
         "expect": {
@@ -43,11 +44,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-0940a4fd-7ed9-48e3-9e7b-c90f6e9404ac",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7"
               },
               "userId": null
             }
@@ -109,7 +110,7 @@
               "kind": "frame",
               "handle": "h-initial",
               "frame": {
-                "id": "frame-2",
+                "id": "frame-1",
                 "atMs": 10,
                 "width": 1080,
                 "height": 2400,
@@ -118,24 +119,24 @@
                 "trigger": "initial",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-f9560533-43f8-43b1-bc92-bb9ec1fdbd0b",
                 "atMs": 10,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-2",
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+                "afterFrame": "frame-1",
                 "data": {
                   "version": 1,
                   "outcome": "fresh_accepted",
-                  "requestId": "capture_request-1",
-                  "executionId": "capture_execution-3",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-0",
+                  "executionId": "capture_execution-2",
+                  "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
                   "routeEpoch": 0,
                   "trigger": "initial",
                   "visualEvidence": "fresh",
@@ -226,18 +227,18 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-382281d3-447a-4fb4-83d3-7b49e56a6dd3",
                 "atMs": 110,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-2",
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+                "afterFrame": "frame-1",
                 "data": {
                   "version": 1,
                   "outcome": "perceptual_hash_coalesced",
-                  "requestId": "capture_request-6",
-                  "executionId": "capture_execution-7",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-3",
+                  "executionId": "capture_execution-4",
+                  "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
                   "routeEpoch": 0,
                   "trigger": "manual",
                   "visualEvidence": "reused",
@@ -250,12 +251,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-5",
+                "id": "event-0239c0ef-2d32-4ba1-aa70-38b47f115ca2",
                 "atMs": 100,
                 "type": "system_input",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-2",
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+                "afterFrame": "frame-1",
                 "data": {
                   "input": "back"
                 }
@@ -349,7 +350,7 @@
               "kind": "frame",
               "handle": "h-new-structure",
               "frame": {
-                "id": "frame-11",
+                "id": "frame-6",
                 "atMs": 210,
                 "width": 1080,
                 "height": 2400,
@@ -358,24 +359,24 @@
                 "trigger": "manual",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-13",
+                "id": "event-6a820656-3e05-43dd-a893-7563cbee6942",
                 "atMs": 210,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-11",
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+                "afterFrame": "frame-6",
                 "data": {
                   "version": 1,
                   "outcome": "fresh_accepted",
-                  "requestId": "capture_request-10",
-                  "executionId": "capture_execution-12",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-5",
+                  "executionId": "capture_execution-7",
+                  "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
                   "routeEpoch": 0,
                   "trigger": "manual",
                   "visualEvidence": "fresh",
@@ -387,12 +388,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-9",
+                "id": "event-cba9efb5-7397-4e2e-a02d-edbb61b60a97",
                 "atMs": 200,
                 "type": "system_input",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-11",
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+                "afterFrame": "frame-6",
                 "data": {
                   "input": "back"
                 }
@@ -481,18 +482,18 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-17",
+                "id": "event-6012b96f-63c9-4d04-af5d-fd728548094b",
                 "atMs": 310,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-2",
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+                "afterFrame": "frame-1",
                 "data": {
                   "version": 1,
                   "outcome": "exact_content_reused",
-                  "requestId": "capture_request-15",
-                  "executionId": "capture_execution-16",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-8",
+                  "executionId": "capture_execution-9",
+                  "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
                   "routeEpoch": 0,
                   "trigger": "manual",
                   "visualEvidence": "reused",
@@ -505,12 +506,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-14",
+                "id": "event-7fbb5f75-1e27-4435-a8b9-1f18d06f7a54",
                 "atMs": 300,
                 "type": "system_input",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-2",
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+                "afterFrame": "frame-1",
                 "data": {
                   "input": "back"
                 }
@@ -585,18 +586,18 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-21",
+                "id": "event-c9bbfc32-f0a7-456b-83cd-ee88db60535d",
                 "atMs": 410,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-2",
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+                "afterFrame": "frame-1",
                 "data": {
                   "version": 1,
                   "outcome": "paint_generation_unchanged",
-                  "requestId": "capture_request-19",
-                  "executionId": "capture_execution-20",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-10",
+                  "executionId": "capture_execution-11",
+                  "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
                   "routeEpoch": 0,
                   "trigger": "manual",
                   "visualEvidence": "reused",
@@ -609,12 +610,12 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-18",
+                "id": "event-47bd1533-990a-4e15-93a6-939c3fddd377",
                 "atMs": 400,
                 "type": "system_input",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-2",
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+                "afterFrame": "frame-1",
                 "data": {
                   "input": "back"
                 }
@@ -741,7 +742,7 @@
               "kind": "frame",
               "handle": "h-swipe",
               "frame": {
-                "id": "frame-24",
+                "id": "frame-13",
                 "atMs": 600,
                 "width": 1080,
                 "height": 2400,
@@ -750,29 +751,29 @@
                 "trigger": "interaction",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-26",
+                "id": "event-d538b0a2-3176-464c-8933-e96cabd280fc",
                 "atMs": 600,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-24",
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+                "afterFrame": "frame-13",
                 "data": {
                   "version": 1,
                   "outcome": "fresh_accepted",
-                  "requestId": "capture_request-23",
-                  "executionId": "capture_execution-25",
-                  "captureSessionId": "session-1781827200000000",
+                  "requestId": "capture_request-12",
+                  "executionId": "capture_execution-14",
+                  "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
                   "routeEpoch": 0,
                   "trigger": "interaction",
                   "visualEvidence": "fresh",
                   "interactionEvidence": "linked",
-                  "relatedEventId": "event-22"
+                  "relatedEventId": "event-3ac8a07f-582c-4f86-9c5c-7e1e7fda28dd"
                 }
               },
               "userId": null
@@ -780,13 +781,13 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-22",
+                "id": "event-3ac8a07f-582c-4f86-9c5c-7e1e7fda28dd",
                 "atMs": 500,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
-                "beforeFrame": "frame-2",
-                "afterFrame": "frame-24",
+                "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+                "beforeFrame": "frame-1",
+                "afterFrame": "frame-13",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "swipe",
@@ -823,8 +824,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+        "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -845,7 +846,7 @@
       },
       "frames": [
         {
-          "id": "frame-2",
+          "id": "frame-1",
           "atMs": 10,
           "width": 1080,
           "height": 2400,
@@ -854,10 +855,10 @@
           "trigger": "initial",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7"
         },
         {
-          "id": "frame-11",
+          "id": "frame-6",
           "atMs": 210,
           "width": 1080,
           "height": 2400,
@@ -866,10 +867,10 @@
           "trigger": "manual",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7"
         },
         {
-          "id": "frame-24",
+          "id": "frame-13",
           "atMs": 600,
           "width": 1080,
           "height": 2400,
@@ -878,30 +879,30 @@
           "trigger": "interaction",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-0940a4fd-7ed9-48e3-9e7b-c90f6e9404ac",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7"
         },
         {
-          "id": "event-4",
+          "id": "event-f9560533-43f8-43b1-bc92-bb9ec1fdbd0b",
           "atMs": 10,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-2",
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+          "afterFrame": "frame-1",
           "data": {
             "version": 1,
             "outcome": "fresh_accepted",
-            "requestId": "capture_request-1",
-            "executionId": "capture_execution-3",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-0",
+            "executionId": "capture_execution-2",
+            "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
             "routeEpoch": 0,
             "trigger": "initial",
             "visualEvidence": "fresh",
@@ -909,18 +910,18 @@
           }
         },
         {
-          "id": "event-8",
+          "id": "event-382281d3-447a-4fb4-83d3-7b49e56a6dd3",
           "atMs": 110,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-2",
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+          "afterFrame": "frame-1",
           "data": {
             "version": 1,
             "outcome": "perceptual_hash_coalesced",
-            "requestId": "capture_request-6",
-            "executionId": "capture_execution-7",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-3",
+            "executionId": "capture_execution-4",
+            "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
             "routeEpoch": 0,
             "trigger": "manual",
             "visualEvidence": "reused",
@@ -929,29 +930,29 @@
           }
         },
         {
-          "id": "event-5",
+          "id": "event-0239c0ef-2d32-4ba1-aa70-38b47f115ca2",
           "atMs": 100,
           "type": "system_input",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-2",
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+          "afterFrame": "frame-1",
           "data": {
             "input": "back"
           }
         },
         {
-          "id": "event-13",
+          "id": "event-6a820656-3e05-43dd-a893-7563cbee6942",
           "atMs": 210,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-11",
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+          "afterFrame": "frame-6",
           "data": {
             "version": 1,
             "outcome": "fresh_accepted",
-            "requestId": "capture_request-10",
-            "executionId": "capture_execution-12",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-5",
+            "executionId": "capture_execution-7",
+            "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
             "routeEpoch": 0,
             "trigger": "manual",
             "visualEvidence": "fresh",
@@ -959,29 +960,29 @@
           }
         },
         {
-          "id": "event-9",
+          "id": "event-cba9efb5-7397-4e2e-a02d-edbb61b60a97",
           "atMs": 200,
           "type": "system_input",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-11",
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+          "afterFrame": "frame-6",
           "data": {
             "input": "back"
           }
         },
         {
-          "id": "event-17",
+          "id": "event-6012b96f-63c9-4d04-af5d-fd728548094b",
           "atMs": 310,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-2",
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+          "afterFrame": "frame-1",
           "data": {
             "version": 1,
             "outcome": "exact_content_reused",
-            "requestId": "capture_request-15",
-            "executionId": "capture_execution-16",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-8",
+            "executionId": "capture_execution-9",
+            "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
             "routeEpoch": 0,
             "trigger": "manual",
             "visualEvidence": "reused",
@@ -990,29 +991,29 @@
           }
         },
         {
-          "id": "event-14",
+          "id": "event-7fbb5f75-1e27-4435-a8b9-1f18d06f7a54",
           "atMs": 300,
           "type": "system_input",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-2",
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+          "afterFrame": "frame-1",
           "data": {
             "input": "back"
           }
         },
         {
-          "id": "event-21",
+          "id": "event-c9bbfc32-f0a7-456b-83cd-ee88db60535d",
           "atMs": 410,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-2",
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+          "afterFrame": "frame-1",
           "data": {
             "version": 1,
             "outcome": "paint_generation_unchanged",
-            "requestId": "capture_request-19",
-            "executionId": "capture_execution-20",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-10",
+            "executionId": "capture_execution-11",
+            "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
             "routeEpoch": 0,
             "trigger": "manual",
             "visualEvidence": "reused",
@@ -1021,44 +1022,44 @@
           }
         },
         {
-          "id": "event-18",
+          "id": "event-47bd1533-990a-4e15-93a6-939c3fddd377",
           "atMs": 400,
           "type": "system_input",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-2",
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+          "afterFrame": "frame-1",
           "data": {
             "input": "back"
           }
         },
         {
-          "id": "event-26",
+          "id": "event-d538b0a2-3176-464c-8933-e96cabd280fc",
           "atMs": 600,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-24",
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+          "afterFrame": "frame-13",
           "data": {
             "version": 1,
             "outcome": "fresh_accepted",
-            "requestId": "capture_request-23",
-            "executionId": "capture_execution-25",
-            "captureSessionId": "session-1781827200000000",
+            "requestId": "capture_request-12",
+            "executionId": "capture_execution-14",
+            "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
             "routeEpoch": 0,
             "trigger": "interaction",
             "visualEvidence": "fresh",
             "interactionEvidence": "linked",
-            "relatedEventId": "event-22"
+            "relatedEventId": "event-3ac8a07f-582c-4f86-9c5c-7e1e7fda28dd"
           }
         },
         {
-          "id": "event-22",
+          "id": "event-3ac8a07f-582c-4f86-9c5c-7e1e7fda28dd",
           "atMs": 500,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
-          "beforeFrame": "frame-2",
-          "afterFrame": "frame-24",
+          "captureSessionId": "session-263a49f5-5c87-481a-9fc9-2587782c62d7",
+          "beforeFrame": "frame-1",
+          "afterFrame": "frame-13",
           "data": {
             "interactionSchema": 2,
             "gesture": "swipe",

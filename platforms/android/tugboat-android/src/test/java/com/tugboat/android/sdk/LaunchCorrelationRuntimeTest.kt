@@ -64,12 +64,13 @@ class LaunchCorrelationRuntimeTest {
         val sessionStart = transport.submitted
             .map { JSONObject(it) }
             .first { it.getString("type") == "session.start" }
-        val wallUs = sessionStart.getJSONObject("at").getLong("wallUs")
+        val seed = sessionStart.getJSONObject("input").getString("idSeed")
 
         val launchLine = ShadowLog.getLogsForTag(LaunchCorrelation.TAG)
             .map { it.msg }
             .first { it.contains("TUGBOAT_LAUNCH") }
         val launchJson = JSONObject(launchLine.removePrefix("TUGBOAT_LAUNCH ").trim())
-        assertEquals("session-$wallUs", launchJson.getString("captureSessionId"))
+        // The id the collector sees: the engine's session id for this session's idSeed.
+        assertEquals(IdSeed.sessionId(seed), launchJson.getString("captureSessionId"))
     }
 }

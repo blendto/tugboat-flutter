@@ -39,7 +39,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "81e04a11ebc95e47aa0cec6effb8810b9955ec8239b5cf5c029b4da63424fd99"
           }
         },
         "expect": {
@@ -47,11 +48,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-f54cbace-1556-4c67-9137-d6511ac9e1d5",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-5edb9b5f-ab5f-4b99-8f4e-d97fc9cf6ef6"
               },
               "userId": null
             }
@@ -93,11 +94,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-dceb7710-e666-4511-8f93-e0203c1bc444",
                 "atMs": 100,
                 "type": "session_end",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-5edb9b5f-ab5f-4b99-8f4e-d97fc9cf6ef6"
               },
               "userId": null
             }
@@ -132,8 +133,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-5edb9b5f-ab5f-4b99-8f4e-d97fc9cf6ef6",
+        "captureSessionId": "session-5edb9b5f-ab5f-4b99-8f4e-d97fc9cf6ef6",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -155,18 +156,18 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-f54cbace-1556-4c67-9137-d6511ac9e1d5",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-5edb9b5f-ab5f-4b99-8f4e-d97fc9cf6ef6"
         },
         {
-          "id": "event-3",
+          "id": "event-dceb7710-e666-4511-8f93-e0203c1bc444",
           "atMs": 100,
           "type": "session_end",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-5edb9b5f-ab5f-4b99-8f4e-d97fc9cf6ef6"
         }
       ]
     }

@@ -32,7 +32,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "3a40882018629cbe287730be017c00f247cf62b57fd7772e2457fb458a4935fe"
           }
         },
         "expect": {
@@ -40,11 +41,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-75648eeb-d5cb-4c74-8080-c15f671b31c6",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-f33ed7b7-871b-4a3e-83b5-31da5b44ed1f"
               },
               "userId": null
             }
@@ -189,7 +190,7 @@
               "kind": "frame",
               "handle": "h-capture_request-2",
               "frame": {
-                "id": "frame-5",
+                "id": "frame-3",
                 "atMs": 50,
                 "width": 1080,
                 "height": 2400,
@@ -198,18 +199,18 @@
                 "trigger": "interaction",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-f33ed7b7-871b-4a3e-83b5-31da5b44ed1f"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-f4333851-d080-4768-9228-8aa7584603de",
                 "atMs": 10,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-5",
+                "captureSessionId": "session-f33ed7b7-871b-4a3e-83b5-31da5b44ed1f",
+                "afterFrame": "frame-3",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "tap"
@@ -417,7 +418,7 @@
               "kind": "frame",
               "handle": "h-capture_request-6",
               "frame": {
-                "id": "frame-10",
+                "id": "frame-6",
                 "atMs": 190,
                 "width": 1080,
                 "height": 2400,
@@ -426,25 +427,25 @@
                 "trigger": "interaction",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-f33ed7b7-871b-4a3e-83b5-31da5b44ed1f"
               }
             },
             {
               "kind": "event",
               "event": {
-                "id": "event-7",
+                "id": "event-d8079ba0-bfd4-4dc6-81b6-c951d799e0c6",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-f33ed7b7-871b-4a3e-83b5-31da5b44ed1f",
                 "targetAnchor": {
                   "widgetType": "ListView",
                   "role": "scrollable",
                   "fingerprint": "fp-list",
                   "canonicalPath": "Scaffold/ListView"
                 },
-                "beforeFrame": "frame-5",
-                "afterFrame": "frame-10",
+                "beforeFrame": "frame-3",
+                "afterFrame": "frame-6",
                 "data": {
                   "interactionSchema": 2,
                   "gesture": "scroll",
@@ -476,8 +477,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-f33ed7b7-871b-4a3e-83b5-31da5b44ed1f",
+        "captureSessionId": "session-f33ed7b7-871b-4a3e-83b5-31da5b44ed1f",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -498,7 +499,7 @@
       },
       "frames": [
         {
-          "id": "frame-5",
+          "id": "frame-3",
           "atMs": 50,
           "width": 1080,
           "height": 2400,
@@ -507,10 +508,10 @@
           "trigger": "interaction",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-f33ed7b7-871b-4a3e-83b5-31da5b44ed1f"
         },
         {
-          "id": "frame-10",
+          "id": "frame-6",
           "atMs": 190,
           "width": 1080,
           "height": 2400,
@@ -519,43 +520,43 @@
           "trigger": "interaction",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-f33ed7b7-871b-4a3e-83b5-31da5b44ed1f"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-75648eeb-d5cb-4c74-8080-c15f671b31c6",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-f33ed7b7-871b-4a3e-83b5-31da5b44ed1f"
         },
         {
-          "id": "event-3",
+          "id": "event-f4333851-d080-4768-9228-8aa7584603de",
           "atMs": 10,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-5",
+          "captureSessionId": "session-f33ed7b7-871b-4a3e-83b5-31da5b44ed1f",
+          "afterFrame": "frame-3",
           "data": {
             "interactionSchema": 2,
             "gesture": "tap"
           }
         },
         {
-          "id": "event-7",
+          "id": "event-d8079ba0-bfd4-4dc6-81b6-c951d799e0c6",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-f33ed7b7-871b-4a3e-83b5-31da5b44ed1f",
           "targetAnchor": {
             "widgetType": "ListView",
             "role": "scrollable",
             "fingerprint": "fp-list",
             "canonicalPath": "Scaffold/ListView"
           },
-          "beforeFrame": "frame-5",
-          "afterFrame": "frame-10",
+          "beforeFrame": "frame-3",
+          "afterFrame": "frame-6",
           "data": {
             "interactionSchema": 2,
             "gesture": "scroll",

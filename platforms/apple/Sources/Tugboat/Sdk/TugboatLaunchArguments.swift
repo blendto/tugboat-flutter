@@ -62,8 +62,8 @@ struct LaunchOptions {
     return options.captureRequested ? options : nil
   }
 
-  /// `captureSessionId` only when a session runs (`sessionWallUs`).
-  func launchLine(sessionWallUs: Int64?) -> String {
+  /// `captureSessionId` only when a session runs.
+  func launchLine(captureSessionId: String?) -> String {
     var parts = [
       "\"captureRequested\":true",
       "\"emitSceneInventory\":\(emitSceneInventory)",
@@ -72,22 +72,22 @@ struct LaunchOptions {
     if let automationRunId {
       parts.append("\"automationRunId\":\(JSONText.quoted(automationRunId))")
     }
-    if let sessionWallUs = sessionWallUs {
-      parts.append("\"captureSessionId\":\"session-\(sessionWallUs)\"")
+    if let captureSessionId = captureSessionId {
+      parts.append("\"captureSessionId\":\(JSONText.quoted(captureSessionId))")
     }
     return "TUGBOAT_LAUNCH {" + parts.joined(separator: ",") + "}"
   }
 
   /// `lifecycle` is a `TugboatLifecycleState` name. `activationRequestId`
   /// is added when non-nil, `captureSessionId` when a session runs
-  /// (`sessionWallUs`, the running session's start).
-  static func healthLine(lifecycle: String, activationRequestId: String?, sessionWallUs: Int64?) -> String {
+  /// (`captureSessionId`, the running session's id).
+  static func healthLine(lifecycle: String, activationRequestId: String?, captureSessionId: String?) -> String {
     var parts = ["\"lifecycle\":\(JSONText.quoted(lifecycle))"]
     if let activationRequestId = activationRequestId {
       parts.append("\"activationRequestId\":\(JSONText.quoted(activationRequestId))")
     }
-    if let sessionWallUs = sessionWallUs {
-      parts.append("\"captureSessionId\":\"session-\(sessionWallUs)\"")
+    if let captureSessionId = captureSessionId {
+      parts.append("\"captureSessionId\":\(JSONText.quoted(captureSessionId))")
     }
     return "TUGBOAT_HEALTH {" + parts.joined(separator: ",") + "}"
   }

@@ -3,6 +3,7 @@
 // Dart controller's `start()`, `_endSession`, and `recordAppLifecycleState`
 // plus the widget's `detached` handling, with change C10. Other modules join
 // in through teardown stages and lifecycle hooks, not by editing this file.
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -38,6 +39,8 @@ struct StartInput {
   OptString activation_request_id;
   OptString exploration_run_id;
   int64_t session_epoch = 0;
+  // Host entropy for session and event ids (BLE-618); required.
+  std::array<uint8_t, 32> id_seed{};
 };
 
 class SessionStart final : public Command {
@@ -71,6 +74,7 @@ class SessionStart final : public Command {
     if (input_.locale) {
       state->locale = input_.locale;
     }
+    state->ids.begin_session(input_.id_seed);
     Session& session = state->session.emplace(header(*state));
     session.set_locale(state->locale);
     record_event(state, session,
@@ -80,10 +84,10 @@ class SessionStart final : public Command {
   }
 
  private:
-  SessionHeader header(const EngineState& state) const {
+  SessionHeader header(EngineState& state) const {
     SessionHeader header;
     // One wall-clock reading for both (Dart reads DateTime.now() twice).
-    header.id = "session-" + std::to_string(*at_.wall_us);
+    header.id = state.ids.next_session_id();
     header.started_at_wall_us = *at_.wall_us;
     header.start_mono_us = at_.mono_us;
     header.platform = input_.platform;
@@ -120,18 +124,52 @@ bool decode_viewport(const ObjectReader& r, StartInput* out, Error* error) {
   return true;
 }
 
+// `idSeed`: 64 lowercase hex characters (32 random bytes from the host's
+// secure random source). Required: a missing seed is rejected like a
+// malformed one, so the engine never mints counter ids.
+bool decode_id_seed(const ObjectReader& r, std::array<uint8_t, 32>* out) {
+  std::string text_value;
+  if (!r.req_string("idSeed", &text_value)) {
+    return false;
+  }
+  const std::string* text = &text_value;
+  if (text->size() != 64) {
+    return r.reject("idSeed", "must be 64 lowercase hex characters");
+  }
+  std::array<uint8_t, 32> seed;
+  for (size_t i = 0; i < seed.size(); ++i) {
+    int value = 0;
+    for (size_t j = 0; j < 2; ++j) {
+      const char c = (*text)[i * 2 + j];
+      int digit;
+      if (c >= '0' && c <= '9') {
+        digit = c - '0';
+      } else if (c >= 'a' && c <= 'f') {
+        digit = c - 'a' + 10;
+      } else {
+        return r.reject("idSeed", "must be 64 lowercase hex characters");
+      }
+      value = value * 16 + digit;
+    }
+    seed[i] = static_cast<uint8_t>(value);
+  }
+  *out = seed;
+  return true;
+}
+
 std::unique_ptr<Command> decode_start(const CommandInput& in, Error* error) {
   const ObjectReader r(in.input, in.path, error);
   StartInput start;
   if (!r.check_keys({"viewport", "platform", "locale", "activationRequestId",
-                     "explorationRunId", "sessionEpoch"}) ||
+                     "explorationRunId", "sessionEpoch", "idSeed"}) ||
       !decode_viewport(r, &start, error) ||
       !r.req_string("platform", &start.platform) ||
       !decode_locale(r.get("locale"), r.child("locale"), &start.locale,
                      error) ||
       !r.opt_string("activationRequestId", &start.activation_request_id) ||
       !r.opt_string("explorationRunId", &start.exploration_run_id) ||
-      !r.req_int("sessionEpoch", &start.session_epoch)) {
+      !r.req_int("sessionEpoch", &start.session_epoch) ||
+      !decode_id_seed(r, &start.id_seed)) {
     return nullptr;
   }
   if (start.session_epoch < 0) {

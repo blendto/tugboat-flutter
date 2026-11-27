@@ -30,6 +30,6 @@ final class TugboatLaunchArgumentsTests: XCTestCase {
       LaunchOptions(emitSceneInventory: false, acceptActionContext: false, automationRunId: "x").captureRequested)
     let options = LaunchOptions(emitSceneInventory: true, acceptActionContext: false, automationRunId: nil)
     XCTAssertTrue(options.captureRequested)
-    XCTAssertTrue(options.launchLine(sessionWallUs: 42).contains("\"captureSessionId\":\"session-42\""))
+    XCTAssertTrue(options.launchLine(captureSessionId: "session-42").contains("\"captureSessionId\":\"session-42\""))
   }
 }

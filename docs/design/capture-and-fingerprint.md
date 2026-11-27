@@ -30,7 +30,10 @@ Capture occurrence IDs are opaque strings. Each new session uses
 `session-<UUIDv4>` and each controller event uses `event-<UUIDv4>`, with
 lowercase canonical UUIDs generated independently on the device. Collector
 diagnostics use their component prefix and a UUIDv4. Older SDKs used
-`session-<epoch microseconds>` and `event-<counter>`. Preserve either shape
+`session-<epoch microseconds>` and `event-<counter>`. The native Android and
+Swift SDKs send the UUID form too (the shared session engine derives it from
+host-supplied entropy; `conformance/capture_id_vectors.json` pins the format
+for the engine and Dart). Preserve either shape
 verbatim when joining related events. Use `startedAt`, `atMs` and
 `triggeredAt` for timing. Capture IDs never enter a fingerprint.
 

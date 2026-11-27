@@ -28,7 +28,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "54ca7e1b575fb316abef70d15e0cd08d511b67b4c3337bbfb76011e84872c2aa"
           }
         },
         "expect": {
@@ -36,11 +37,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-c5d9b6f3-cb51-4c46-8835-2451461684a6",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-2e6a6e04-55a1-43aa-90c7-2ebc851893ec"
               },
               "userId": null
             }
@@ -108,7 +109,7 @@
               "kind": "frame",
               "handle": "h-overlay",
               "frame": {
-                "id": "frame-2",
+                "id": "frame-1",
                 "atMs": 50,
                 "width": 1080,
                 "height": 2400,
@@ -117,7 +118,7 @@
                 "trigger": "initial",
                 "byteLength": 48000,
                 "captureMicros": 12000,
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-2e6a6e04-55a1-43aa-90c7-2ebc851893ec",
                 "requestedBackend": "nativeCpuExperimental",
                 "resolvedBackend": "nativeCpuExperimental"
               }
@@ -125,15 +126,15 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-8a733459-d686-4eb1-a853-e4608f1e0262",
                 "atMs": 50,
                 "type": "capture_diagnostic",
                 "stream": "diagnostic",
-                "captureSessionId": "session-1781827200000000",
-                "afterFrame": "frame-2",
+                "captureSessionId": "session-2e6a6e04-55a1-43aa-90c7-2ebc851893ec",
+                "afterFrame": "frame-1",
                 "data": {
                   "component": "capture_masking",
-                  "frameId": "frame-2",
+                  "frameId": "frame-1",
                   "mode": "precise",
                   "reasons": [
                     "overlayWindow"
@@ -157,8 +158,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-2e6a6e04-55a1-43aa-90c7-2ebc851893ec",
+        "captureSessionId": "session-2e6a6e04-55a1-43aa-90c7-2ebc851893ec",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -179,7 +180,7 @@
       },
       "frames": [
         {
-          "id": "frame-2",
+          "id": "frame-1",
           "atMs": 50,
           "width": 1080,
           "height": 2400,
@@ -188,29 +189,29 @@
           "trigger": "initial",
           "byteLength": 48000,
           "captureMicros": 12000,
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-2e6a6e04-55a1-43aa-90c7-2ebc851893ec",
           "requestedBackend": "nativeCpuExperimental",
           "resolvedBackend": "nativeCpuExperimental"
         }
       ],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-c5d9b6f3-cb51-4c46-8835-2451461684a6",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-2e6a6e04-55a1-43aa-90c7-2ebc851893ec"
         },
         {
-          "id": "event-3",
+          "id": "event-8a733459-d686-4eb1-a853-e4608f1e0262",
           "atMs": 50,
           "type": "capture_diagnostic",
           "stream": "diagnostic",
-          "captureSessionId": "session-1781827200000000",
-          "afterFrame": "frame-2",
+          "captureSessionId": "session-2e6a6e04-55a1-43aa-90c7-2ebc851893ec",
+          "afterFrame": "frame-1",
           "data": {
             "component": "capture_masking",
-            "frameId": "frame-2",
+            "frameId": "frame-1",
             "mode": "precise",
             "reasons": [
               "overlayWindow"

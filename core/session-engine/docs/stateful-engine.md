@@ -152,8 +152,8 @@ the delivery result). Strict decoding still rejects a non-string
 
 | State | Today | Notes |
 | --- | --- | --- |
-| Session id, `startedAt` | controller `start()` | `session-<wallUs>` from `session.start` `at.wallUs`; `startedAt` from the same value (Dart reads `DateTime.now()` twice) |
-| Id counter | `_nextId` | One counter for `event-N`, `frame-N`, `capture_request-N`, `capture_execution-N`. Per engine handle and never reset per session, as today. |
+| Session id, `startedAt` | controller `start()` | `session-<UUIDv4>` derived from `session.start`'s required `idSeed` (BLE-618, Dart 0.12.3); `startedAt` from `at.wallUs` (Dart reads `DateTime.now()` twice) |
+| Id counter | `_nextId` | One counter for `frame-N`, `capture_request-N`, `capture_execution-N` (Dart `_nextLocalId`). Per engine handle and never reset per session, as today. Event ids and the delivery gap ids are `<prefix>-<UUIDv4>` from the per-session seeded stream (BLE-618). |
 | Navigator / route-instance counters | `_surfaces` | `nav-N` / `route-N` are reset per session. Adapters send opaque ids; the engine maps them (section 8.1). |
 | Viewport, platform, app info, locale | `TugboatSession` | From `session.start` and `engine.configure`. |
 | User id, traits, traits id | sink plus static fields | Owned by the engine. The host persists them across sessions if needed. |

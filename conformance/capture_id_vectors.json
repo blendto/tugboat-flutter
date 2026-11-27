@@ -1,0 +1,118 @@
+{
+  "fixtureFormat": 1,
+  "kind": "capture_id.vectors",
+  "description": "Shared session/event id vectors (BLE-618) for the C++ engine and Dart generateTugboatCaptureId: 16 random bytes become `<prefix>-<UUIDv4>`, lowercase canonical, version nibble 4, variant 10xx. Both runners also check the `idPattern` regex on every id they mint. seedVectors pin the engine's derivation from a session.start idSeed: the session id is stream index 0 (SHA-256(seed || big-endian index), first 16 bytes), then each minted event id takes the next index; the C++ engine checks the real session.start output, and the Kotlin and Swift hosts, which derive the session id for TUGBOAT_LAUNCH, check IdSeed.sessionId. Dart has no seed and ignores them.",
+  "idPattern": "^(session|event)-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+  "vectors": [
+    {
+      "name": "zeros-session",
+      "prefix": "session",
+      "bytesHex": "00000000000000000000000000000000",
+      "expected": "session-00000000-0000-4000-8000-000000000000"
+    },
+    {
+      "name": "zeros-event",
+      "prefix": "event",
+      "bytesHex": "00000000000000000000000000000000",
+      "expected": "event-00000000-0000-4000-8000-000000000000"
+    },
+    {
+      "name": "ones-session",
+      "prefix": "session",
+      "bytesHex": "ffffffffffffffffffffffffffffffff",
+      "expected": "session-ffffffff-ffff-4fff-bfff-ffffffffffff"
+    },
+    {
+      "name": "ones-event",
+      "prefix": "event",
+      "bytesHex": "ffffffffffffffffffffffffffffffff",
+      "expected": "event-ffffffff-ffff-4fff-bfff-ffffffffffff"
+    },
+    {
+      "name": "sequence-session",
+      "prefix": "session",
+      "bytesHex": "000102030405060708090a0b0c0d0e0f",
+      "expected": "session-00010203-0405-4607-8809-0a0b0c0d0e0f"
+    },
+    {
+      "name": "sequence-event",
+      "prefix": "event",
+      "bytesHex": "000102030405060708090a0b0c0d0e0f",
+      "expected": "event-00010203-0405-4607-8809-0a0b0c0d0e0f"
+    },
+    {
+      "name": "descending-session",
+      "prefix": "session",
+      "bytesHex": "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0",
+      "expected": "session-fffefdfc-fbfa-49f8-b7f6-f5f4f3f2f1f0"
+    },
+    {
+      "name": "descending-event",
+      "prefix": "event",
+      "bytesHex": "fffefdfcfbfaf9f8f7f6f5f4f3f2f1f0",
+      "expected": "event-fffefdfc-fbfa-49f8-b7f6-f5f4f3f2f1f0"
+    },
+    {
+      "name": "rfc-example-session",
+      "prefix": "session",
+      "bytesHex": "f47ac10b58cc4372a5670e02b2c3d479",
+      "expected": "session-f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    },
+    {
+      "name": "rfc-example-event",
+      "prefix": "event",
+      "bytesHex": "f47ac10b58cc4372a5670e02b2c3d479",
+      "expected": "event-f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    },
+    {
+      "name": "version-variant-already-set-session",
+      "prefix": "session",
+      "bytesHex": "00000000000040008000000000000000",
+      "expected": "session-00000000-0000-4000-8000-000000000000"
+    },
+    {
+      "name": "version-variant-already-set-event",
+      "prefix": "event",
+      "bytesHex": "00000000000040008000000000000000",
+      "expected": "event-00000000-0000-4000-8000-000000000000"
+    }
+  ],
+  "seedVectors": [
+    {
+      "name": "repeated-11",
+      "idSeed": "1111111111111111111111111111111111111111111111111111111111111111",
+      "sessionId": "session-f81644b2-12d3-462e-b98c-29d15b723874",
+      "firstEventIds": [
+        "event-1ebd4283-1ae2-41e9-b44f-398b13182428",
+        "event-ebeddfd2-b7f9-409e-89ce-bbf04e2f85c6"
+      ]
+    },
+    {
+      "name": "ascending",
+      "idSeed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "sessionId": "session-a9d6e500-293a-48bd-b8cb-e213d07ab71f",
+      "firstEventIds": [
+        "event-6061c438-6d7a-4788-ba52-e2e8b2ee6fe6",
+        "event-7365a07b-4571-4c92-9c36-29031f2b3b81"
+      ]
+    },
+    {
+      "name": "zeros",
+      "idSeed": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sessionId": "session-2c34ce1d-f23b-438c-9abf-2a7f6437cca3",
+      "firstEventIds": [
+        "event-08e00266-fff0-4acc-a497-4f22a53622a7",
+        "event-975674ca-0764-4178-ae99-3e85324e31cf"
+      ]
+    },
+    {
+      "name": "ff",
+      "idSeed": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "sessionId": "session-a5d57364-d057-495d-99d3-0b02c1a99184",
+      "firstEventIds": [
+        "event-1933118e-ec8f-4681-9f05-c94484ceb830",
+        "event-27e34520-7d8d-467a-9242-7e3465167da6"
+      ]
+    }
+  ]
+}
