@@ -1327,22 +1327,29 @@ class AnchorResolver {
   }
 
   /// Role, enabled state and actions of the first role at or above
-  /// [inspected] (actions of every role on the way), and the widget type: the
-  /// first role widget, else the first widget that is not capture chrome.
+  /// [inspected], skipping a scrollable unless nothing else matches. Actions
+  /// are that role's own, as on native Android (empty when disabled); a
+  /// parent's role, such as a scrollable list, adds none.
+  /// The widget type is the nearest widget to the hit that is not capture
+  /// chrome (a leaf such as `RichText` for a labelled button), matching
+  /// native's nearest framework class of the hit view.
   ({String? role, bool? enabled, List<String> actions, String? widgetType})
   _describeHit(Element inspected, _TokenMap tokenMap) {
-    String? role;
-    bool? enabled;
-    final actions = <String>{};
+    WidgetRole? own;
+    WidgetRole? scrollable;
     String? widgetType;
 
     void inspectElement(Element element) {
       final widget = element.widget;
       final widgetRole = _anchorRoleFor(element, tokenMap);
       if (widgetRole != null) {
-        role ??= widgetRole.name;
-        enabled ??= widgetRole.enabled;
-        actions.addAll(widgetRole.actions);
+        // A text field's inner Scrollable sits below the TextField itself, so
+        // a scrollable only describes the hit when nothing else does.
+        if (widgetRole.name == 'scrollable') {
+          scrollable ??= widgetRole;
+        } else {
+          own ??= widgetRole;
+        }
       }
       if (tugboatRoleForWidget(widget) != null) {
         widgetType ??= _widgetName(widget);
@@ -1356,10 +1363,11 @@ class AnchorResolver {
       inspectElement(ancestor);
       return true;
     });
+    final described = own ?? scrollable;
     return (
-      role: role,
-      enabled: enabled,
-      actions: actions.toList()..sort(),
+      role: described?.name,
+      enabled: described?.enabled,
+      actions: [...?described?.actions]..sort(),
       widgetType: widgetType,
     );
   }

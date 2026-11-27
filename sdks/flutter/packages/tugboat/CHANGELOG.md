@@ -1,3 +1,14 @@
+## 0.12.9
+
+### Fixed
+
+- A tap target's `actions` are now the tapped element's own, as on native
+  Android. A button inside a scrollable list reported `["scroll","tap"]`, and
+  a disabled one `["scroll"]`; they now report `["tap"]` and no actions. A
+  parent's role never adds actions. A text field in a list now reports role
+  `textField` with `["input"]` instead of `scrollable`. No fingerprint, route
+  key or inventory hash change.
+
 ## 0.12.8
 
 ### Fixed

@@ -1,3 +1,10 @@
+## 0.12.9
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.9 (tap target actions fix). No
+  `tugboat_http` change; its `tugboat` floor is now `^0.12.9`.
+
 ## 0.12.8
 
 ### Changed
