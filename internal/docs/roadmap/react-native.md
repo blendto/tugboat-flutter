@@ -19,3 +19,5 @@ only a pixel consumer. JavaScript computes target identity from the React
 tree and forwards identity parts and masks; the native platform host runs
 the shared session engine, transport, and pixels. See
 [native-capabilities.md](native-capabilities.md).
+
+Design note: [react-native-adapter-design-note](../plans/2026-11-27-react-native-adapter-design-note.md) (BLE-642).
