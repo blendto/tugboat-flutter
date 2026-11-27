@@ -189,8 +189,9 @@ the Navigation route keys `rows` and `row` (arguments stripped).
     and with each a `network_call` `GET /sample/orders/{id}` from the OkHttp
     interceptor, `outcome: response`, `statusCode: 404` (the local pmkit
     collector's answer for an unknown path), `errorResponseBody` `404 Not
-    Found` with `errorResponseBodyCapture.format: text`, and no query,
-    header, or host anywhere in the event;
+    Found` (the engine's `errorResponseBodyCapture` metadata is not
+    uploaded, as in Dart), and no query, header, or host anywhere in the
+    event;
   - lifecycle: `app_foregrounded` (launch, step 9), `app_inactive` and
     `app_backgrounded` (step 8). Two events can share an `atMs` (millisecond
     resolution, as in Dart); their order is the session's event order

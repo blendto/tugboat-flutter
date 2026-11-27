@@ -596,6 +596,12 @@ Known gaps: no system input facts (none in this milestone); application
 lifecycle only (not per scene); no background task keeps delivery running
 after the app is suspended (pending events go out on the next foreground).
 
+Embedded Flutter (add-to-app): a `FlutterViewController`'s view draws into a
+`CAMetalLayer`, so it is masked as an opaque renderer over its whole frame,
+and taps inside it carry no Flutter widget identity. To replay Flutter
+screens, run the Tugboat Flutter SDK in the Flutter module; it records its
+own session, which is not linked to this SDK's session.
+
 `EngineHost` threading and failure rules:
 
 - `post(type:inputJSON:at:frameHandles:)` and `postBatch(_:)` can be called

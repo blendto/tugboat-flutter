@@ -153,8 +153,8 @@ With the local collector running on port 3000:
   - `network_call` (`stream: evidence`, step 10): `method` `GET`, `route`
     `/orders/42` (the path only: no host, query, or headers), `statusCode`
     404, `outcome` `response`, `durationMs` a few ms, `errorResponseBody`
-    `404 Not Found` (the collector's text body) with
-    `errorResponseBodyCapture.format` `text`;
+    `404 Not Found` (the collector's text body; the engine's
+    `errorResponseBodyCapture` metadata is not uploaded, as in Dart);
   - `app_inactive`, `app_backgrounded` (step 8), `app_inactive`,
     `app_foregrounded` (step 9);
   - no `stateAnchor` on any v2 interaction.
