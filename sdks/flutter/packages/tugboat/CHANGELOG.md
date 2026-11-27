@@ -9,9 +9,8 @@
   `["scroll","slide"]`). A text field (in a list or not) now reports role
   `textField` with `["input"]` instead of `scrollable`. No fingerprint or
   route key change. With `emitSceneInventory` on, inventory entries change the
-  same way, and a disabled control inside a scroll view is no longer listed
-  (as a disabled control outside one never was), so the inventory hash of such
-  a screen differs.
+  same way, and the inventory emitted at a tap no longer lists a disabled
+  control inside a scroll view, so that inventory's hash differs.
 
 ## 0.12.8
 
