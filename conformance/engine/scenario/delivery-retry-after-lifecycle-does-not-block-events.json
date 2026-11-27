@@ -408,7 +408,7 @@
         }
       },
       {
-        "note": "timer interaction.settle.event-4",
+        "note": "timer interaction.settle.event-fc26efb9-3262-49e0-930a-611512adfafd",
         "send": {
           "type": "timer.fired",
           "at": {
@@ -416,12 +416,18 @@
             "wallUs": 1781827205120000
           },
           "input": {
-            "timerId": "interaction.settle.event-4"
+            "timerId": "interaction.settle.event-fc26efb9-3262-49e0-930a-611512adfafd"
           }
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "interaction.settle.event-fc26efb9-3262-49e0-930a-611512adfafd",
+              "atMonoUs": 10370000
+            }
+          ]
         }
       },
       {
@@ -442,7 +448,7 @@
         }
       },
       {
-        "note": "timer interaction.settle.event-4",
+        "note": "timer interaction.settle.event-fc26efb9-3262-49e0-930a-611512adfafd",
         "send": {
           "type": "timer.fired",
           "at": {
@@ -450,12 +456,32 @@
             "wallUs": 1781827205370000
           },
           "input": {
-            "timerId": "interaction.settle.event-4"
+            "timerId": "interaction.settle.event-fc26efb9-3262-49e0-930a-611512adfafd"
           }
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "interaction",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 10370000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 15370000
+            }
+          ]
         }
       },
       {
@@ -480,11 +506,44 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-tap-1",
+              "frame": {
+                "id": "frame-3",
+                "atMs": 5400,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-tap-1",
+                "masked": true,
+                "trigger": "interaction",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-48c2aa71-99f9-46ce-8467-f8338dbf5fc7"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-fc26efb9-3262-49e0-930a-611512adfafd",
+                "atMs": 4100,
+                "type": "interaction",
+                "stream": "semantic",
+                "captureSessionId": "session-48c2aa71-99f9-46ce-8467-f8338dbf5fc7",
+                "afterFrame": "frame-3",
+                "data": {
+                  "interactionSchema": 2,
+                  "gesture": "tap"
+                }
+              },
+              "userId": "user-2"
+            }
+          ],
           "effects": [
             {
-              "type": "frame.release",
-              "handle": "h-tap-1"
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
             }
           ]
         }
@@ -509,6 +568,45 @@
             {
               "type": "timer.cancel",
               "timerId": "delivery.answer.http-3"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-4",
+              "lane": "frames",
+              "path": "/v1/frames",
+              "timeoutMs": 15000,
+              "multipart": {
+                "fields": [
+                  [
+                    "sessionId",
+                    "srv-1"
+                  ],
+                  [
+                    "frameNos",
+                    "3"
+                  ],
+                  [
+                    "frameMetadata",
+                    "[{\"id\":\"frame-3\",\"atMs\":5400,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-tap-1\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-48c2aa71-99f9-46ce-8467-f8338dbf5fc7\"}]"
+                  ]
+                ],
+                "frames": [
+                  {
+                    "handle": "h-tap-1",
+                    "filename": "3.jpg"
+                  }
+                ]
+              },
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/f/3"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-4",
+              "atMonoUs": 30410000
             }
           ]
         }
@@ -529,7 +627,30 @@
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-4"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-5",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-fc26efb9-3262-49e0-930a-611512adfafd\",\"atMs\":4100,\"triggeredAt\":\"2026-06-19T00:00:04.100Z\",\"userId\":\"user-2\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"tap\",\"afterFrame\":\"frame-3\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/6355fcf0ae782945"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-5",
+              "atMonoUs": 30420000
+            }
+          ]
         }
       },
       {
@@ -561,26 +682,7 @@
         },
         "expect": {
           "records": [],
-          "effects": [
-            {
-              "type": "http.send",
-              "requestId": "http-4",
-              "lane": "lifecycle",
-              "path": "/v1/sessions",
-              "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"user_changed\",\"atMs\":150,\"triggeredAt\":\"2026-06-19T00:00:00.150Z\",\"userId\":\"user-2\"}",
-              "sessionId": "srv-1",
-              "deliveryKeys": [
-                "srv-1/l/user_changed/2026-06-19T00:00:00.150Z"
-              ],
-              "isSessionEnd": false
-            },
-            {
-              "type": "timer.schedule",
-              "timerId": "delivery.answer.http-4",
-              "atMonoUs": 88200000
-            }
-          ]
+          "effects": []
         }
       },
       {
@@ -598,8 +700,50 @@
           }
         },
         "expect": {
-          "records": [],
-          "effects": []
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-flush-b84ee839-0b30-4f0f-8b5e-fbde9ae91e7a",
+                "atMs": 63300,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-48c2aa71-99f9-46ce-8467-f8338dbf5fc7",
+                "data": {
+                  "component": "collector_flush",
+                  "result": "slow",
+                  "durationMs": 57880,
+                  "step": "events",
+                  "stepDurationMs": 57880
+                }
+              },
+              "userId": "user-2"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-5"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-6",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"user_changed\",\"atMs\":150,\"triggeredAt\":\"2026-06-19T00:00:00.150Z\",\"userId\":\"user-2\"}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/l/user_changed/2026-06-19T00:00:00.150Z"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-6",
+              "atMonoUs": 88300000
+            }
+          ]
         }
       },
       {
@@ -617,8 +761,48 @@
           }
         },
         "expect": {
-          "records": [],
-          "effects": []
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-d4cfb35c-49da-4e85-a2aa-0218a62d0067",
+                "atMs": 63310,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-48c2aa71-99f9-46ce-8467-f8338dbf5fc7",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-2"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-6"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-7",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-flush-b84ee839-0b30-4f0f-8b5e-fbde9ae91e7a\",\"atMs\":63300,\"triggeredAt\":\"2026-06-19T00:01:03.300Z\",\"userId\":\"user-2\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_flush\",\"result\":\"slow\",\"durationMs\":57880,\"step\":\"events\",\"stepDurationMs\":57880},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-d4cfb35c-49da-4e85-a2aa-0218a62d0067\",\"atMs\":63310,\"triggeredAt\":\"2026-06-19T00:01:03.310Z\",\"userId\":\"user-2\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/58f13d42d2a36d23"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-7",
+              "atMonoUs": 88310000
+            }
+          ]
         }
       },
       {
@@ -637,7 +821,12 @@
         },
         "expect": {
           "records": [],
-          "effects": []
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-7"
+            }
+          ]
         }
       }
     ]
@@ -666,7 +855,20 @@
           "packageName": "com.example.app"
         }
       },
-      "frames": [],
+      "frames": [
+        {
+          "id": "frame-3",
+          "atMs": 5400,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-tap-1",
+          "masked": true,
+          "trigger": "interaction",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-48c2aa71-99f9-46ce-8467-f8338dbf5fc7"
+        }
+      ],
       "events": [
         {
           "id": "event-2b27d5e9-6117-4cbb-becc-dbede5fa678e",
@@ -696,6 +898,44 @@
           "captureSessionId": "session-48c2aa71-99f9-46ce-8467-f8338dbf5fc7",
           "data": {
             "name": "a"
+          }
+        },
+        {
+          "id": "event-fc26efb9-3262-49e0-930a-611512adfafd",
+          "atMs": 4100,
+          "type": "interaction",
+          "stream": "semantic",
+          "captureSessionId": "session-48c2aa71-99f9-46ce-8467-f8338dbf5fc7",
+          "afterFrame": "frame-3",
+          "data": {
+            "interactionSchema": 2,
+            "gesture": "tap"
+          }
+        },
+        {
+          "id": "collector-flush-b84ee839-0b30-4f0f-8b5e-fbde9ae91e7a",
+          "atMs": 63300,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-48c2aa71-99f9-46ce-8467-f8338dbf5fc7",
+          "data": {
+            "component": "collector_flush",
+            "result": "slow",
+            "durationMs": 57880,
+            "step": "events",
+            "stepDurationMs": 57880
+          }
+        },
+        {
+          "id": "collector-request-d4cfb35c-49da-4e85-a2aa-0218a62d0067",
+          "atMs": 63310,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-48c2aa71-99f9-46ce-8467-f8338dbf5fc7",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/sessions",
+            "result": "recovered"
           }
         }
       ]
