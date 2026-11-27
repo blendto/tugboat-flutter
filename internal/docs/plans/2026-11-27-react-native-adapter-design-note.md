@@ -238,8 +238,14 @@ The component implements the contract as written. Nothing is added to it.
   the allowlist are masked over their whole bounds, as SwiftUI does for its
   unverified layer allowlist. Plain RN containers (`ReactViewGroup`, scroll views)
   are walked, not boxed.
-- An RN version whose allowlist is unverified masks the region host (reason
-  `regionUnreadable`), the posture Compose takes on an unverified version.
+- **RN's own view classes must be classified.** The allowlist names RN's text,
+  text input and image view classes on each OS and version in the supported
+  range (spike item S3). A text, input or image class that is not classified is a
+  violation of the contract, not a residual.
+- **Unverified RN version, or an unknown drawing view:** mask the **React root
+  view whole** (region host, reason `regionUnreadable`). This is the posture
+  Compose takes on an unverified version. An unknown drawing view that cannot be
+  boxed (its bounds cannot be read) takes the same fallback.
 
 ### 3.5 Device tests (Fabric on)
 
@@ -737,31 +743,25 @@ below.
 | Q12 | Tap-anchor hold | **DECIDED.** Start at 100 ms. Gate release on the unresolved-tap rate (taps with `resolution_error`). |
 | Q13 | Tab switch emits a navigation fact? | **DECIDED.** Yes in release 1: `replace` on the tab navigator, departing the old tab top. Move to an engine `activate` fact when it exists. |
 
-## 17. Release 1 work not yet tracked
+## 17. Release 1 work and where it is tracked
 
-Issue IDs to be added by the user's filing. Items that depended on the scene
-inventory are removed (they are "Later", section 11).
+Items that depended on the scene inventory are not here (they are "Later",
+section 11; BLE-677, the `[page:N]` engine rule, moved to milestone 7 with it).
 
-1. The spike (section 15), gated before BLE-644.
-2. Android `ToolkitRegion` for React Native (async anchor, region route key, no
-   host-path prefix, suppress fragment navigation under the host).
-3. Swift region seam (the same, for iOS).
-4. Host `restart` (end and start a session).
-5. Android adopt-current-activity on late start, or an early initializer.
-6. RN scroll facts (native offsets, JS ancestor anchors matched by tag).
-7. RN focus and text-input facts (native `focus {kind}`, role `TextInput`).
-8. Navigation: late-navigator `push`, seed on every session start, tab-switch
-   `replace` (Q13), same path string in facts and anchors.
-9. Tap failure reasons mapped onto the engine's closed set, plus the
-   unresolved-tap counter.
-10. Publishing prerequisites: `TugboatSDK` podspec and `tugboat-android` on Maven
-    Central (BLE-638, BLE-639).
-11. ADR 0009: rule 4 amendment (no Fabric-off leg) and the mask-rectangles
-    amendment (Q2); the RN column in PR #190's adapter mapping table; the
-    "on and off" line in its React Native section.
-12. RN masking device tests (section 3.5), including overlays and modals.
-13. Fingerprint conformance: debug versus release Hermes, iOS versus Android, with
-    and without `<Tugboat.Mask>`.
+| Work | Issue |
+| --- | --- |
+| The spike (section 15). Gates BLE-644 and BLE-669. | BLE-681 |
+| Android: React Native owns its root through `ToolkitRegion` (async anchor, region route key, no host-path prefix, fragment navigation suppressed under the host) | BLE-682 |
+| Swift host region seam | BLE-683 |
+| Host `restart`, and Android adopt-current-activity on late start (or an early initializer) | BLE-684 |
+| RN scroll facts (native offsets, JS ancestor anchors matched by tag) | BLE-685 |
+| RN text input taps and focus (native `focus {kind}`, role `TextInput`) | BLE-686 |
+| RN navigation: late navigators, re-seeding, tab switches (Q13), `setScreen` | BLE-687 |
+| Taps inside a `sensitive` region (the contract's accepted residual) | BLE-688 |
+| Tap failure reason mapping; `[page:N]` segment format; fingerprint conformance (debug vs release Hermes, iOS vs Android, with and without the mask component) | BLE-669 |
+| ADR 0009 rule 4 and mask-rectangles amendments; the RN column in PR #190's mapping table (and its "on and off" line); RN masking device tests (section 3.5) | BLE-644 |
+| Publishing prerequisites: `TugboatSDK` podspec, `tugboat-android` on Maven Central | BLE-638, BLE-639 |
+| npm workspace | BLE-643 |
 
 ## 18. Could not verify
 
