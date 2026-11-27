@@ -54,7 +54,7 @@ final class CollectorContractTests: XCTestCase {
     XCTAssertTrue(start["userId"] is NSNull)
     XCTAssertEqual(
       start["appInfo"] as? NSDictionary,
-      ["version": "3.1.4", "buildNumber": "314", "appId": "com.tugboat.contract", "packageName": "com.tugboat.contract"])
+      ["version": "3.1.4", "buildNumber": "314", "installationId": "install-1", "appId": "com.tugboat.contract", "packageName": "com.tugboat.contract"])
     XCTAssertEqual(
       start["device"] as? NSDictionary,
       [

@@ -49,7 +49,7 @@ class ComposeFingerprintConformanceTest {
             val route = anchor.getJSONObject("fingerprintParts").getString("routeKey")
             val path = anchor.getString("canonicalPath")
             assertEquals(IdentityHash.fingerprint(mapOf("routeKey" to route, "path" to path)), anchor.getString("fingerprint"))
-            assertEquals(6, anchor.getInt("schemaVersion"))
+            assertEquals(7, anchor.getInt("schemaVersion"))
         }
         assertEquals("Compose#0/Switch#0", anchors[1].getString("canonicalPath"))
         assertEquals("switch", anchors[1].getString("role"))
