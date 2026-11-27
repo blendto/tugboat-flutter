@@ -13,6 +13,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.ConscryptMode
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -99,5 +100,44 @@ class WindowCaptureRuntimeTest {
         runtime.cancel(request.requestId)
 
         assertFrameless(await { runtime.capture(window, request, it) }, CaptureStatus.Cancelled)
+    }
+
+    @Test
+    @Config(sdk = [26])
+    fun disposeAnswersEveryQueuedCaptureWithDisposedAndTheRunningOneOnce() {
+        val window = activity().window
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        val workerBusy = CountDownLatch(1)
+        val releaseWorker = CountDownLatch(1)
+        val answers = CopyOnWriteArrayList<Pair<Long, CaptureStatus>>()
+        fun record(result: CaptureResult) {
+            answers += result.requestId to result.status
+        }
+
+        // Request 1 runs and holds the runtime's one thread inside its own callback.
+        runtime.capture(window, request.copy(requestId = 1)) { result ->
+            record(result)
+            workerBusy.countDown()
+            releaseWorker.await(5, TimeUnit.SECONDS)
+        }
+        assertTrue(workerBusy.await(5, TimeUnit.SECONDS))
+        // Queued behind it; the first callback throws, which must not starve the second.
+        runtime.capture(window, request.copy(requestId = 2)) { result ->
+            record(result)
+            error("callback failure")
+        }
+        runtime.capture(window, request.copy(requestId = 3), ::record)
+
+        runtime.dispose()
+
+        assertEquals(
+            "the queued captures answer Disposed before dispose returns, in order",
+            listOf(1L to CaptureStatus.SecureWindow, 2L to CaptureStatus.Disposed, 3L to CaptureStatus.Disposed),
+            answers.toList(),
+        )
+        releaseWorker.countDown()
+        runtime.capture(window, request.copy(requestId = 4), ::record)
+        assertEquals(4L to CaptureStatus.Disposed, answers.last())
+        assertEquals("nothing answered twice", 4, answers.size)
     }
 }
