@@ -106,6 +106,10 @@ internal class ViewsAdapter(
     private val drawListener = ViewTreeObserver.OnDrawListener { onWatchedDraw() }
     private var lastDrawReportMs = 0L
 
+    /** Draw callbacks received, before the throttle; a seam for tests. */
+    @VisibleForTesting
+    internal var drawCallbacks = 0
+
     fun start() = AdapterGuard.run("start") {
         if (started) return@run
         registerWindowCallbacks()
@@ -251,6 +255,7 @@ internal class ViewsAdapter(
 
     /** A frame of the watched window was drawn: `scene.frame`, at most once per [WATCH_FRAME_INTERVAL_MS]. */
     private fun onWatchedDraw() {
+        drawCallbacks++
         if (!watchArmed || !started) return
         val now = SystemClock.uptimeMillis()
         if (now - lastDrawReportMs < WATCH_FRAME_INTERVAL_MS) return

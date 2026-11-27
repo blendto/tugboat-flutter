@@ -367,23 +367,26 @@ class SceneInventoryAdapterTest {
     }
 
     @Test
-    fun aSecondAttachOnTheSameWindowLeavesOneDrawListener() {
-        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+    fun aRebindAfterTheDecorAttachesLeavesOneDrawListener() {
+        // Armed while the decor is not attached: the listener lands on the view's floating
+        // observer, which Android merges into the window's on attach and then kills.
+        val controller = Robolectric.buildActivity(FragmentActivity::class.java).create()
+        val activity = controller.get()
         activity.setContentView(Button(activity))
-        settle()
         adapter.sampleWindow = { activity.window }
         adapter.onSceneWatch(true)
-        adapter.onSceneWatch(true)
         shadowOf(Looper.getMainLooper()).idle()
-        // A sample rebinds too; a stale second listener would report twice per draw.
+
+        controller.start().resume().visible()
+        // The resume rebinds (and a sample does too); each must leave exactly one listener.
         adapter.onSceneSample()
         shadowOf(Looper.getMainLooper()).idle()
-        sink.batches.clear()
+        val before = adapter.drawCallbacks
 
-        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(200))
         activity.window.decorView.viewTreeObserver.dispatchOnDraw()
-        frames.runFrame()
-        assertEquals(1, sceneFrames())
+
+        // Counted before the 100 ms throttle, which would hide a duplicate.
+        assertEquals(1, adapter.drawCallbacks - before)
     }
 
     @Test
