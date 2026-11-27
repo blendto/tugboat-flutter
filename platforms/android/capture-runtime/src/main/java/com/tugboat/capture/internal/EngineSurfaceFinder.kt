@@ -10,6 +10,15 @@ internal data class EngineSurface(
     val surfaceView: SurfaceView?,
 )
 
+/**
+ * Finds the engine surface by class name. Known gap: a hybrid composition
+ * platform view makes Flutter pause the `FlutterSurfaceView` and render into
+ * a `FlutterImageView`. That view is not looked for here, so the paused
+ * surface is still reported as [RenderMode.SurfaceView] and copied. The copy
+ * fails (`PixelCopyFailed`, then fallback) or returns the last frame drawn
+ * before the switch, older than its masks. See
+ * docs/architecture/native-capture-contracts.md (Coverage) and BLE-693.
+ */
 internal object EngineSurfaceFinder {
     private const val SURFACE_VIEW = "io.flutter.embedding.android.FlutterSurfaceView"
     private const val TEXTURE_VIEW = "io.flutter.embedding.android.FlutterTextureView"
