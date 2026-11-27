@@ -179,6 +179,37 @@ final class OutboxSenderTests: XCTestCase {
     XCTAssertEqual(onDiskAtClose.current.count, 1)
   }
 
+  /// A stalled disk cannot hang `close` (and so `stop()`): it returns at the
+  /// bound, closes the delegate, and the write still lands once the disk does.
+  func testCloseReturnsWithinTheBoundWhileTheWriterIsStalled() {
+    let bounded = OutboxSender(
+      delegate: delegate, outbox: outbox, context: OutboxRequests.context, frameBytes: OutboxRequests.jpeg,
+      closeWaitSeconds: 0.3)
+    let gate = DispatchSemaphore(value: 0)
+    outbox.queue.async { gate.wait() }
+    bounded.send(OutboxRequests.lifecycle()) { _ in }
+    let closed = expectation(description: "closed")
+    let elapsed = Locked(TimeInterval(0))
+    DispatchQueue.global().async {
+      let start = Date()
+      bounded.close()
+      elapsed.withLock { $0 = Date().timeIntervalSince(start) }
+      closed.fulfill()
+    }
+    // The writer stays stalled until the end; only the bound can end the wait.
+    wait(for: [closed], timeout: 30)
+    XCTAssertTrue(delegate.closed)
+    XCTAssertGreaterThanOrEqual(elapsed.current, 0.25, "waited for the bound")
+    XCTAssertLessThan(elapsed.current, 10, "returned instead of waiting for the disk")
+    XCTAssertTrue(harness.directories.isEmpty, "nothing landed while stalled")
+    gate.signal()
+    XCTAssertEqual(outbox.snapshot().entries.count, 1, "the queued write lands later")
+  }
+
+  func testTheDefaultCloseBoundMatchesAndroid() {
+    XCTAssertEqual(OutboxSender.closeWaitSeconds, 5)
+  }
+
   /// Edge case 14: neither a slow disk nor a drainer request in flight
   /// delays an engine request.
   func testAnEngineRequestStartsAtOnceWhileTheDiskAndTheDrainerAreBusy() {
