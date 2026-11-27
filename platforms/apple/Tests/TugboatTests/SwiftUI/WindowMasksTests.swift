@@ -72,7 +72,7 @@ final class WindowMasksTests: XCTestCase {
       return
     }
     let result = window.settledMasks(allowlist: allowlist)
-    let found = "found \(result.stats); verify iOS \(major) with the probe (spike/swiftui-a11y-probe)"
+    let found = "found \(result.stats); verify iOS \(major) with the probe (LayerProbeTests, spike/swiftui-a11y-probe)"
     XCTAssertNil(result.fallback, found)
     XCTAssertGreaterThan(result.stats.textLayers, 0, "REGRESSION: no CGDrawingLayer on a screen with text; \(found)")
     XCTAssertGreaterThan(result.stats.imageLayers, 0, "REGRESSION: no SwiftUI.ImageLayer on a screen with a bitmap image; \(found)")
@@ -144,6 +144,19 @@ final class WindowMasksTests: XCTestCase {
     XCTAssertEqual(unverified.fallback, .unverifiedLayerAllowlist(iOSMajor: LayerAllowlist.runningMajor))
     XCTAssertEqual(unverified.coverage, MaskCoverage(mode: .wholeFrame, reasons: [.unverifiedLayerAllowlist]))
     XCTAssertEqual(WindowMasks.compute(window.window, allowlist: nil, iOSMajor: 18).rects, [.fullFrame])
+    XCTAssertEqual(WindowMasks.compute(window.window, allowlist: nil, iOSMajor: 28).fallback, .unverifiedLayerAllowlist(iOSMajor: 28))
+  }
+
+  func testOnlyVerifiedMajorsHaveAnAllowlist() throws {
+    XCTAssertEqual(Set(LayerAllowlist.verified.keys), [26, 27])
+    for major in [15, 18, 25, 28, 99] {
+      XCTAssertNil(LayerAllowlist.forMajor(major), "iOS \(major) is unverified and masks SwiftUI windows in full")
+    }
+    for major in [26, 27] {
+      let allowlist = try XCTUnwrap(LayerAllowlist.forMajor(major))
+      XCTAssertEqual(allowlist.major, major)
+      XCTAssertEqual(allowlist.textClasses.count + allowlist.imageClasses.count + allowlist.shapeClasses.count, 3)
+    }
   }
 
   func testAnUnverifiedSwiftUIPlatformViewIsABox() throws {

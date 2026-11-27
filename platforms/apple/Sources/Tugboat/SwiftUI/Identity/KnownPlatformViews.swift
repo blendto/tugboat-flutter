@@ -23,20 +23,22 @@ import Foundation
 /// in a view-controller adaptor around a SwiftUI hosting controller:
 /// `NavigationStack` (`NavigationStackRepresentable`), `NavigationView`
 /// (`BridgedNavigationView`), and `TabView` (`UIKitAdaptableTabView`).
-/// Sheets and full-screen covers present a hosting controller directly
-/// (no platform-view host), so they need no entry.
+/// The same five hosts were checked again on the iOS 27.2 simulator
+/// (2026-11-28, same `ContainerHostTests` dumps): the host type names are
+/// unchanged. Sheets and full-screen covers present a hosting controller
+/// directly (no platform-view host), so they need no entry.
 enum KnownPlatformViews {
   static let swiftUIModule = "SwiftUI"
 
-  static let verified: [Int: Set<String>] = [
-    26: [
-      "ListRepresentable",
-      "PlatformTextFieldAdaptor",
-      "NavigationStackRepresentable",
-      "BridgedNavigationView",
-      "UIKitAdaptableTabView",
-    ],
+  private static let hosts26And27: Set<String> = [
+    "ListRepresentable",
+    "PlatformTextFieldAdaptor",
+    "NavigationStackRepresentable",
+    "BridgedNavigationView",
+    "UIKitAdaptableTabView",
   ]
+
+  static let verified: [Int: Set<String>] = [26: hosts26And27, 27: hosts26And27]
 
   private static let adaptors: Set<String> = [
     "PlatformViewRepresentableAdaptor",

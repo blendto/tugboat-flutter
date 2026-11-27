@@ -298,15 +298,18 @@ this section. On iOS 26.5 with VoiceOver off:
   and can change between releases. Matching is read-only class-name
   comparison and makes no private API calls.
   - Verified: iOS 26 (`SwiftUI.ImageLayer` and
-    `_TtC7SwiftUIP33_863CCF9D49B535DAEB1C7D61BEE53B5914CGDrawingLayer`).
+    `_TtC7SwiftUIP33_863CCF9D49B535DAEB1C7D61BEE53B5914CGDrawingLayer`),
+    and iOS 27 with the same classes (iOS 27.2 simulator, 2026-11-28; the
+    iOS 27.0.1 device run is pending).
   - Any iOS major version without a verified entry, including 15–25 for now,
     masks the whole frame until it is verified. Each verification is an open
     item in the decisions log.
 - **Regression guard.**
   - An XCTest renders a screen known to contain text and an image, and
     fails loudly when no allowlisted class is found.
-  - The probe is kept on its spike branch so it can be re-run on each new
-    iOS major version.
+  - The probe is kept on its spike branch, and `LayerProbeTests` (dump and
+    IoU checks) in the Swift host tests, so it can be re-run on each new iOS
+    major version.
 
 ## 7. Configuration, IDs and metadata
 
