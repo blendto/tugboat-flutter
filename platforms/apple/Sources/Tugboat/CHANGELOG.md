@@ -13,8 +13,9 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   before the app is active gets it from `didBecomeActive`; like every `resumed`
   it requests a forced `lifecycle` capture, which a queued `initial` capture
   absorbs: the sample's launch still uploads an `initial` and a `route` frame); an HTTP error
-  response that carried no bytes records an empty text `errorResponseBody` (an
-  empty JSON body gives none), as `tugboat-okhttp` and Dio; a named view's
+  response that carried no bytes records an empty text `errorResponseBody` through
+  the instrumented session and `Tugboat.data(for:)` (an empty JSON body gives
+  none; the Alamofire monitor sees no data for it and records none), as `tugboat-okhttp` and Dio; a named view's
   anchor carries `actions: ["tap"]` and `enabled` (the view takes touches and is
   not marked not-enabled).
 
