@@ -29,6 +29,17 @@ void apply_navigation(const ModuleRegistry&, EngineState* state,
     record_route_change(turn, event_id, *change, std::nullopt,
                         RouteChangeCapture{});
     state->captures.restamp_initial_route(state);
+    // A seed that opts in with `captureFrame` and arrives after the session's
+    // first frame (a host that names its first screen late, as React Native
+    // does) missed the `initial` frame, which was taken before the route was
+    // known: take one of the seeded screen. The event stays without
+    // `afterFrame`, as in Flutter.
+    if (fact.capture_frame && state->captures.sequence() > 0) {
+      CaptureAsk ask;
+      ask.trigger = FrameTrigger::kRoute;
+      ask.force = true;
+      state->captures.request(turn, {CaptureOwner::Kind::kNone, ""}, ask);
+    }
     return;
   }
   std::optional<VisibleRouteChange> change = resolve_route_change(turn, fact);

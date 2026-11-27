@@ -62,6 +62,10 @@ struct NavigationFact {
   OptString departing_instance_id;
   // `session_start` only: bottom to top; each `transitionMs` must be 0.
   std::vector<FactRoute> routes;
+  // `session_start` only: when the seed arrives after the session's first
+  // frame, take a frame of the seeded route (the `initial` frame was taken
+  // before the route was known). Default false.
+  bool capture_frame = false;
 };
 
 bool decode_navigation_fact(const Value& input, const std::string& path,

@@ -141,12 +141,18 @@ bool decode_navigation_fact(const Value& input, const std::string& path,
   const ObjectReader r(input, path, error);
   const Value* route = nullptr;
   if (!r.check_keys({"kind", "navigatorId", "parentNavigatorId", "route",
-                     "departing", "routes"}) ||
+                     "departing", "routes", "captureFrame"}) ||
       !read_named(r, "kind", kKinds, &out->kind) ||
       !read_non_empty(r, "navigatorId", &out->navigator_id) ||
       !decode_parent(r, out) || !r.opt_object("route", &route) ||
       !decode_departing(r, out, error) || !decode_routes(r, out, error)) {
     return false;
+  }
+  std::optional<bool> capture_frame;
+  if (!r.opt_bool("captureFrame", &capture_frame)) return false;
+  out->capture_frame = capture_frame.value_or(false);
+  if (out->kind != NavigationKind::kSessionStart && capture_frame) {
+    return r.reject("captureFrame", "must be absent unless kind is session_start");
   }
   if (out->kind == NavigationKind::kSessionStart) {
     if (route != nullptr) {

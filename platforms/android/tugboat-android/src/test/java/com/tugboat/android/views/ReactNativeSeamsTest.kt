@@ -110,7 +110,7 @@ class ReactNativeSeamsTest {
     }
 
     @Test
-    fun whenTheHostNamesScreensTheActivityIsNotARouteAndTheFirstScreenIsTheFirst() {
+    fun whenTheHostNamesScreensTheActivityIsNotARouteAndTheFirstScreenIsTheInitialRoute() {
         TugboatAdapters.setHostNamesScreens(true)
         TugboatAdapters.install(app)
         Robolectric.buildActivity(FragmentActivity::class.java).setup()
@@ -120,9 +120,10 @@ class ReactNativeSeamsTest {
 
         Tugboat.setScreen("Tabs/Home", "k1")
         val home = navigation().single()
-        assertEquals("push", home.getString("kind"))
-        assertEquals("Tabs/Home", home.getJSONObject("route").getString("name"))
-        assertFalse(home.has("departing"))
+        assertEquals("session_start", home.getString("kind"))
+        assertEquals("Tabs/Home", home.getJSONArray("routes").getJSONObject(0).getString("name"))
+        assertTrue(home.getBoolean("captureFrame"))
+        assertFalse(home.has("route"))
 
         // Later screens push over it.
         Tugboat.setScreen("Tabs/Catalog", "k2")
@@ -130,6 +131,31 @@ class ReactNativeSeamsTest {
         assertEquals("push", catalog.getString("kind"))
         assertEquals("k1", catalog.getJSONObject("departing").getString("instanceId"))
         adapter.stop()
+    }
+
+    @Test
+    fun whenTheHostNamesScreensEachSessionSeedsItsOwnFirstScreen() {
+        TugboatAdapters.setHostNamesScreens(true)
+        TugboatAdapters.install(app)
+        Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        val first = startAdapter()
+        Tugboat.setScreen("Tabs/Home", "k1")
+        assertEquals("session_start", navigation().single().getString("kind"))
+        Tugboat.setScreen("Tabs/Catalog", "k2")
+        assertEquals("push", navigation().single().getString("kind"))
+        first.stop()
+
+        // A session started after a stop: the flag is not left over, so the
+        // first screen named is a seed again and the next is a push.
+        val second = startAdapter()
+        assertTrue(navigation().isEmpty())
+        Tugboat.setScreen("Tabs/Home", "k3")
+        val seed = navigation().single()
+        assertEquals("session_start", seed.getString("kind"))
+        assertTrue(seed.getBoolean("captureFrame"))
+        Tugboat.setScreen("Tabs/Catalog", "k4")
+        assertEquals("push", navigation().single().getString("kind"))
+        second.stop()
     }
 
     @Test

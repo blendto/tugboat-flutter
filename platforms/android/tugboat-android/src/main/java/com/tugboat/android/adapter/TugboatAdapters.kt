@@ -62,9 +62,9 @@ object TugboatAdapters {
 
     /**
      * The app names its own screens with [Tugboat.setScreen] (React Native):
-     * the resumed activity is not a route, so the first screen named is the
-     * session's first route (a push; the screen's frame is captured as for
-     * any navigation). An app that then never names a screen reports no
+     * the resumed activity is not a route, and the first screen named in a
+     * session is its initial route (`session_start`), as in Flutter, with a
+     * frame of its own. An app that then never names a screen reports no
      * routes. Off by default; an app that does not call this is unchanged.
      * Set it before the session starts.
      */
