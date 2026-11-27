@@ -9,10 +9,9 @@ Unpublished. The OkHttp adapter for the native Android SDK: automatic
   an application interceptor. Install it first (`addInterceptor`, outermost),
   wrapping the app's auth and retry interceptors; as a network interceptor it
   records nothing. A second instance in the same chain records nothing.
-- The resolver's result is sent to the engine as returned (not trimmed: the
-  engine owns the route rule, and drops a route with surrounding
-  whitespace); null, blank, or a throwing resolver records nothing. It runs
-  only while Tugboat takes evidence.
+- The resolver's result is trimmed as Dart's `String.trim`; null, blank, or
+  a throwing resolver records nothing. It runs only while Tugboat takes
+  evidence.
 - A response is `complete(statusCode)`; an `IOException` is
   `fail(NETWORK_ERROR)` (timeouts, the call timeout included) and a cancelled
   call `fail(CANCELLED)`, with the exception rethrown unchanged. Other
