@@ -37,8 +37,9 @@ import java.io.InterruptedIOException
  *
  * [routeResolver] maps the request to a bounded route path that you choose,
  * such as `/orders/{id}` or `/orders/123`: never a URL, query, or fragment.
- * Its result is trimmed (as Dart's `String.trim`); null, blank, or a throw
- * records nothing. It runs once per call on the calling thread, and only
+ * Its result goes to the engine as returned: the engine drops a route with
+ * surrounding whitespace, like any other invalid route. Null, blank, or a
+ * throw records nothing. It runs once per call on the calling thread, and only
  * while Tugboat takes evidence.
  *
  * The status code is recorded for every response. For status 400 or more, a
@@ -91,7 +92,8 @@ class TugboatOkHttpInterceptor(private val routeResolver: (Request) -> String?) 
         } catch (_: Throwable) {
             return null
         }
-        return route?.let(::dartTrim)?.takeIf { it.isNotEmpty() }
+        // Not trimmed here: the engine owns the route rule (`normalize_network_route`) and its whitespace set.
+        return route
     }
 
     private fun complete(begun: Begun, response: Response) {
@@ -166,12 +168,4 @@ private object ActiveCalls {
             if (previous == null) current.remove() else current.set(previous)
         }
     }
-}
-
-/** Dart's `String.trim`: its whitespace code units, from both ends (the engine's `dart_trim`). */
-internal fun dartTrim(value: String): String = value.trim(::isDartWhitespace)
-
-private fun isDartWhitespace(c: Char): Boolean = when (c.code) {
-    in 0x09..0x0D, 0x20, 0x85, 0xA0, 0x1680, in 0x2000..0x200A, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF -> true
-    else -> false
 }

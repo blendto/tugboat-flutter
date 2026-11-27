@@ -89,9 +89,10 @@ It maps a request to a route path you choose: an absolute path, which may
 hold dynamic ids (`/orders/123`) or a template (`/orders/{id}`), never a full
 URL, query, or fragment.
 
-- Its result is trimmed as Dart's `String.trim` trims (as `tugboat_dio`
-  does). Null, blank, or a resolver that throws records nothing, and the
-  call goes on untouched.
+- Its result goes to the engine as returned: return the path without
+  surrounding whitespace (the engine drops a padded route; `tugboat_dio`
+  trims it first). Null, blank, or a resolver that throws records nothing,
+  and the call goes on untouched.
 - It runs once per call, on the calling thread, and only while Tugboat takes
   evidence (started, not stopped or disabled).
 - The engine drops a route with a scheme, query, fragment,

@@ -427,16 +427,17 @@ public class TugboatOkHttpInterceptorTest {
     }
 
     @Test
-    public void theRouteIsTrimmedAsDartTrims() throws Exception {
+    public void theRouteReachesTheEngineAsTheResolverReturnedIt() throws Exception {
         server.enqueue(new MockResponse());
         OkHttpClient client = new OkHttpClient.Builder()
-                .addInterceptor(new TugboatOkHttpInterceptor(request -> " \u00A0/orders/{id}\uFEFF\n"))
+                .addInterceptor(new TugboatOkHttpInterceptor(request -> " /orders/{id} "))
                 .build();
 
         readBody(client.newCall(get("/orders/42")).execute());
 
+        // The engine, not this adapter, drops a route with surrounding whitespace (normalize_network_route).
         assertEquals(
-                Collections.singletonList(call("GET", "/orders/{id}", "\"statusCode\":200,\"outcome\":\"response\"")),
+                Collections.singletonList(call("GET", " /orders/{id} ", "\"statusCode\":200,\"outcome\":\"response\"")),
                 tap.networkCalls());
     }
 
