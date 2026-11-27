@@ -17,6 +17,8 @@
 //   build; `session.end` (and `detached`) ends it once, after its records.
 // - Identity, transport, flush, and background flush steps call the sink as
 //   in engine_scenario.dart; time runs on the same deterministic scheduler.
+// - Ids are compared modulo their UUIDs (ScenarioIdNormalizer): the sink
+//   mints its own `collector-…` ids from `Random.secure()`.
 // - Every other message (interaction facts, `capture.result`,
 //   `event.record`, `timer.fired`) needs no call: its records are fed.
 import 'dart:async';
@@ -42,6 +44,8 @@ class _Replay {
   final ScenarioScheduler _scheduler;
   final List<Map<String, Object?>> _steps;
   late final ScenarioDelivery _delivery;
+  final ScenarioIdNormalizer _expectedIds = ScenarioIdNormalizer();
+  final ScenarioIdNormalizer _actualIds = ScenarioIdNormalizer();
   int _wallOffsetUs = 0;
   String? _sessionId;
   bool _ended = true;
@@ -85,8 +89,8 @@ class _Replay {
       );
       _scheduler.flushMicrotasks();
       final mismatches = diffJson(
-        comparableEffects(expect['effects']! as List),
-        _delivery.client.effects.sublist(before),
+        _expectedIds.apply(comparableEffects(expect['effects']! as List)),
+        _actualIds.apply(_delivery.client.effects.sublist(before)),
         '\$.input.steps[$i].expect.effects',
       );
       if (mismatches.isNotEmpty) return mismatches;
@@ -101,7 +105,7 @@ class _Replay {
         (send['input'] ?? const <String, Object?>{}) as Map<String, Object?>;
     switch (send['type']) {
       case 'session.start':
-        _start(input, at!);
+        _start(input, at!, records);
         _feed(records);
       case 'session.end':
         _feed(records);
@@ -146,11 +150,15 @@ class _Replay {
     _feed(records);
   }
 
-  void _start(Map<String, Object?> input, Map<String, Object?> at) {
+  void _start(
+    Map<String, Object?> input,
+    Map<String, Object?> at,
+    List<Map<String, Object?>> records,
+  ) {
     final wallUs = at['wallUs']! as int;
     final viewport = input['viewport']! as Map<String, Object?>;
     final session = TugboatSession(
-      id: 'session-$wallUs',
+      id: _publishedSessionId(records) ?? 'session-$wallUs',
       startedAt: DateTime.fromMicrosecondsSinceEpoch(wallUs, isUtc: true),
       platform: input['platform']! as String,
       viewport: TugboatRect(
@@ -164,6 +172,18 @@ class _Replay {
     _sessionId = session.id;
     _ended = false;
     _delivery.sink.startSession(session);
+  }
+
+  /// The session id the engine minted (`session-<UUIDv4>` from the
+  /// `session.start` seed): the capture session id its records carry.
+  static String? _publishedSessionId(List<Map<String, Object?>> records) {
+    for (final record in records) {
+      if (record['kind'] != 'event') continue;
+      final event = record['event']! as Map<String, Object?>;
+      final id = event['captureSessionId'];
+      if (id is String && !id.startsWith('collector-')) return id;
+    }
+    return null;
   }
 
   void _end() {

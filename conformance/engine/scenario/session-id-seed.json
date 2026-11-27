@@ -7,6 +7,9 @@
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 7
   },
+  "engineOnly": [
+    "C10"
+  ],
   "input": {
     "configure": {
       "host": {

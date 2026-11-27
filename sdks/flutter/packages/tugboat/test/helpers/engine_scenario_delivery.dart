@@ -229,6 +229,83 @@ class ScenarioCollectorClient extends http.BaseClient {
 
 /// The real [CollectorHttpSink] behind a scenario, fed the way the
 /// controller's sink hub and the `TugboatReplay` widget feed it.
+final _uuidV4 = RegExp(
+  '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}',
+);
+
+/// Rewrites every UUID v4 in a JSON tree (keys and string values, including
+/// ids inside an encoded `jsonBody`) to `<uuid-N>`, numbering each distinct
+/// UUID by first appearance across every call on this instance.
+class ScenarioIdNormalizer {
+  final Map<String, int> _ordinals = {};
+
+  Object? apply(Object? value) {
+    if (value is String) {
+      return value.replaceAllMapped(
+        _uuidV4,
+        (match) =>
+            '<uuid-${_ordinals.putIfAbsent(match[0]!, () => _ordinals.length + 1)}>',
+      );
+    }
+    if (value is List) return [for (final item in value) apply(item)];
+    if (value is Map) {
+      return {for (final e in value.entries) apply(e.key): apply(e.value)};
+    }
+    return value;
+  }
+}
+
+/// The sink's session stopwatch on the scenario's monotonic clock
+/// (`at.monoUs`), as the engine times lifecycle posts and its own
+/// `capture_diagnostic` records.
+class _SchedulerStopwatch implements Stopwatch {
+  _SchedulerStopwatch(this._scheduler);
+
+  final ScenarioScheduler _scheduler;
+  int _startUs = 0;
+  int _stoppedAtUs = 0;
+  bool _running = false;
+
+  int get _us => (_running ? _scheduler.nowUs : _stoppedAtUs) - _startUs;
+
+  @override
+  int get frequency => 1000000;
+
+  @override
+  Duration get elapsed => Duration(microseconds: _us);
+
+  @override
+  int get elapsedMicroseconds => _us;
+
+  @override
+  int get elapsedMilliseconds => _us ~/ 1000;
+
+  @override
+  int get elapsedTicks => _us;
+
+  @override
+  bool get isRunning => _running;
+
+  @override
+  void reset() {
+    _startUs = _running ? _scheduler.nowUs : _stoppedAtUs;
+  }
+
+  @override
+  void start() {
+    if (_running) return;
+    _startUs = _scheduler.nowUs - _us;
+    _running = true;
+  }
+
+  @override
+  void stop() {
+    if (!_running) return;
+    _stoppedAtUs = _scheduler.nowUs;
+    _running = false;
+  }
+}
+
 class ScenarioDelivery {
   ScenarioDelivery({
     required ScenarioCollector collector,
@@ -241,6 +318,7 @@ class ScenarioDelivery {
       client: client,
       identityDebounceDuration: collector.identityDebounce,
       wallClock: now,
+      stopwatchFactory: () => _SchedulerStopwatch(scheduler),
     );
   }
 

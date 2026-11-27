@@ -7,6 +7,9 @@
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 7
   },
+  "engineOnly": [
+    "C22"
+  ],
   "input": {
     "configure": {
       "host": {"$preset": "default-host", "configuredUserId": "user-configured"},
@@ -685,6 +688,5 @@
         }
       ]
     }
-  },
-  "dartParity": "delivery"
+  }
 }
