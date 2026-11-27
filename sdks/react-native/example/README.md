@@ -1,97 +1,56 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Tugboat React Native sample app
 
-# Getting Started
+A shop-flow sample that mirrors `sdks/flutter/packages/tugboat/example`, used to
+test the upcoming `@tugboat/react-native` SDK. React Native 0.88 (New
+Architecture, Hermes), TypeScript, React Navigation. Android first; `ios/` is
+the unmodified community template.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+Package: `com.tugboat.rnexample`.
 
-## Step 1: Start Metro
+## Screens
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+Home, Catalog (tabs, search, category chips, list/grid), Browse feed, Cart,
+Shipping (form inputs), Payment (card fields wrapped in `Sensitive`), Profile
+(settings, human-verification dialog), Scroll playground (vertical list,
+horizontal carousel, static block, nested scroll), and Network (fetch and
+XMLHttpRequest: GET, POST, 404, 500, failing host, against a configurable base
+URL, default `https://httpbin.org`). Every interactive element has a `testID`.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## Where the SDK plugs in
 
-```sh
-# Using npm
-npm start
+`src/tugboat.ts` exports a no-op `init()` and a pass-through `Sensitive`
+component. The SDK PR replaces that file. The Payment card fields and the
+profile one-time-code field are already wrapped in `Sensitive`.
 
-# OR using Yarn
-yarn start
-```
-
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
-```
-
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+## Run
 
 ```sh
-bundle install
+cd sdks/react-native/example
+npm install
+npm start                 # Metro, in one terminal
+npm run android           # debug build to a device or emulator
 ```
 
-Then, and every time you update your native dependencies, run:
+## Build APKs
 
 ```sh
-bundle exec pod install
+cd sdks/react-native/example/android
+echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties   # once
+./gradlew assembleDebug assembleRelease
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+A plain debug APK loads JS from Metro. To make one that runs without Metro
+(device checks, CI), embed the bundle:
 
 ```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+./gradlew assembleDebug -PbundleDebug
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+Outputs: `android/app/build/outputs/apk/{debug,release}/`. The release build is
+signed with the template debug keystore: fine for testing, not for publishing.
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## Network screen against a local server
 
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+On an Android emulator the host machine is `http://10.0.2.2:<port>`; on a phone
+use `adb reverse tcp:<port> tcp:<port>` and `http://localhost:<port>`. Edit the
+base URL field on the Network screen. The failing-host requests ignore it.
