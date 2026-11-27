@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Text } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { Tugboat } from '@tugboat/react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -26,6 +27,9 @@ export type RootStackParams = {
   Network: undefined;
 };
 
+const navigationRef = createNavigationContainerRef();
+Tugboat.trackNavigation(navigationRef);
+
 const Stack = createNativeStackNavigator<RootStackParams>();
 const Tab = createBottomTabNavigator();
 
@@ -49,7 +53,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <CartProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
           <Stack.Navigator>
             <Stack.Screen name="Tabs" component={Tabs} options={{ title: 'Tugboat Replay Demo' }} />
             <Stack.Screen name="Browse" component={BrowseScreen} options={{ title: 'Browse feed' }} />

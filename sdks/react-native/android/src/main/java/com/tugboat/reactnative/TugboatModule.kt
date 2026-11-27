@@ -58,6 +58,10 @@ class TugboatModule(reactContext: ReactApplicationContext) : NativeTugboatSpec(r
 
     override fun stop() = guarded("stop") { Tugboat.stop() }
 
+    override fun setScreen(name: String, instanceId: String?) = guarded("setScreen") {
+        Tugboat.setScreen(name, instanceId?.takeIf { it.isNotBlank() } ?: name)
+    }
+
     override fun setUserId(id: String?) = guarded("setUserId") { Tugboat.setUserId(id) }
 
     override fun setTraits(traits: ReadableMap) = guarded("setTraits") { Tugboat.setTraits(traits.toHashMap()) }

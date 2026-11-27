@@ -8,6 +8,7 @@ export interface Spec extends TurboModule {
   activate(activationRequestId: string): void;
   deactivate(): void;
   stop(): void;
+  setScreen(name: string, instanceId: string | null): void;
   setUserId(id: string | null): void;
   setTraits(traits: Object): void;
 }
