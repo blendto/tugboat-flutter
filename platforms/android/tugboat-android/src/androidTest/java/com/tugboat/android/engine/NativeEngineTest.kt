@@ -27,6 +27,12 @@ class NativeEngineTest {
     }
 
     @Test
+    fun theFingerprintSchemaVersionComesFromTheEngine() {
+        // The handle-free JNI binding the Views identity serializes (tb_session_engine_fingerprint_schema_version).
+        assertEquals(6, NativeEngine.fingerprintSchemaVersion())
+    }
+
+    @Test
     fun malformedMessagesReportAStatusInsteadOfThrowing() {
         val response = submit("""{"type":""")
 

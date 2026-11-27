@@ -70,7 +70,12 @@ android {
         val identityFixtures = rootProject.projectDir.resolve("../../conformance/fingerprint/identity_parts").canonicalFile
         // Evidence messages as the engine takes them, and the data it records (EvidenceConformanceTest).
         val evidenceFixtures = rootProject.projectDir.resolve("../../conformance/evidence").canonicalFile
+        // JVM tests cannot load libtugboat_engine: the schema version the hosts read from it (EngineContract).
+        val fingerprintSchemaVersion = Regex("""#define\s+TB_SESSION_ENGINE_FINGERPRINT_SCHEMA_VERSION\s+(\d+)""")
+            .find(engineSources.resolve("include/tugboat/tb_session_engine.h").readText())!!.groupValues[1]
         unitTests.all { test ->
+            test.systemProperty("tugboat.engine.fingerprintSchemaVersion", fingerprintSchemaVersion)
+            test.inputs.file(engineSources.resolve("include/tugboat/tb_session_engine.h"))
             test.systemProperty("tugboat.engineSources", engineSources.path)
             test.inputs.file(engineSources.resolve("src/transport.cpp"))
             test.inputs.file(statusFixture)
