@@ -1,26 +1,33 @@
 name: Android runtime
 
-# Quick tier: runs on every push to a pull request and every push to main,
-# whatever files changed (see .github/workflows/README.md).
+# Runs daily from nightly.yml, on pull requests labelled `device-report`
+# (every push while the label is on), or on demand (see README.md in this
+# folder).
 on:
+  workflow_call:
+  workflow_dispatch:
+  # Pull requests labelled `device-report`: every push while the label is on.
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-  push:
-    branches: [main]
+    types: [labeled, synchronize, reopened]
 
 permissions:
   contents: read
 
-# One run per PR: a new push cancels the previous run. Every push to main
-# gets its own group (by commit), so main runs are never cancelled or
-# superseded, and each merge saves its caches.
+# A new push to a labelled PR cancels its running tests. Adding some other
+# label gets a group of its own, so it never cancels a run in progress.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: >-
+    android-runtime-${{
+      (github.event.action == 'labeled' && github.event.label.name != 'device-report')
+      && github.run_id
+      || github.event.pull_request.number || github.sha
+    }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   aar:
     name: Build and publish local AAR
+    if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'device-report') && (github.event.action != 'labeled' || github.event.label.name == 'device-report'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

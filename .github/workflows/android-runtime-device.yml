@@ -6,21 +6,33 @@ name: Android runtime device tests
 # Also runs :tugboat-android:connectedAndroidTest: the real session engine
 # through JNI, including the collector contract test (session_start body,
 # frameMetadata backends).
-# Full tier: runs daily from nightly.yml, or on demand (see .github/workflows/README.md).
+# Full tier: runs daily from nightly.yml, on pull requests labelled
+# `device-report`, or on demand (see .github/workflows/README.md).
 on:
   workflow_call:
   workflow_dispatch:
+  # Pull requests labelled `device-report`: every push while the label is on.
+  pull_request:
+    types: [labeled, synchronize, reopened]
 
 permissions:
   contents: read
 
+# A new push to a labelled PR cancels its running tests. Adding some other
+# label gets a group of its own, so it never cancels a run in progress.
 concurrency:
-  group: android-runtime-device-${{ github.event.pull_request.number || github.sha }}
+  group: >-
+    android-runtime-device-${{
+      (github.event.action == 'labeled' && github.event.label.name != 'device-report')
+      && github.run_id
+      || github.event.pull_request.number || github.sha
+    }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   connected:
     name: Instrumented tests (API ${{ matrix.api-level }})
+    if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'device-report') && (github.event.action != 'labeled' || github.event.label.name == 'device-report'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:

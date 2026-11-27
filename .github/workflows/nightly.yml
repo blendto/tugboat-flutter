@@ -2,7 +2,8 @@ name: Nightly full tests
 
 # Full tier, once a day on main (Android only for now): the device suite on
 # an Android emulator (feature checklist and capture benchmarks, built from
-# the in-repo SDK and runtime) and the Android runtime's instrumented tests.
+# the in-repo SDK and runtime), the Android runtime build and unit tests,
+# and its instrumented tests.
 # The quick tier runs on every push (see README.md in this folder).
 # A failed scheduled run is emailed to whoever last changed this schedule.
 
@@ -34,5 +35,11 @@ jobs:
   instrumented:
     name: Android runtime instrumented tests
     uses: ./.github/workflows/android-runtime-device.yml
+    permissions:
+      contents: read
+
+  runtime:
+    name: Android runtime build and unit tests
+    uses: ./.github/workflows/android-runtime.yml
     permissions:
       contents: read
