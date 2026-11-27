@@ -13,9 +13,12 @@ import UIKit
 /// | `willTerminate` | `detached` (ends the session) |
 ///
 /// The application notifications aggregate every scene, so a SwiftUI app
-/// with several windows reports the process, not each scene. Nothing is
-/// replayed at start: the session's `initial` capture covers it. Main
-/// thread only; each fact is stamped when its notification arrives.
+/// with several windows reports the process, not each scene. Starting while
+/// the app is already active posts `resumed` once, as Flutter reports
+/// `resumed` at launch and the Android bridge replays its current state, so
+/// a launch records `app_foregrounded`; a start before the app is active
+/// gets it from `didBecomeActive`. Main thread only; each fact is stamped
+/// when its notification arrives.
 final class AppLifecycleBridge {
   /// The state after which the engine has ended the session.
   static let detached = "detached"
@@ -32,10 +35,16 @@ final class AppLifecycleBridge {
 
   private let center: NotificationCenter
   private let post: (_ state: String) -> Void
+  private let isActive: () -> Bool
   private var tokens: [NSObjectProtocol] = []
 
-  init(center: NotificationCenter = .default, post: @escaping (_ state: String) -> Void) {
+  init(
+    center: NotificationCenter = .default,
+    isActive: @escaping () -> Bool = { UIApplication.shared.applicationState == .active },
+    post: @escaping (_ state: String) -> Void
+  ) {
     self.center = center
+    self.isActive = isActive
     self.post = post
   }
 
@@ -44,6 +53,7 @@ final class AppLifecycleBridge {
     tokens = AppLifecycleBridge.mapping.map { entry in
       center.addObserver(forName: entry.name, object: nil, queue: nil) { [post] _ in post(entry.state) }
     }
+    if isActive() { post("resumed") }
   }
 
   func stop() {

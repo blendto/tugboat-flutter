@@ -79,7 +79,7 @@ final class TugboatFacadeTests: XCTestCase {
   func testLifecycleNotificationsBecomeEngineStates() {
     let center = NotificationCenter()
     var states: [String] = []
-    let bridge = AppLifecycleBridge(center: center) { states.append($0) }
+    let bridge = AppLifecycleBridge(center: center, isActive: { false }) { states.append($0) }
     bridge.start()
     bridge.start()
     for name in [
@@ -92,6 +92,15 @@ final class TugboatFacadeTests: XCTestCase {
     bridge.stop()
     center.post(name: UIApplication.didBecomeActiveNotification, object: nil)
     XCTAssertEqual(states, ["inactive", "paused", "inactive", "resumed", "detached"])
+  }
+
+  func testStartingWhileActiveReportsResumedOnce() {
+    var states: [String] = []
+    let bridge = AppLifecycleBridge(center: NotificationCenter(), isActive: { true }) { states.append($0) }
+    bridge.start()
+    bridge.start()
+    bridge.stop()
+    XCTAssertEqual(states, ["resumed"])
   }
 }
 #endif

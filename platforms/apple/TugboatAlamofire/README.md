@@ -49,7 +49,8 @@ let session = Session(
     the session engine decodes and bounds it as Dart does.
   - Otherwise: text, decoded as UTF-8 with U+FFFD replacement and cut to
     whole characters within 4100 bytes (evidence-messages.md section 4.5).
-  - Download and stream requests, and empty bodies, record no body.
+  - Download and stream requests record no body, and neither does a response
+    with no bytes (Alamofire keeps no data for it, so nothing is read).
 - **Route**: only from the resolver. It runs once per request, with the
   first attempt's `URLRequest`, and only while Tugboat takes evidence. Its
   result is trimmed as Dart's `String.trim` trims. Nil, empty, or a throw

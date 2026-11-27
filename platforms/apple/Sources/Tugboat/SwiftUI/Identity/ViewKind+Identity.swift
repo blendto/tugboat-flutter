@@ -71,19 +71,24 @@ extension ViewKind {
     guard ViewKind.isEnabled(view) != false else { return [] }
     switch self {
     case .textInput: return ["input", "tap"]
-    case .cell, .control: return ["tap"]
+    case .cell, .control, .named: return ["tap"]
     case .scrollView: return ["scroll"]
     default: return []
     }
   }
 
-  /// `enabled` for controls and text views; nil where UIKit has no notion.
+  /// `enabled` for controls and text views, and for a named view (a host's
+  /// seam name, such as React Native's `testID`) by whether it takes touches
+  /// and is not marked not-enabled; nil where UIKit has no notion.
   static func isEnabled(_ view: UIView) -> Bool? {
     if let control = view as? UIControl {
       return control.isEnabled
     }
     if let textView = view as? UITextView {
       return textView.isEditable
+    }
+    if ViewTree.node(view).kind == .named {
+      return view.isUserInteractionEnabled && !view.accessibilityTraits.contains(.notEnabled)
     }
     return nil
   }

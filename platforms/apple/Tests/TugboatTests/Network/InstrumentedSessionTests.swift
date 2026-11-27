@@ -135,6 +135,22 @@ final class InstrumentedSessionTests: XCTestCase {
       data["errorResponseBodyCapture"] as? NSDictionary, ["format": "json", "representation": "native", "truncated": false])
   }
 
+  func testAnEmptyErrorResponseSendsAnEmptyTextBodyUnlessItIsJSON() throws {
+    NetworkStubProtocol.reset([
+      "/empty-text": .ok(404, "text/html; charset=utf-8", ""), "/empty-json": .ok(500, "application/json", ""),
+    ])
+    for path in ["/empty-text", "/empty-json"] {
+      let delegate = appDelegate()
+      run(request(path), on: session(delegate: delegate), delegate: delegate)
+    }
+
+    let posts = self.posts(2)
+    let text = try XCTUnwrap(posts.first { $0.input["route"] as? String == "/empty-text" })
+    XCTAssertEqual(text.input["errorResponseBody"] as? NSDictionary, ["value": ""], "as tugboat-okhttp and Dio")
+    let json = try XCTUnwrap(posts.first { $0.input["route"] as? String == "/empty-json" })
+    XCTAssertNil(json.input["errorResponseBody"])
+  }
+
   func test500WithATextBodySendsText() throws {
     NetworkStubProtocol.reset(["/orders/123": .ok(500, "text/plain", "upstream exploded")])
     let delegate = appDelegate()
@@ -319,6 +335,17 @@ final class InstrumentedSessionTests: XCTestCase {
     XCTAssertEqual(posts.count, 1)
     XCTAssertEqual(posts.first?.input["statusCode"] as? Int, 404)
     XCTAssertNil(posts.first?.input["errorResponseBody"], "the delegate never sees a completion handler's body")
+  }
+
+  func testACompletionHandlerTaskWithATextErrorBodyIsRecordedWithoutABody() throws {
+    NetworkStubProtocol.reset(["/orders/123": .ok(500, "text/plain", "upstream exploded")])
+    let done = expectation(description: "completion handler")
+    session(delegate: nil).dataTask(with: request("/orders/123")) { _, _, _ in done.fulfill() }.resume()
+    wait(for: [done], timeout: 10)
+
+    let posts = self.posts(1)
+    XCTAssertEqual(posts.first?.input["statusCode"] as? Int, 500)
+    XCTAssertNil(posts.first?.input["errorResponseBody"], "bytes the delegate never saw are not an empty body")
   }
 
   // MARK: - Resolver and admission

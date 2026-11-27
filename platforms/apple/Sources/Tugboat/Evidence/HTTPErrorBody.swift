@@ -27,9 +27,11 @@ enum HTTPErrorBody {
   /// read): `JSONTextBody` for a complete body with a JSON media type,
   /// otherwise the text, decoded with U+FFFD replacement
   /// (`String(decoding:as:)`, the maximal-subpart practice) and cut to whole
-  /// characters within 4100 UTF-8 bytes. Empty bytes give no body.
+  /// characters within 4100 UTF-8 bytes. Empty bytes give an empty text body
+  /// (as `tugboat-okhttp` and Dio), or none for a JSON media type: the engine
+  /// drops an empty JSON text.
   static func body(bytes: Data, contentType: String?) -> Any? {
-    guard !bytes.isEmpty else { return nil }
+    if bytes.isEmpty { return isJSON(contentType: contentType) ? nil : "" }
     let kept = bytes.prefix(peekBytes)
     if kept.count <= completeBytes && isJSON(contentType: contentType) {
       return JSONTextBody(text: String(decoding: kept, as: UTF8.self))

@@ -1,6 +1,6 @@
 # React Native adapter
 
-`@tugboat/react-native` 0.0.4: Android and iOS, unpublished. A thin TurboModule over
+`@tugboat/react-native` 0.0.5: Android and iOS, unpublished. A thin TurboModule over
 `tugboat-android` and the Swift host (`platforms/apple`). React Native draws real
 native views, so the host's adapter records frames, masks, taps and scrolls as in
 a native app. JavaScript starts the SDK and marks sensitive regions; events are
@@ -63,7 +63,9 @@ How iOS differs from Android:
   query.
 - Tap targets: only a view with a `testID` is a target (Android targets any
   clickable view), so a `Pressable` without one resolves to its nearest named
-  ancestor, and a named target's anchor carries no `actions` or `enabled`. `<Text
+  ancestor. A named target's anchor carries `actions: ["tap"]` and `enabled` (the
+  view takes touches and is not marked not-enabled); iOS cannot tell a `Pressable` from a plain view, so every named view
+  reports `tap`. `<Text
   testID>` and a `testID` on a `TextInput` or scroll view are not used as the tag.
   `captureSystemInput` is ignored on iOS. `accessibilityIdentifier` values are sent
   as the tag (as Android sends `testID`): data-derived ids are sent too.
@@ -86,7 +88,7 @@ cd platforms/android && ./gradlew :capture-runtime:publishAllPublicationsToLocal
   :tugboat-okhttp:publishAllPublicationsToLocalCaptureRepository
 ```
 
-Then build `example/` (see its README). Known gaps in 0.0.4 (Android unless noted):
+Then build `example/` (see its README). Known gaps in 0.0.5 (Android unless noted):
 - Screens: `Tugboat.trackNavigation(navigationRef)` (React Navigation) or
   `Tugboat.setScreen(name, instanceId?)`. A `testID` is the view's tag and
   fingerprint name. A content provider installs the observation before the first

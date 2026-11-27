@@ -26,7 +26,7 @@ public enum TugboatAdapters {
   /// The error body for `complete(errorResponseBody:)` from the response
   /// bytes (evidence-messages.md section 4.5): only the first 65,537 are
   /// read. JSON text when complete and `contentType` is JSON, otherwise
-  /// text; nil when empty.
+  /// text. Empty bytes give an empty text body (none for JSON).
   public static func errorResponseBody(bytes: Data, contentType: String?) -> Any? {
     HTTPErrorBody.body(bytes: bytes, contentType: contentType)
   }

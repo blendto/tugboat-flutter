@@ -8,6 +8,17 @@ entry here must match it.
 Unpublished. The native SwiftUI SDK: public facade, engine wiring, capture,
 the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISample`).
 
+- Event shape on iOS, as Flutter and the Android SDK: starting while the app is
+  active reports `resumed` once, so a launch records `app_foregrounded` (a start
+  before the app is active gets it from `didBecomeActive`; like every `resumed`
+  it requests a forced `lifecycle` capture, which a queued `initial` capture
+  absorbs: the sample's launch still uploads an `initial` and a `route` frame); an HTTP error
+  response that carried no bytes records an empty text `errorResponseBody` through
+  the instrumented session and `Tugboat.data(for:)` (an empty JSON body gives
+  none; the Alamofire monitor sees no data for it and records none), as `tugboat-okhttp` and Dio; a named view's
+  anchor carries `actions: ["tap"]` and `enabled` (the view takes touches and is
+  not marked not-enabled).
+
 - Seams for the React Native SDK (no change for apps that do not use them;
   `@_spi(TugboatAdapters)`, not public API): `TugboatAdapters.setScreen(name:instanceId:)`
   names the current screen without `.tugboatScreen` (a push, or a pop to an
