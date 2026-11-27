@@ -1,6 +1,6 @@
 # React Native adapter
 
-`@tugboat/react-native` 0.0.5: Android and iOS, unpublished. A thin TurboModule over
+`@tugboat/react-native` 0.0.6: Android and iOS, unpublished. A thin TurboModule over
 `tugboat-android` and the Swift host (`platforms/apple`). React Native draws real
 native views, so the host's adapter records frames, masks, taps and scrolls as in
 a native app. JavaScript starts the SDK and marks sensitive regions; events are
@@ -69,8 +69,10 @@ How iOS differs from Android:
   testID>` and a `testID` on a `TextInput` or scroll view are not used as the tag.
   `captureSystemInput` is ignored on iOS. `accessibilityIdentifier` values are sent
   as the tag (as Android sends `testID`): data-derived ids are sent too.
-- Network: remote `<Image>` downloads also go through React Native's networking and
-  are recorded as `network_call`. The handler also bypasses anything that wraps
+- Network: remote `<Image>` downloads also go through React Native's networking
+  but are not recorded (as on Android and in Flutter): the handler skips requests
+  React Native's image loader tags (`trackingName` `RCTImageLoader`). A `fetch` or
+  `XMLHttpRequest` of an image URL is still recorded. The handler also bypasses anything that wraps
   `RCTHTTPRequestHandler` (certificate pinning by category or swizzle), and copies
   RN 0.88's handler, so check it on an RN upgrade. It handles requests from `start`
   on, also while Tugboat is dormant.
@@ -88,7 +90,7 @@ cd platforms/android && ./gradlew :capture-runtime:publishAllPublicationsToLocal
   :tugboat-okhttp:publishAllPublicationsToLocalCaptureRepository
 ```
 
-Then build `example/` (see its README). Known gaps in 0.0.5 (Android unless noted):
+Then build `example/` (see its README). Known gaps in 0.0.6 (Android unless noted):
 - Screens: `Tugboat.trackNavigation(navigationRef)` (React Navigation) or
   `Tugboat.setScreen(name, instanceId?)`. A `testID` is the view's tag and
   fingerprint name. A content provider installs the observation before the first

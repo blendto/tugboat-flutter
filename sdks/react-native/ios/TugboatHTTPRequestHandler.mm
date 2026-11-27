@@ -50,10 +50,25 @@ RCT_EXPORT_MODULE()
   return (_session != nil) || (_delegates == nil);
 }
 
+// React Native's image loader (RCTImageLoader) sends its downloads through the
+// same handlers as fetch, and tags each request with the NSURLProtocol property
+// "trackingName" = "RCTImageLoader" (React Native sets that value nowhere else;
+// fetch never sets a tracking name and React Native's own Image code never
+// calls XMLHttpRequest.setTrackingName, so only an app that passes that exact
+// name from JS opts a request out). Flutter's Image.network and
+// Android record nothing for image loads, so these are left to React Native's
+// default handler, unrecorded. A JS fetch or XHR of an image URL carries no
+// such tag and is still recorded.
++ (BOOL)isImageLoaderRequest:(NSURLRequest *)request
+{
+  return [[NSURLProtocol propertyForKey:@"trackingName" inRequest:request] isEqual:@"RCTImageLoader"];
+}
+
 - (BOOL)canHandleRequest:(NSURLRequest *)request
 {
   NSString *scheme = request.URL.scheme.lowercaseString;
-  return TugboatRN.capturesNetwork && ([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"]);
+  return TugboatRN.capturesNetwork && ([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"]) &&
+      ![TugboatHTTPRequestHandler isImageLoaderRequest:request];
 }
 
 - (NSURLSessionDataTask *)sendRequest:(NSURLRequest *)request withDelegate:(id<RCTURLRequestDelegate>)delegate

@@ -1868,7 +1868,7 @@ PODS:
     - TugboatCaptureRuntime
     - TugboatSessionEngine
   - TugboatCaptureRuntime (0.2.0)
-  - TugboatReactNative (0.0.5):
+  - TugboatReactNative (0.0.6):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2268,7 +2268,7 @@ SPEC CHECKSUMS:
   SocketRocket: 37aec555668fb852ec12e3c0de59a86ca58f0871
   Tugboat: 3de09c29a39feed1f7d720067c83090ead4b9dcd
   TugboatCaptureRuntime: 00000b2a19a97951620117d99f8b88c26dc4dab8
-  TugboatReactNative: 64a1b6f0d9e009e7fc7bad709eac1d279b8332e8
+  TugboatReactNative: 6b5a4b5f294a2d5fb66b1fd20421d23c1ea8f8f4
   TugboatSessionEngine: 6f537610a965c4d03a1683a228c5bc8701fcea52
   Yoga: d1c536142c5ff8ec8cd856ab2a7c227a1d875c8e
 

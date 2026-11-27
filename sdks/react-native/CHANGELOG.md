@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.0.6
+
+- iOS: remote `<Image>` downloads are no longer recorded as `network_call`
+  (Flutter and Android record nothing for image loads). The HTTP handler skips
+  requests React Native's image loader tags (`trackingName` `RCTImageLoader`), so
+  they go to React Native's default handler unrecorded. A `fetch` or
+  `XMLHttpRequest` of an image URL is still recorded; it is told apart by the
+  tag, not by the response's content type. The JavaScript API and the Android
+  library are unchanged.
+
 ## 0.0.5
 
 - iOS event shape, to match Android and Flutter: a launch while the app is active
