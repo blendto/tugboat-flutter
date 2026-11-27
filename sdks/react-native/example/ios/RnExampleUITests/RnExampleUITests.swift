@@ -47,6 +47,8 @@ final class RnExampleUITests: XCTestCase {
     back()  // Shipping
     back()  // Cart
     back()  // Home
+    // The pops can take longer on a phone: go back until the tab bar is there.
+    for _ in 0..<3 where !element("tab-profile").waitForExistence(timeout: 5) { back() }
 
     tap("tab-profile")
     tap("profile-push")
@@ -95,7 +97,12 @@ final class RnExampleUITests: XCTestCase {
   // MARK: Steps
 
   private func sevenTaps() {
-    tap("tab-catalog")
+    // A system alert (local network access on a phone) can swallow the first tap.
+    Thread.sleep(forTimeInterval: 4)
+    for _ in 0..<3 {
+      tap("tab-catalog")
+      if element("catalog-tab-new").waitForExistence(timeout: 6) { break }
+    }
     tap("catalog-tab-new")
     tap("catalog-chip-bags")
     tap("catalog-toggle-view")
