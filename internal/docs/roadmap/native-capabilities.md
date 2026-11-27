@@ -5,7 +5,7 @@ Status: working notes · 2026-10-08 · not a public promise
 Evidence a native platform host and native toolkit adapters can produce
 that the Dart-only Flutter adapter cannot. Architecture:
 [ADR 0009](../../../docs/decisions/0009-shared-session-engine.md)
-(proposed).
+(accepted).
 
 Every new event type or field here is a contract change. Ship each behind
 an opt-in capability, like `captureFocusChanges` / `captureSystemInput`,
@@ -46,6 +46,12 @@ explicit coverage gaps, never as a substitute frame.
   those regions regardless of mask level.
 
 ## Suggested order
+
+Superseded on 2026-11-27: React Native now ships first (see
+[react-native.md](react-native.md)). Its network evidence is captured in
+JavaScript by wrapping `XMLHttpRequest` rather than "for free" from the native
+stack (row 6), so one route resolver serves both OSes and each call is
+recorded once (BLE-648, BLE-671). The original order, kept for context:
 
 1. Native host for Flutter: durable outbox, launch source, exit reason.
    This improves existing customers before any new SDK ships.
