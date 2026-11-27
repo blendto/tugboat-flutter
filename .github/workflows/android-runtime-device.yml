@@ -3,11 +3,12 @@ name: Android runtime device tests
 # Runs :capture-runtime-test:connectedAndroidTest (lifecycle and window
 # capture) on emulators: API 26 is the window-capture floor and uses the
 # two-animation-frame wait; API 34 uses the frame-commit callback.
-# Also runs :tugboat-android:connectedAndroidTest: the real session engine
-# through JNI, including the collector contract test (session_start body,
-# frameMetadata backends).
-# Full tier: runs daily from nightly.yml, on pull requests labelled
-# `device-report`, or on demand (see .github/workflows/README.md).
+# Nightly and on demand it also runs :tugboat-android:connectedAndroidTest: the
+# real session engine through JNI, including the collector contract test
+# (session_start body, frameMetadata backends). Pull requests labelled
+# `device-report` (every push while the label is on) run only
+# :capture-runtime-test, the part the Flutter SDK uses. See
+# .github/workflows/README.md.
 on:
   workflow_call:
   workflow_dispatch:
@@ -43,6 +44,10 @@ jobs:
             target: default
           - api-level: 34
             target: google_apis
+    env:
+      # Pull requests: the capture runtime only. Nightly and manual runs add :tugboat-android.
+      BUILD_TASKS: ${{ github.event_name == 'pull_request' && ':capture-runtime-test:assembleDebugAndroidTest' || ':capture-runtime-test:assembleDebugAndroidTest :tugboat-android:assembleDebugAndroidTest' }}
+      CONNECTED_TASKS: ${{ github.event_name == 'pull_request' && ':capture-runtime-test:connectedDebugAndroidTest' || ':capture-runtime-test:connectedDebugAndroidTest :tugboat-android:connectedDebugAndroidTest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -68,7 +73,9 @@ jobs:
           sudo udevadm trigger --name-match=kvm
       - name: Build test APKs
         working-directory: platforms/android
-        run: ./gradlew :capture-runtime-test:assembleDebugAndroidTest :tugboat-android:assembleDebugAndroidTest
+        run: |
+          # shellcheck disable=SC2086 # (a list of tasks)
+          ./gradlew $BUILD_TASKS
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -78,7 +85,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           working-directory: platforms/android
-          script: ./gradlew :capture-runtime-test:connectedDebugAndroidTest :tugboat-android:connectedDebugAndroidTest
+          script: ./gradlew $CONNECTED_TASKS
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4

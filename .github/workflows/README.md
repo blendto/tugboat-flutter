@@ -16,19 +16,23 @@ When a workflow starts reading files outside its list, add them to its
 `paths`, or a change there goes unchecked.
 
 **Device tier: pull requests labelled `device-report`.** Runs on every push
-while the label is on; remove the label to stop. Also available from the
-Actions tab.
+while the label is on; remove the label to stop. It tests the Flutter SDK on
+Android and iOS plus only the native modules the Flutter SDK uses: the Android
+`capture-runtime` (with `capture-runtime-test` and `:sample`) and the iOS
+`TugboatCaptureRuntime` (`TugboatCaptureRuntimeTests`). The native SDK modules
+Flutter does not use run only on demand (Actions tab, `workflow_dispatch`) and
+nightly.
 
-| Workflow | What it checks |
-|---|---|
-| `device-suite.yml` | The example on an Android emulator and an iOS simulator: feature checklist and capture benchmarks, built from the in-repo SDK and runtimes; the report is posted as a PR comment |
-| `android-runtime.yml` | Android runtime build, unit tests, API dump, plugin compiled against the pinned and the in-repo runtime |
-| `android-runtime-device.yml` | Android runtime instrumented tests on API 26 and 34 emulators |
-| `apple-host.yml` | Swift host build and tests, SwiftUI sample and its UI tests, TugboatAlamofire |
+| Workflow | On the `device-report` label | On demand and nightly |
+|---|---|---|
+| `device-suite.yml` | The example on an Android emulator and an iOS simulator: feature checklist and capture benchmarks, built from the in-repo SDK and runtimes; the report is posted as a PR comment | Same (nightly: Android only) |
+| `android-runtime.yml` | `build-android-runtime.sh --runtime-only`: capture-runtime tests, capture-runtime-test unit tests and androidTest APK, release AAR, local Maven publish, `:sample:assembleDebug`; API dump; plugin compiled against the pinned and the in-repo runtime | Also `tugboat-android`, `tugboat-sample`, `tugboat-compose` and `tugboat-okhttp` (tests, release AARs, Compose and OkHttp version matrices) |
+| `android-runtime-device.yml` | `:capture-runtime-test` instrumented tests on API 26 and 34 emulators | Also `:tugboat-android` instrumented tests |
+| `apple-host.yml` | `test-apple-host.sh --runtime-only`: `TugboatCaptureRuntimeTests` on an iOS simulator | Also `swift build --target Tugboat`, every other test target (`TugboatTests`, `TugboatAccessibilityActivationTests`, `TugboatSessionEngineTests`), the SwiftUI sample build and its XCUITests, and TugboatAlamofire (on demand only; nightly is Android only) |
 
 **Full tier: daily.** `nightly.yml` runs at 02:00 UTC on `main`, Android only
 for now: `device-suite.yml` (Android), `android-runtime.yml` and
-`android-runtime-device.yml`.
+`android-runtime-device.yml`, all in full.
 
 `device-suite.yml`, `android-runtime.yml` and `android-runtime-device.yml`
 can also be called from other workflows (see the comment at the top of

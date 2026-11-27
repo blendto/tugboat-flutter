@@ -1,10 +1,13 @@
-# Build the Swift host (`Tugboat`), run the package XCTests on an iOS
-# simulator, build the SwiftUI sample app, run the sample's XCUITests, and
+# On demand: build the Swift host (`Tugboat`), run all package XCTests on an
+# iOS simulator, build the SwiftUI sample app, run the sample's XCUITests, and
 # build and test the optional `TugboatAlamofire` package (needs Xcode).
 name: Apple host
 
-# Runs on pull requests labelled `device-report` (every push while the
-# label is on) or on demand (see README.md in this folder).
+# Pull requests labelled `device-report` (every push while the label is on)
+# run only what the Flutter SDK uses: TugboatCaptureRuntimeTests on an iOS
+# simulator. The Swift host build, the other test targets, the SwiftUI sample
+# and its UI tests, and TugboatAlamofire run on demand only (see README.md in
+# this folder).
 on:
   # Pull requests labelled `device-report`: every push while the label is on.
   pull_request:
@@ -27,7 +30,7 @@ concurrency:
 
 jobs:
   test:
-    name: swift build + xcodebuild test
+    name: ${{ github.event_name == 'pull_request' && 'TugboatCaptureRuntime tests' || 'swift build + xcodebuild test' }}
     if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'device-report') && (github.event.action != 'labeled' || github.event.label.name == 'device-report'))
     runs-on: macos-latest
     timeout-minutes: 45
@@ -35,15 +38,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Build and test
-        run: bash tool/ci/test-apple-host.sh
+        env:
+          RUNTIME_ONLY: ${{ github.event_name == 'pull_request' && '--runtime-only' || '' }}
+        run: |
+          # shellcheck disable=SC2086 # (empty or one flag)
+          bash tool/ci/test-apple-host.sh $RUNTIME_ONLY
       - name: Build the SwiftUI sample (XcodeGen)
         # Reported even when a test failed: the sample build is independent.
-        if: success() || failure()
+        # Not on pull requests: the Flutter SDK does not use the sample.
+        if: github.event_name != 'pull_request' && (success() || failure())
         run: bash tool/ci/build-apple-sample.sh
 
   sample-ui:
     name: SwiftUI sample XCUITests
-    if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'device-report') && (github.event.action != 'labeled' || github.event.label.name == 'device-report'))
+    if: github.event_name != 'pull_request'
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
@@ -54,7 +62,7 @@ jobs:
 
   alamofire:
     name: TugboatAlamofire build + test
-    if: github.event_name != 'pull_request' || (contains(github.event.pull_request.labels.*.name, 'device-report') && (github.event.action != 'labeled' || github.event.label.name == 'device-report'))
+    if: github.event_name != 'pull_request'
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
