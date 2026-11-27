@@ -4,11 +4,15 @@
 // The rect lists come from the real ScreenshotCapturer mask walk, taken from
 // the request it hands to its pixel source, so these tests see exactly what
 // would be filled before encoding.
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tugboat/src/anchors.dart';
 import 'package:tugboat/src/capture_boundary.dart';
 import 'package:tugboat/src/markers.dart';
+import 'package:tugboat/src/replay_config.dart';
 import 'package:tugboat/src/screenshot_capture_backend.dart';
 import 'package:tugboat/src/screenshot_capturer.dart';
 import 'package:tugboat/src/screenshot_mask_level.dart';
@@ -69,6 +73,47 @@ Future<List<Rect>> _masks(
   return source.requests.single.maskRects;
 }
 
+/// Masks for an app already pumped inside a [TugboatCaptureBoundary] keyed
+/// [boundaryKey] (so overlays, which live in the Navigator, are in the walk).
+/// Returns null when the capture failed before reaching pixels.
+Future<List<Rect>?> _masksOfApp(
+  WidgetTester tester,
+  GlobalKey boundaryKey,
+  TugboatScreenshotMaskLevel level,
+) async {
+  final source = _RecordingPixelSource();
+  final capturer = ScreenshotCapturer(
+    boundaryKey: boundaryKey,
+    maskLevel: level,
+    anchorResolver: AnchorResolver(rootKey: boundaryKey),
+    pixelRatio: 1,
+    pixelSource: source,
+  );
+  addTearDown(capturer.dispose);
+  await capturer.captureAttempt(waitForFrame: false);
+  return source.requests.isEmpty ? null : source.requests.single.maskRects;
+}
+
+/// A leaf box whose paint bounds cannot be read, so its mask cannot be placed.
+class _UnplaceableBox extends LeafRenderObjectWidget {
+  const _UnplaceableBox();
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderUnplaceable();
+}
+
+class _RenderUnplaceable extends RenderBox {
+  @override
+  void performLayout() => size = constraints.constrain(const Size(60, 30));
+
+  @override
+  Rect get paintBounds => throw StateError('paint bounds unavailable');
+}
+
+final _tinyImage = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+);
+
 bool _covers(List<Rect> masks, Rect target) =>
     masks.any((m) => m.inflate(0.5).overlaps(target) && _contains(m, target));
 
@@ -99,15 +144,25 @@ const _panel = SizedBox(
 
 void main() {
   group('Flutter adapter, privacy model', () {
-    testWidgets('allTextAndMedia is the level the SDK defaults to', (
-      tester,
-    ) async {
-      // Default resolution lives in TugboatReplayConfig; the contract names
-      // allTextAndMedia as the default level.
+    test('the six level names are pinned, in order', () {
+      expect(TugboatScreenshotMaskLevel.values.map((l) => l.name), [
+        'explicitOnly',
+        'allTextAndMedia',
+        'allText',
+        'allTextExceptActionable',
+        'sensitiveInputsOnly',
+        'nonAssetImagesOnly',
+      ]);
+    });
+
+    test('allTextAndMedia is the default level', () {
       expect(
-        TugboatScreenshotMaskLevel.values.map((l) => l.name),
-        contains('allTextAndMedia'),
+        const TugboatReplayConfig().effectiveScreenshotMaskLevel,
+        TugboatScreenshotMaskLevel.allTextAndMedia,
       );
+    });
+
+    testWidgets('allTextAndMedia masks text', (tester) async {
       final masks = await _masks(
         tester,
         TugboatScreenshotMaskLevel.allTextAndMedia,
@@ -138,12 +193,27 @@ void main() {
       testWidgets('a mark never removes a mask at level ${level.name}', (
         tester,
       ) async {
-        const text = Text('Name', key: ValueKey('t'));
-        final plain = await _masks(tester, level, text);
+        // Content every level except explicitOnly masks in part: a secure
+        // input, text, and a non-asset image.
+        final content = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 120,
+              child: TextField(obscureText: true, key: ValueKey('pw')),
+            ),
+            const Text('Name', key: ValueKey('t')),
+            Image.memory(_tinyImage, key: const ValueKey('img'), width: 20),
+          ],
+        );
+        final plain = await _masks(tester, level, content);
+        if (level != TugboatScreenshotMaskLevel.explicitOnly) {
+          expect(plain, isNotEmpty, reason: 'the baseline is not vacuous');
+        }
         final marked = await _masks(
           tester,
           level,
-          const TugboatSensitive(child: text),
+          TugboatSensitive(child: content),
         );
         for (final rect in plain) {
           expect(_covers(marked, rect), isTrue, reason: '$rect stays masked');
@@ -179,12 +249,12 @@ void main() {
       );
     });
 
-    // KNOWN GAP, not fixed by BLE-633 (a behaviour change; see the PR and the
-    // contract's "Differences"). The Flutter mask walk skips subtrees under
-    // an excluding `ExcludeSemantics`, so text and marks inside one are not
-    // masked at any level. The contract requires them masked ("an adapter
-    // that cannot place a mask masks more, never less"). Remove `skip` when
-    // the walk is fixed for every SDK.
+    // KNOWN GAPS, not fixed by BLE-633 (behaviour changes; see the contract's
+    // Differences and BLE-679). Each test states what the contract requires:
+    // content the walk cannot place is masked, never left visible. Remove
+    // `skip` when the walk is fixed for every SDK.
+    const gap = true; // skip: known gap, BLE-679
+
     testWidgets(
       'content under ExcludeSemantics is still masked at allTextAndMedia',
       (tester) async {
@@ -198,7 +268,23 @@ void main() {
           isTrue,
         );
       },
-      skip: true, // known gap, see the comment above
+      skip: gap, // BLE-679
+    );
+
+    testWidgets(
+      'Text(semanticsLabel:) is masked: Flutter adds ExcludeSemantics itself',
+      (tester) async {
+        final masks = await _masks(
+          tester,
+          TugboatScreenshotMaskLevel.allTextAndMedia,
+          const Text('4242', semanticsLabel: 'card', key: ValueKey('t')),
+        );
+        expect(
+          _covers(masks, _boundsOf(tester, find.byKey(const ValueKey('t')))),
+          isTrue,
+        );
+      },
+      skip: gap, // BLE-679
     );
 
     testWidgets(
@@ -214,7 +300,147 @@ void main() {
           isTrue,
         );
       },
-      skip: true, // known gap, see the comment above
+      skip: gap, // BLE-679
     );
+
+    testWidgets(
+      'a mark above an excluded subtree masks it',
+      (tester) async {
+        final masks = await _masks(
+          tester,
+          TugboatScreenshotMaskLevel.explicitOnly,
+          const TugboatSensitive(child: ExcludeSemantics(child: _panel)),
+        );
+        expect(
+          _covers(masks, _boundsOf(tester, find.byKey(_panelKey))),
+          isTrue,
+        );
+      },
+      skip: gap, // BLE-679
+    );
+
+    testWidgets(
+      'TugboatInternal does not suppress masks below it',
+      (tester) async {
+        final masks = await _masks(
+          tester,
+          TugboatScreenshotMaskLevel.allTextAndMedia,
+          const TugboatInternal(child: Text('4242', key: ValueKey('t'))),
+        );
+        expect(
+          _covers(masks, _boundsOf(tester, find.byKey(const ValueKey('t')))),
+          isTrue,
+        );
+      },
+      skip: gap, // BLE-679
+    );
+
+    testWidgets(
+      'a render object whose mask cannot be placed fails closed',
+      (tester) async {
+        final boundaryKey = GlobalKey();
+        await tester.pumpWidget(
+          TugboatCaptureBoundary(
+            key: boundaryKey,
+            child: const Directionality(
+              textDirection: TextDirection.ltr,
+              child: TugboatSensitive(child: _UnplaceableBox()),
+            ),
+          ),
+        );
+        final masks = await _masksOfApp(
+          tester,
+          boundaryKey,
+          TugboatScreenshotMaskLevel.explicitOnly,
+        );
+        // Either the capture fails (no frame) or the whole boundary is masked.
+        final boundary = tester.renderObject<RenderBox>(
+          find.byType(TugboatCaptureBoundary),
+        );
+        expect(
+          masks == null || _covers(masks, Offset.zero & boundary.size),
+          isTrue,
+          reason: 'an unplaceable mask must not be dropped',
+        );
+      },
+      skip: gap, // BLE-679
+    );
+
+    group('content behind a modal surface is still painted, so masked', () {
+      final boundaryKey = GlobalKey();
+
+      Widget app() => TugboatCaptureBoundary(
+        key: boundaryKey,
+        child: MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                const Text('Balance 4242.00', key: ValueKey('bgText')),
+                const TugboatSensitive(
+                  child: SizedBox(
+                    key: ValueKey('bgSensitive'),
+                    width: 80,
+                    height: 40,
+                    child: ColoredBox(color: Colors.red),
+                  ),
+                ),
+                PopupMenuButton<int>(
+                  key: const ValueKey('popup'),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 1, child: Text('menu item')),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      Future<void> expectBackgroundMasked(WidgetTester tester) async {
+        final masks = await _masksOfApp(
+          tester,
+          boundaryKey,
+          TugboatScreenshotMaskLevel.allTextAndMedia,
+        );
+        expect(masks, isNotNull);
+        for (final key in ['bgText', 'bgSensitive']) {
+          expect(
+            _covers(
+              masks!,
+              _boundsOf(tester, find.byKey(ValueKey(key), skipOffstage: false)),
+            ),
+            isTrue,
+            reason: '$key behind the overlay',
+          );
+        }
+      }
+
+      testWidgets('an open dialog', (tester) async {
+        await tester.pumpWidget(app());
+        showDialog<void>(
+          context: tester.element(find.byKey(const ValueKey('bgText'))),
+          builder: (_) => const AlertDialog(title: Text('Confirm')),
+        );
+        await tester.pumpAndSettle();
+        await expectBackgroundMasked(tester);
+      }, skip: gap); // BLE-679
+
+      testWidgets('an open bottom sheet', (tester) async {
+        await tester.pumpWidget(app());
+        showModalBottomSheet<void>(
+          context: tester.element(find.byKey(const ValueKey('bgText'))),
+          builder: (_) => const SizedBox(height: 100, child: Text('sheet')),
+        );
+        await tester.pumpAndSettle();
+        await expectBackgroundMasked(tester);
+      }, skip: gap); // BLE-679
+
+      testWidgets('an open popup menu', (tester) async {
+        await tester.pumpWidget(app());
+        await tester.tap(find.byKey(const ValueKey('popup')));
+        await tester.pumpAndSettle();
+        await expectBackgroundMasked(tester);
+      }, skip: gap); // BLE-679
+    });
   });
 }
