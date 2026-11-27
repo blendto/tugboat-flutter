@@ -1,0 +1,38 @@
+name: Nightly full tests
+
+# Full tier, once a day on main (Android only for now): the device suite on
+# an Android emulator (feature checklist and capture benchmarks, built from
+# the in-repo SDK and runtime) and the Android runtime's instrumented tests.
+# The quick tier runs on every push (see README.md in this folder).
+# A failed scheduled run is emailed to whoever last changed this schedule.
+
+on:
+  schedule:
+    # 02:00 UTC daily.
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  device-suite:
+    name: Device suite (Android)
+    uses: ./.github/workflows/device-suite.yml
+    with:
+      platforms: android
+    # The suite's report job asks for this; no PR comment is posted without
+    # a pr-number, the report goes to the run summary.
+    permissions:
+      contents: read
+      pull-requests: write
+
+  instrumented:
+    name: Android runtime instrumented tests
+    uses: ./.github/workflows/android-runtime-device.yml
+    permissions:
+      contents: read

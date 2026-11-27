@@ -1,7 +1,7 @@
 name: Flutter adapter
 
-# Runs on pushes to main too: caches saved on main are the only ones every
-# pull request can restore.
+# Quick tier: runs on every push to a pull request and every push to main,
+# whatever files changed (see .github/workflows/README.md).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]

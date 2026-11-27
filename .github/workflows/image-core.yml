@@ -2,25 +2,13 @@ name: Image core
 
 # Also runs the session engine (core/session-engine), the second C++ core.
 
+# Quick tier: runs on every push to a pull request and every push to main,
+# whatever files changed (see .github/workflows/README.md).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - "core/image-processing/**"
-      - "tool/ci/run-image-core-tests.sh"
-      - "core/session-engine/**"
-      - "conformance/**"
-      - "tool/ci/run-session-engine-tests.sh"
-      - ".github/workflows/image-core.yml"
   push:
     branches: [main]
-    paths:
-      - "core/image-processing/**"
-      - "tool/ci/run-image-core-tests.sh"
-      - "core/session-engine/**"
-      - "conformance/**"
-      - "tool/ci/run-session-engine-tests.sh"
-      - ".github/workflows/image-core.yml"
 
 permissions:
   contents: read
