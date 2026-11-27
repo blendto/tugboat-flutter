@@ -112,6 +112,11 @@ android {
     }
 }
 
+// The Tugboat Android SDK, published locally by tool/ci/publish-android-runtime-local.sh.
+repositories {
+    maven { url = uri("$rootDir/../../../../.local-maven") }
+}
+
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")

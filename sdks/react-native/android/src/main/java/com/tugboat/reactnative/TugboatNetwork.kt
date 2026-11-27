@@ -2,6 +2,7 @@ package com.tugboat.reactnative
 
 import com.facebook.react.modules.network.NetworkingModule
 import com.tugboat.android.okhttp.TugboatOkHttpInterceptor
+import okhttp3.OkHttpClient
 import okhttp3.Request
 
 /**
@@ -12,8 +13,10 @@ import okhttp3.Request
 internal object TugboatNetwork {
     fun install(allowHosts: Set<String>) {
         NetworkingModule.setCustomClientBuilder(
-            NetworkingModule.CustomClientBuilder { builder ->
-                builder.addInterceptor(TugboatOkHttpInterceptor { request -> route(request, allowHosts) })
+            object : NetworkingModule.CustomClientBuilder {
+                override fun apply(builder: OkHttpClient.Builder) {
+                    builder.addInterceptor(TugboatOkHttpInterceptor { request -> route(request, allowHosts) })
+                }
             },
         )
     }
