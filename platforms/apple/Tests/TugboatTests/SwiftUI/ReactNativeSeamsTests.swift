@@ -135,6 +135,22 @@ final class ReactNativeSeamsTests: XCTestCase {
     XCTAssertEqual(after.canonicalPath, before.canonicalPath)
   }
 
+  func testMarkingAViewNeverUnmasksTextThatOverflowsIt() {
+    TugboatAdapters.setViewRoleClassifier { $0 == Paragraph.self ? .text : nil }
+    var wrapper: UIView?
+    var text: UIView?
+    let window = makeWindow { root in
+      // A zero-height wrapper with a child below it, as React Native lays out an unclipped view.
+      wrapper = box(root, CGRect(x: 20, y: 100, width: 300, height: 0))
+      text = box(wrapper!, CGRect(x: 0, y: 40, width: 200, height: 40), as: Paragraph.self)
+    }
+    let before = WindowMasks.compute(window).fractionMasked(of: hosted!.frame(of: text!), in: window)
+    TugboatAdapters.markSensitive(wrapper!)
+    let after = WindowMasks.compute(window).fractionMasked(of: hosted!.frame(of: text!), in: window)
+    XCTAssertEqual(before, 1.0)
+    XCTAssertEqual(after, 1.0)
+  }
+
   func testSetScreenPushesAndPopsBackToAnInstanceAlreadySeen() {
     func names() -> [String?] {
       screens.settle()

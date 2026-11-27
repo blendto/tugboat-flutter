@@ -85,7 +85,8 @@ import UIKit
 
 /// Seams for the React Native adapter (`@tugboat/react-native`), which draws
 /// plain UIKit views and names its own screens. Nothing here changes an app
-/// that does not call it. Main thread, except `setScreen`.
+/// that does not call it. Any thread: `setScreen` and `setHostNamesScreens` hop to
+/// the main thread themselves, and the rest keep their state under a lock.
 @_spi(TugboatAdapters)
 extension TugboatAdapters {
   /// Names the current screen, as `.tugboatScreen` does for a SwiftUI one:

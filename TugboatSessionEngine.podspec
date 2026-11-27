@@ -6,10 +6,10 @@ Pod::Spec.new do |s|
   s.name             = 'TugboatSessionEngine'
   s.version          = '0.1.0'
   s.summary          = 'Tugboat session engine (C++ core, C ABI).'
-  s.homepage         = 'https://github.com/blendto/tugboat-flutter'
+  s.homepage         = 'https://github.com/blendto/tugboat-mobile-sdk'
   s.license          = { :type => 'AGPL-3.0-only', :file => 'LICENSE' }
   s.author           = { 'Tugboat' => 'dev@bijatech.com' }
-  s.source           = { :git => 'https://github.com/blendto/tugboat-flutter.git', :tag => "session-engine-v#{s.version}" }
+  s.source           = { :git => 'https://github.com/blendto/tugboat-mobile-sdk.git', :tag => "session-engine-v#{s.version}" }
   s.ios.deployment_target = '15.0'
   s.static_framework = true
   s.source_files     = [

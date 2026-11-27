@@ -61,6 +61,17 @@ How iOS differs from Android:
   `RCTSetCustomNSURLSessionConfigurationProvider`). `captureNetwork: false` leaves
   the default handler alone. Route is the URL path, percent-encoded, never the
   query.
+- Tap targets: only a view with a `testID` is a target (Android targets any
+  clickable view), so a `Pressable` without one resolves to its nearest named
+  ancestor, and a named target's anchor carries no `actions` or `enabled`. `<Text
+  testID>` and a `testID` on a `TextInput` or scroll view are not used as the tag.
+  `captureSystemInput` is ignored on iOS. `accessibilityIdentifier` values are sent
+  as the tag (as Android sends `testID`): data-derived ids are sent too.
+- Network: remote `<Image>` downloads also go through React Native's networking and
+  are recorded as `network_call`. The handler also bypasses anything that wraps
+  `RCTHTTPRequestHandler` (certificate pinning by category or swizzle), and copies
+  RN 0.88's handler, so check it on an RN upgrade. It handles requests from `start`
+  on, also while Tugboat is dormant.
 - There is no early install as on Android: the host adopts the key window that
   already exists when `Tugboat.start` runs, so frames begin at `start`.
 

@@ -66,7 +66,7 @@ public final class TugboatRN: NSObject {
   }
 
   @objc public static func setScreen(_ name: String, instanceId: String?) {
-    let id = instanceId.flatMap { $0.isEmpty ? nil : $0 } ?? name
+    let id = instanceId.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 } ?? name
     TugboatAdapters.setScreen(name: name, instanceId: id)
   }
 
@@ -115,7 +115,7 @@ public final class TugboatRN: NSObject {
     lock.unlock()
     if !hosts.isEmpty, !hosts.contains((url.host ?? "").lowercased()) { return nil }
     let path = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath ?? ""
-    return path.isEmpty ? nil : path
+    return path.isEmpty ? "/" : path
   }
 
   // MARK: React Native views
