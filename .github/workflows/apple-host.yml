@@ -23,6 +23,13 @@ on:
 permissions:
   contents: read
 
+# One run per PR: a new push cancels the previous run. Every push to main
+# gets its own group (by commit), so main runs are never cancelled or
+# superseded, and each merge saves its caches.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     name: swift build + xcodebuild test

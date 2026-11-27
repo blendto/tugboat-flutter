@@ -5,7 +5,15 @@ name: Image core
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "core/image-processing/**"
+      - "tool/ci/run-image-core-tests.sh"
+      - "core/session-engine/**"
+      - "conformance/**"
+      - "tool/ci/run-session-engine-tests.sh"
+      - ".github/workflows/image-core.yml"
   push:
+    branches: [main]
     paths:
       - "core/image-processing/**"
       - "tool/ci/run-image-core-tests.sh"
@@ -16,6 +24,13 @@ on:
 
 permissions:
   contents: read
+
+# One run per PR: a new push cancels the previous run. Every push to main
+# gets its own group (by commit), so main runs are never cancelled or
+# superseded, and each merge saves its caches.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
