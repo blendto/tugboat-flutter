@@ -586,6 +586,45 @@ void test_capture_id_vectors() {
   CHECK(count >= 8);
 }
 
+// The shared seed vectors (conformance/capture_id_vectors.json, `seedVectors`)
+// against the engine's real `session.start` output: the session id is stream
+// index 0, the `session_start` event index 1, the next event index 2. The
+// Kotlin and Swift hosts read the same vectors for `IdSeed.sessionId`.
+void test_seed_vectors() {
+  std::ifstream in(std::string(TB_CONFORMANCE_DIR) + "/" +
+                   conformance::kCaptureIdVectorsFile);
+  std::stringstream buffer;
+  buffer << in.rdbuf();
+  Value doc;
+  tugboat::engine::ParseError parse_error;
+  CHECK(tugboat::engine::parse_json(buffer.str(), 64, &doc, &parse_error));
+  const Value* vectors = doc.find("seedVectors");
+  CHECK(vectors && vectors->is_array());
+  size_t count = 0;
+  for (const Value& entry : vectors->items()) {
+    tb_session_engine* engine = make_engine();
+    CHECK(submit(engine, configure("null")).status == TB_SESSION_OK);
+    auto started = submit(
+        engine, seeded_start(0, entry.find("idSeed")->as_string()));
+    CHECK(started.status == TB_SESSION_OK);
+    const Value* events = entry.find("firstEventIds");
+    CHECK(contains(started.json, "\"captureSessionId\":\"" +
+                                     entry.find("sessionId")->as_string() +
+                                     "\""));
+    CHECK(contains(started.json,
+                   "\"id\":\"" + events->items()[0].as_string() + "\""));
+    auto record = submit(engine,
+                         fact("event.record", 10,
+                              "{\"eventType\":\"external_event\",\"stream\":"
+                              "\"evidence\",\"attachActionContext\":false}"));
+    CHECK(contains(record.json,
+                   "\"id\":\"" + events->items()[1].as_string() + "\""));
+    tb_session_engine_destroy(engine);
+    ++count;
+  }
+  CHECK(count >= 4);
+}
+
 // `engine.config` echoes the effective configuration: the defaults on a
 // fresh handle, then what `engine.configure` set (absent fields default).
 void test_engine_config_query() {
@@ -702,6 +741,7 @@ int main() {
   test_configure_between_sessions();
   test_seeded_ids();
   test_capture_id_vectors();
+  test_seed_vectors();
   test_engine_config_query();
   test_configure_in_batch();
   test_periodic_flush_catch_up();

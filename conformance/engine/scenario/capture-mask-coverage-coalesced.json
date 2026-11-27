@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "capture-mask-coverage-coalesced",
-  "description": "Perceptual coalescing compares only the dHash and the host's structureSignature, never maskCoverage (section 8.2): a host whose coverage change should split frames folds it into its structure token. Two answers match the offered baseline's dHash and structure but carry other coverage, first another reason under the same mode (an Apple whole-frame fallback whose reason changes), then another mode. Both are perceptual_hash_coalesced onto frame-2, released, and record no capture_masking; the coverage of frame-2 stays the only one recorded.",
+  "description": "Perceptual coalescing compares only the dHash and the host's structureSignature, never maskCoverage (section 8.2): a host whose coverage change should split frames folds it into its structure token. Two answers match the offered baseline's dHash and structure but carry other coverage, first another reason under the same mode (an Apple whole-frame fallback whose reason changes), then another mode. Both are perceptual_hash_coalesced onto frame-1, released, and record no capture_masking; the coverage of frame-1 stays the only one recorded.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6

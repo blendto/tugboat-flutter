@@ -81,9 +81,10 @@ data class AppInfo(
     val appId: String,
     /**
      * Stable per install. Optional: when blank the SDK mints a random UUID on
-     * first launch and keeps it in its own file (`noBackupFilesDir`), so it
-     * lasts across launches and updates and is new after a reinstall. A
-     * non-blank id the app passes wins over the SDK's.
+     * first launch and keeps it in its own file (`filesDir/tugboat/installation_id`,
+     * where Flutter keeps it), so it lasts across launches and updates. It is
+     * a plain app file: clearing app data removes it, and a backup restore can
+     * bring it back. A non-blank id the app passes wins over the SDK's.
      */
     val installationId: String = "",
 )

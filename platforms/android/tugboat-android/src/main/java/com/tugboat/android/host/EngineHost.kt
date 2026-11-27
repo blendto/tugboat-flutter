@@ -64,7 +64,9 @@ internal class EngineHost(
 
     /**
      * Like [postUntimed], but [inputJson] runs on the engine thread when the
-     * message is reached, after everything posted before it. For an input
+     * message is reached, after everything posted before it. If [inputJson]
+     * throws, the failure is logged and the host shuts down (no message goes
+     * out, [isRunning] turns false). For an input
      * that needs blocking work (the installation id file): the caller does
      * not wait, and the messages queued behind it still go out in order.
      */
@@ -72,7 +74,15 @@ internal class EngineHost(
         accepting && handler.post {
             if (active) {
                 val json = guarded("lazy input") { EngineMessage(type, inputJson(), at = null).toJson() }
-                if (json != null) process(json, emptyList())
+                if (json != null) {
+                    process(json, emptyList())
+                } else {
+                    // The message cannot be built, so the session could never start: stop for good, as on a
+                    // fatal engine status, instead of reporting a running session the engine never had.
+                    Log.e(TAG, "disabling the Tugboat engine host for this process: $type input failed")
+                    accepting = false
+                    shutDown()
+                }
             }
         }
     }

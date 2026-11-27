@@ -169,8 +169,11 @@ extension TugboatConfig.App {
 enum IdSeed {
   /// The `captureSessionId` the engine mints for `seed`: `session-` and the UUIDv4 of the first 16 bytes of
   /// SHA-256(seed bytes || big-endian stream index 0) (core/session-engine session.cpp). Derived here so
-  /// `TUGBOAT_LAUNCH` can print it before the engine queue has answered; `InstallationIdTests` pins it to the
-  /// engine's vector.
+  /// `TUGBOAT_LAUNCH` can print it before the engine queue has answered; the tests check it against
+  /// `conformance/capture_id_vectors.json` (`seedVectors`), which the engine test reads too.
+  ///
+  /// INTERIM duplicate of the engine's `IdCounter::next_uuid_id` (core/session-engine/src/session.cpp): the
+  /// follow-up on BLE-664 replaces it with a pure engine function. Change both together until then.
   static func sessionId(_ seedHex: String) -> String {
     var bytes = [UInt8]()
     var index = seedHex.startIndex

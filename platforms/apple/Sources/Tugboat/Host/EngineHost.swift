@@ -103,7 +103,10 @@ final class EngineHost {
 
   /// Like `postUntimed(type:inputJSON:)`, but `input` runs on the engine
   /// queue when the message is reached, after everything posted before it.
-  /// For an input that needs blocking work (the installation id file): the
+  /// `input` cannot throw: the engine configuration is built from values the
+  /// host already validated, so there is no failure to turn into a shutdown
+  /// here (the Android host shuts down if its builder throws). For an input
+  /// that needs blocking work (the installation id file): the
   /// caller does not wait, and the messages queued behind it still go out in
   /// order.
   func postUntimed(type: String, input: @escaping () -> String) {

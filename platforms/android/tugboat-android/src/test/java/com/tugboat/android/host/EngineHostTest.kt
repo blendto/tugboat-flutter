@@ -45,6 +45,36 @@ class EngineHostTest {
         host.post(type, "{}", factAt, frameHandles)
 
     @Test
+    fun aLazyInputRunsOnTheEngineThreadInOrder() {
+        post("a")
+        host.postUntimedLazily("engine.configure") { """{"k":2.0}""" }
+        post("c")
+        assertEquals(0, transport.submitted.size)
+        looper.idle()
+        assertEquals(
+            listOf(
+                """{"type":"a",$factAtJson,"input":{}}""",
+                """{"type":"engine.configure","input":{"k":2.0}}""",
+                """{"type":"c",$factAtJson,"input":{}}""",
+            ),
+            transport.submitted,
+        )
+    }
+
+    @Test
+    fun aLazyInputThatThrowsShutsTheHostDownWithoutThrowingIntoTheCaller() {
+        host.postUntimedLazily("engine.configure") { error("cannot build") }
+        post("session.start")
+        looper.idle()
+        assertFalse("the host reports it stopped", host.isRunning)
+        assertEquals("shut down once", 1, shutDowns)
+        assertTrue(
+            "nothing but the final dispose reached the engine",
+            transport.submitted.none { it.contains("\"session.start\"") || it.contains("engine.configure") },
+        )
+    }
+
+    @Test
     fun postsAreSubmittedInOrderOnTheEngineThread() {
         post("a")
         host.postUntimed("engine.configure", """{"k":1.0}""")

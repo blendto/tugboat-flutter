@@ -159,8 +159,11 @@ internal object IdSeed {
     /**
      * The `captureSessionId` the engine mints for [seedHex]: `session-` and the UUIDv4 of the first 16 bytes of
      * SHA-256(seed || big-endian stream index 0) (core/session-engine session.cpp). Derived here so
-     * `TUGBOAT_LAUNCH` can print it before the engine thread has answered; `InstallationIdTest` pins it to the
-     * engine's vector.
+     * `TUGBOAT_LAUNCH` can print it before the engine thread has answered; `InstallationIdTest` checks it against
+     * `conformance/capture_id_vectors.json` (`seedVectors`), which the engine test reads too.
+     *
+     * INTERIM duplicate of the engine's `IdCounter::next_uuid_id` (core/session-engine/src/session.cpp): the
+     * follow-up on BLE-664 replaces it with a pure engine function. Change both together until then.
      */
     fun sessionId(seedHex: String): String {
         val seed = ByteArray(32) { seedHex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }

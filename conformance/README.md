@@ -226,7 +226,7 @@ form of the Dart `TugboatEvent`.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `id` | string | Session-unique event id (for example `event-41`). |
+| `id` | string | Session-unique event id (for example `event-1ebd4283-1ae2-41e9-b44f-398b13182428`). |
 | `atMs` | integer | Milliseconds since session start. `triggeredAt` is `startedAtEpochMs + atMs`. |
 | `type` | string | `interaction` and `route_change` map to flat records. `network_call` maps to a filtered generic record. Anything else maps to the generic envelope. |
 | `stream` | string | `semantic`, `evidence`, or `diagnostic`. |

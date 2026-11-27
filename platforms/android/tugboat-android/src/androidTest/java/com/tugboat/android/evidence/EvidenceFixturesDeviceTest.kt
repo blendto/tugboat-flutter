@@ -72,6 +72,6 @@ class EvidenceFixturesDeviceTest {
         const val CONFIGURE =
             """{"type":"engine.configure","input":{"host":{"app":{"name":"Example App","version":"2.4.0","buildNumber":"240","installationId":"inst-0001","appId":"com.example.app"},"device":{"id":"device-0001","platform":"android","screenSize":{"width":412.0,"height":915.0},"screenDensity":2.625,"screenDpi":420,"screenPixelDensity":2.625},"ip":{"ip":"203.0.113.7"},"locale":{},"configuredUserId":null}}}"""
         const val SESSION_START =
-            """{"type":"session.start","at":{"monoUs":0,"wallUs":1781827200000000},"input":{"viewport":{"width":412.0,"height":915.0},"platform":"android","sessionEpoch":0}}"""
+            """{"type":"session.start","at":{"monoUs":0,"wallUs":1781827200000000},"input":{"viewport":{"width":412.0,"height":915.0},"platform":"android","sessionEpoch":0,"idSeed":"0101010101010101010101010101010101010101010101010101010101010101"}}"""
     }
 }

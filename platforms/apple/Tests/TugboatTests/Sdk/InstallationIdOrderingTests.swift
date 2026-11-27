@@ -99,11 +99,22 @@ final class InstallationIdOrderingTests: XCTestCase {
   /// The session id the launch lines print is the one the engine mints for
   /// the seed (derived in the host so it exists before the engine answers).
   func testTheSessionIdForASeedIsTheEnginesOwn() throws {
-    let seed = "11" + String(repeating: "11", count: 31)
-    XCTAssertEqual(IdSeed.sessionId(seed), "session-f81644b2-12d3-462e-b98c-29d15b723874")
-    XCTAssertEqual(
-      IdSeed.sessionId(String((0..<32).map { String(format: "%02x", $0) }.joined())),
-      "session-a9d6e500-293a-48bd-b8cb-e213d07ab71f")
+    // conformance/capture_id_vectors.json `seedVectors`: the file the engine's own test reads.
+    var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+    while !FileManager.default.fileExists(atPath: dir.appendingPathComponent("conformance/capture_id_vectors.json").path) {
+      let parent = dir.deletingLastPathComponent()
+      XCTAssertNotEqual(parent, dir, "conformance/ not found above \(#filePath)")
+      if parent == dir { return }
+      dir = parent
+    }
+    let data = try Data(contentsOf: dir.appendingPathComponent("conformance/capture_id_vectors.json"))
+    let doc = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    let vectors = try XCTUnwrap(doc["seedVectors"] as? [[String: Any]])
+    XCTAssertGreaterThanOrEqual(vectors.count, 4)
+    for vector in vectors {
+      XCTAssertEqual(IdSeed.sessionId(vector["idSeed"] as? String ?? ""), vector["sessionId"] as? String, "\(vector["name"] ?? "")")
+    }
+    let seed = try XCTUnwrap(vectors.first?["idSeed"] as? String)
 
     let bridge = try XCTUnwrap(EngineBridge.open())
     defer { bridge.close() }

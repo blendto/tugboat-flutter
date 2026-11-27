@@ -13,6 +13,7 @@ import org.junit.rules.TemporaryFolder
  * (BLE-618): mint once, persist in `tugboat/installation_id`, read back,
  * replace a corrupt file, never throw, host id wins.
  */
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
 class InstallationIdTest {
     @get:Rule
     val folder = TemporaryFolder()
@@ -128,14 +129,15 @@ class InstallationIdTest {
 
     @Test
     fun theSessionIdIsTheEnginesForTheSeed() {
-        // core/session-engine: seed 0x11 * 32 -> stream index 0 (tb_session_engine_stateful_test).
-        assertEquals(
-            "session-f81644b2-12d3-462e-b98c-29d15b723874",
-            IdSeed.sessionId("11".repeat(32)),
-        )
-        assertEquals(
-            "session-a9d6e500-293a-48bd-b8cb-e213d07ab71f",
-            IdSeed.sessionId("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"),
-        )
+        // conformance/capture_id_vectors.json `seedVectors`: the file the engine's own test reads.
+        var dir = File(System.getProperty("user.dir")!!).absoluteFile
+        while (!File(dir, "conformance/capture_id_vectors.json").exists()) dir = dir.parentFile!!
+        val doc = org.json.JSONObject(File(dir, "conformance/capture_id_vectors.json").readText())
+        val vectors = doc.getJSONArray("seedVectors")
+        assertTrue(vectors.length() >= 4)
+        for (i in 0 until vectors.length()) {
+            val vector = vectors.getJSONObject(i)
+            assertEquals(vector.getString("name"), vector.getString("sessionId"), IdSeed.sessionId(vector.getString("idSeed")))
+        }
     }
 }
