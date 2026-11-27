@@ -134,7 +134,7 @@ class ReactNativeSeamsTest {
     }
 
     @Test
-    fun whenTheHostNamesScreensEachSessionSeedsItsOwnFirstScreen() {
+    fun whenTheHostNamesScreensARestartedSessionSeedsTheStackAndTheFlagDoesNotLeak() {
         TugboatAdapters.setHostNamesScreens(true)
         TugboatAdapters.install(app)
         Robolectric.buildActivity(FragmentActivity::class.java).setup()
@@ -145,15 +145,17 @@ class ReactNativeSeamsTest {
         assertEquals("push", navigation().single().getString("kind"))
         first.stop()
 
-        // A session started after a stop: the flag is not left over, so the
-        // first screen named is a seed again and the next is a push.
+        // A session started after a stop seeds the screens still on the stack
+        // (no frame asked for: its initial frame comes after the seed), and a
+        // screen named next is a push: the first-screen flag is not left over.
+        sink.batches.clear()
         val second = startAdapter()
-        assertTrue(navigation().isEmpty())
-        Tugboat.setScreen("Tabs/Home", "k3")
-        val seed = navigation().single()
-        assertEquals("session_start", seed.getString("kind"))
-        assertTrue(seed.getBoolean("captureFrame"))
-        Tugboat.setScreen("Tabs/Catalog", "k4")
+        while (frames.hasPending) frames.runFrame()
+        val seeds = sink.batches.flatten().filter { it.type == "navigation" }.map { JSONObject(it.inputJson) }
+        assertEquals(listOf("session_start"), seeds.map { it.getString("kind") })
+        assertEquals(2, seeds.single().getJSONArray("routes").length())
+        assertFalse(seeds.single().has("captureFrame"))
+        Tugboat.setScreen("Tabs/Settings", "k3")
         assertEquals("push", navigation().single().getString("kind"))
         second.stop()
     }
