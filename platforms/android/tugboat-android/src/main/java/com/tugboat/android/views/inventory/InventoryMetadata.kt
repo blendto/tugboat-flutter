@@ -1,6 +1,8 @@
 package com.tugboat.android.views.inventory
 
+import android.app.Activity
 import android.os.Build
+import androidx.lifecycle.findViewTreeLifecycleOwner
 import android.view.View
 import android.view.Window
 import android.view.WindowInsets
@@ -23,9 +25,23 @@ internal object InventoryMetadata {
     fun surface(window: Window): JSONObject {
         val kind = if (window.isFloating) "dialog" else "page"
         val json = JSONObject().put("kind", kind)
-        val name = window.callback?.javaClass?.let { if (it.isAnonymousClass) null else it.simpleName }
+        val name = owner(window)?.let { if (it.isAnonymousClass) null else it.simpleName }
         if (!name.isNullOrBlank()) json.put("widgetClass", name)
         return json
+    }
+
+    /**
+     * The class that owns [window]: its activity, else the lifecycle owner of its
+     * content (a `ComponentDialog`, a `DialogFragment`'s dialog). The window's
+     * callback is Tugboat's (or another SDK's) wrapper, never the owner.
+     */
+    private fun owner(window: Window): Class<*>? {
+        (window.context as? Activity)?.let { return it.javaClass }
+        return try {
+            window.decorView.findViewTreeLifecycleOwner()?.javaClass
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     /** `viewport` of [decor]'s window, or null when the density is unknown. */
@@ -71,11 +87,13 @@ private object Insets {
             val bars = insets.getInsets(WindowInsets.Type.systemBars())
             return intArrayOf(bars.top, bars.bottom, bars.left, bars.right)
         }
+        // Stable insets are the system bars only: the system window insets include the
+        // keyboard under adjustResize, which the viewport reports apart.
         return intArrayOf(
-            insets.systemWindowInsetTop,
-            insets.systemWindowInsetBottom,
-            insets.systemWindowInsetLeft,
-            insets.systemWindowInsetRight,
+            insets.stableInsetTop,
+            insets.stableInsetBottom,
+            insets.stableInsetLeft,
+            insets.stableInsetRight,
         )
     }
 

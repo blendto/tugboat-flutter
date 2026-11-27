@@ -109,6 +109,8 @@ bool decode_viewport(const ObjectReader& parent, const Value& json,
       !req_non_negative(r, "widthPx", &out->width_px) ||
       !req_non_negative(r, "heightPx", &out->height_px) ||
       !req_non_negative(r, "devicePixelRatio", &out->device_pixel_ratio) ||
+      !(out->device_pixel_ratio > 0 ||
+        r.reject("devicePixelRatio", "must be positive")) ||
       !r.req_object("boundaryOffset", &offset) ||
       !r.req_object("insets", &insets) ||
       !req_non_negative(r, "keyboardInset", &out->keyboard_inset)) {
@@ -434,8 +436,11 @@ void apply_scene_inventory(Turn& turn, const SceneInventoryFact& fact) {
     return;
   }
   const bool resample_on = resample_enabled(state);
-  // An answer to `scene.sample` outside a watch (a late one) is dropped.
-  if (fact.resample && (!resample_on || !state.scene_resample.watch_active)) {
+  // An answer to `scene.sample` is taken only while one is asked for: a late
+  // answer (after a route change, a pause or a newer watch) or an unsolicited
+  // one is dropped.
+  if (fact.resample && (!resample_on || !state.scene_resample.watch_active ||
+                        !state.scene_resample.awaiting_sample)) {
     return;
   }
   if (fact.resample) state.scene_resample.awaiting_sample = false;
@@ -502,7 +507,11 @@ void apply_scene_inventory(Turn& turn, const SceneInventoryFact& fact) {
   }
 
   const std::string signature = signature_of(route_key, hash, elements);
-  const bool positional_repeat = trigger && *trigger == "scroll" &&
+  // Only an inventory a capture builds is positional; a re-sample is always
+  // sent (Flutter `_emitResampleIfNovel`), so a state flip found after a
+  // scroll is not lost.
+  const bool positional_repeat = !fact.resample && trigger &&
+                                 *trigger == "scroll" &&
                                  resample.last_signature == signature;
   bool emitted = false;
   if (!positional_repeat) {
@@ -512,11 +521,13 @@ void apply_scene_inventory(Turn& turn, const SceneInventoryFact& fact) {
   }
   if (emitted) {
     resample.last_signature = signature;
+    // Flutter's content key always has an empty scroll context.
     resample.sent_contents.insert(
-        content_key(dedupe_key(route_key, hash, scroll_key), elements));
+        content_key(dedupe_key(route_key, hash, ""), elements));
   }
   if (!resample_on) return;
   if (fact.resample) {
+    if (!emitted) return;
     InventoryVisit& visit = current_visit(&state);
     visit.resamples++;
     resample_emitted(&state);

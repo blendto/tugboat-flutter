@@ -325,6 +325,32 @@ class SceneInventoryAdapterTest {
         assertTrue(fact.getBoolean("resample"))
         assertFalse(fact.has("trigger"))
         assertEquals("page", fact.getJSONObject("surface").getString("kind"))
+        assertEquals("FragmentActivity", fact.getJSONObject("surface").getString("widgetClass"))
+    }
+
+    @Test
+    fun theDrawListenerFollowsTheForegroundWindowWhenItChanges() {
+        val first = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        first.setContentView(Button(first))
+        settle()
+        var window: Window = first.window
+        adapter.sampleWindow = { window }
+        adapter.onSceneWatch(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        first.window.decorView.viewTreeObserver.dispatchOnDraw()
+        frames.runFrame()
+        assertEquals(1, sceneFrames())
+
+        // A recreated activity: a new window; the next resume rebinds the listener.
+        val second = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        second.setContentView(Button(second))
+        window = second.window
+        adapter.onActivityResumed(second)
+        shadowOf(Looper.getMainLooper()).idle()
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(200))
+        second.window.decorView.viewTreeObserver.dispatchOnDraw()
+        frames.runFrame()
+        assertEquals(2, sceneFrames())
     }
 
     @Test

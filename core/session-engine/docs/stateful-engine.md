@@ -274,6 +274,9 @@ elements too). The host reports drawn frames while the watch is armed:
   send it as `scene.inventory {resample: true, …}`. The window doubles (up to
   6.4 s) for each sample that is not emitted, and goes back to 400 ms when
   one is, or when a new inventory is sent.
+- An answer is taken only while a sample is asked for (a late one, after a
+  route change or a newer watch, and an unsolicited one are dropped).
+  A re-sample is never held back as a positional repeat.
 - The answer is emitted only when it adds a path, or a state (enabled or
   disabled), not yet sent in the visit, and is not an exact repeat of an
   emitted content (fingerprints with enabled states). A state flip keeps its
@@ -285,8 +288,8 @@ elements too). The host reports drawn frames while the watch is armed:
   An answer with no watch armed is dropped.
 
 The switch defaults to off in the engine (so a host that does not run the
-watch changes nothing); the Android and Swift hosts turn it on with
-`emitSceneInventory`, as Flutter's `resampleSettledInventory` defaults to on in
+watch changes nothing); the Android host turns it on with
+`emitSceneInventory` (the Swift host has no inventory source yet, BLE-674), as Flutter's `resampleSettledInventory` defaults to on in
 exploration. The engine does not know what the host's `hasScheduledFrame`
 says, so a window that ends while a frame is already on its way samples.
 Fixtures: `scene-inventory-exploration-metadata`,
@@ -302,6 +305,7 @@ Fixtures: `scene-inventory-exploration-metadata`,
 | `viewport`, `scroll` | carries and emits them (adds `referenceFrame`, `axis`) | | Views: window size, insets, keyboard, largest vertical scrollable. Compose, SwiftUI: not built | |
 | `visibleFraction`, `tag`, `positional` per element | carries and emits them | | Views: visible rect share, `anchor.tag`, `[item:` path. Compose entries carry no `visibleFraction`. SwiftUI: not built | |
 | Settled re-sample: novelty per route visit, 400 ms / 2 s / 6.4 s windows, per-visit cap 50, state flips, exact-repeat key | all of it (`scene_resample.cpp`) | Android: reports drawn frames (`scene.frame`) and executes `scene.sample`. Swift: no inventory source yet | Views: builds the sample inventory | `SettledInventoryWatch`, `InventoryVisit` (the Dart originals) |
+| Novelty keeps the page position of a pager apart (`PageView`) | the rule is keyed on Flutter widget names (`PageView#`, `Scrollable#`), so a native pager's pages collapse | | An adapter flag marking page positions (Views `ViewPager2`) is not built | Deferred: toolkit-neutral pager marking |
 | Moments label the next re-sample (`tap`, `gesture`, `scroll`) | pending trigger per visit | | | Programmatic scroll end moment: not ported (needs an adapter fact) |
 | Positional `scroll` inventories sent only when they moved (2% grid) | yes | | | |
 | `resampleSettledInventory` switch | `capabilities.resampleSettledInventory` (off by default in the engine) | Android: on with `emitSceneInventory`; no public option yet | | The Dart config flag |

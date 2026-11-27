@@ -219,9 +219,19 @@ internal class ViewsAdapter(
         if (!emitSceneInventory) return
         main.post {
             AdapterGuard.run("scene sample") {
-                if (started && watchArmed) sampleWindow()?.let { inventory.onSample(it) }
+                if (started && watchArmed) {
+                    rebindDrawListener()
+                    sampleWindow()?.let { inventory.onSample(it) }
+                }
             }
         }
+    }
+
+    /** Moves the draw listener to the sample window's tree when it is not on it (a recreated activity). */
+    private fun rebindDrawListener() {
+        if (!started || !watchArmed) return
+        val current = sampleWindow()?.decorView?.viewTreeObserver
+        if (current != null && current.isAlive && current !== drawObserver) attachDrawListener()
     }
 
     private fun attachDrawListener() {
@@ -259,6 +269,8 @@ internal class ViewsAdapter(
                 ensureAttached()
                 onWindowActive()
             }
+            // A recreated activity has a new window: the watch follows it.
+            if (watchArmed) main.post { AdapterGuard.run("scene watch rebind") { rebindDrawListener() } }
         }
 
     override fun onActivityDestroyed(activity: Activity) =
