@@ -144,6 +144,63 @@ class ReactNativeSeamsTest {
     }
 
     @Test
+    fun aStartedViewsAdapterNamesATappedViewFromTheProvider() {
+        val harness = DialogHarness()
+        try {
+            TugboatAdapters.setViewNameProvider { view -> if (view is Button) "pay" else null }
+            val activity = Robolectric.buildActivity(ButtonHost::class.java).setup().get()
+            harness.drainFacts()
+            tapThrough(activity.window, activity.button)
+            val anchor = harness.pointerUps().single().tapAnchor()
+            assertEquals("Button#pay", anchor.getString("canonicalPath"))
+            assertEquals("pay", anchor.getJSONObject("fingerprintParts").getString("tag"))
+        } finally {
+            harness.stop()
+        }
+    }
+
+    @Test
+    fun aFilterThatChangesWhileAFragmentIsShownStillLetsItLeaveTheStack() {
+        val adapter = startAdapter()
+        val host = Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        val fm = host.get().supportFragmentManager
+        fm.beginTransaction().add(android.R.id.content, ShownFragment(), "a").commitNow()
+        navigation()
+        TugboatAdapters.setFragmentFilter { it == ShownFragment::class.java.name }
+        fm.beginTransaction().remove(fm.findFragmentByTag("a")!!).commitNow()
+        TugboatAdapters.setFragmentFilter(null)
+        navigation()
+        // The removed fragment left the stack: the next one is a push with nothing departing.
+        fm.beginTransaction().add(android.R.id.content, ShownFragment(), "b").commitNow()
+        val next = navigation().single()
+        assertEquals("push", next.getString("kind"))
+        assertEquals(false, next.has("departing"))
+        adapter.stop()
+    }
+
+    @Test
+    fun aThrowingFilterIsTreatedAsNotFiltered() {
+        val adapter = startAdapter()
+        val host = Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        navigation()
+        TugboatAdapters.setFragmentFilter { error("boom") }
+        host.get().supportFragmentManager.beginTransaction().add(android.R.id.content, ShownFragment(), "shown").commitNow()
+        assertEquals("shown", navigation().single().getJSONObject("route").getString("name"))
+        adapter.stop()
+    }
+
+    @Test
+    fun aBlankScreenNameIsIgnored() {
+        val adapter = startAdapter()
+        Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        navigation()
+        Tugboat.setScreen("")
+        Tugboat.setScreen("  ", "x")
+        assertTrue(navigation().isEmpty())
+        adapter.stop()
+    }
+
+    @Test
     fun aFilteredFragmentSendsNoFactAndAnUnfilteredOneStillDoes() {
         val adapter = startAdapter()
         val host = Robolectric.buildActivity(FragmentActivity::class.java).setup()
@@ -169,6 +226,16 @@ class ReactNativeSeamsTest {
         sink.batches.clear()
         while (frames.hasPending) frames.runFrame()
         return sink.batches.flatten().filter { it.type == "navigation" }.map { JSONObject(it.inputJson) }
+    }
+
+    class ButtonHost : android.app.Activity() {
+        lateinit var button: Button
+
+        override fun onCreate(savedInstanceState: android.os.Bundle?) {
+            super.onCreate(savedInstanceState)
+            button = Button(this).apply { id = View.generateViewId() }
+            setContentView(FrameLayout(this).apply { addView(button, FrameLayout.LayoutParams(100, 100)) })
+        }
     }
 
     class HiddenFragment : Fragment() {

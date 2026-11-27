@@ -128,8 +128,13 @@ internal class FragmentNavigation(
             AdapterGuard.run("fragment destroyed") { onDestroyed(f) }
     }
 
+    /** A throwing filter counts as no filter. Only a resume asks: a fragment already shown leaves normally. */
     private fun isIgnored(fragment: Fragment): Boolean =
-        TugboatAdapters.fragmentFilter?.invoke(fragment.javaClass.name) == true
+        try {
+            TugboatAdapters.fragmentFilter?.invoke(fragment.javaClass.name) == true
+        } catch (_: Exception) {
+            false
+        }
 
     private fun onResumed(fm: FragmentManager, fragment: Fragment) {
         if (isIgnored(fragment)) return
@@ -147,7 +152,6 @@ internal class FragmentNavigation(
     }
 
     private fun onDestroyed(fragment: Fragment) {
-        if (isIgnored(fragment)) return
         val entry = entries.remove(fragment) ?: return
         fragment.view?.let(roots::remove)
         val stack = stackFor(fragment) ?: return

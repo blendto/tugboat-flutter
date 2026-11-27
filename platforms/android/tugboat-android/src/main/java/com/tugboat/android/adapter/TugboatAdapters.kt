@@ -33,8 +33,10 @@ object TugboatAdapters {
 
     /**
      * A name for a view that has no resource-id entry name, used wherever
-     * identity reads the view's id name (path segment and alias). A React
-     * Native app supplies its `testID`. Null clears it. A provider that
+     * identity reads the view's id name: the path segment (so the view is
+     * kept), and the alias when the view also has a unique Android view id
+     * (every React Native view does). A React Native app supplies its
+     * `testID`. A resource-id name wins. Null clears it. A provider that
      * throws or returns null changes nothing.
      */
     @JvmStatic
@@ -44,9 +46,11 @@ object TugboatAdapters {
 
     /**
      * Fragments for which [filter] (given the fragment's class name) returns
-     * true are not tracked: no navigation fact and no route key from them.
+     * true are not tracked: no navigation fact and no route key from them,
+     * and the fragments they host are not tracked either. Set it before the
+     * fragments appear: one already shown still leaves normally.
      * `react-native-screens` hosts every screen in a fragment of its own.
-     * Null clears it.
+     * A throwing filter counts as no filter. Null clears it.
      */
     @JvmStatic
     fun setFragmentFilter(filter: ((fragmentClassName: String) -> Boolean)?) {

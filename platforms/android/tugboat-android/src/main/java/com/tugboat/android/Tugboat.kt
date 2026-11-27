@@ -363,12 +363,13 @@ object Tugboat {
      * (React Native, a custom navigator): [name] becomes the route key of
      * every view in the resumed activity and a `route_change` on the same
      * navigator [trackNavigation] uses. A new [instanceId] is a push; one
-     * already on the stack is a pop back to it. Ignored, with a log line,
-     * when no activity is resumed. Never throws.
+     * already on the stack is a pop back to it. Ignored when a name is
+     * blank, and, with a log line, when no activity is resumed. Never throws.
      */
     @JvmStatic
     @JvmOverloads
     fun setScreen(name: String, instanceId: String = name) = onMain("setScreen") {
+        if (name.isBlank() || instanceId.isBlank()) return@onMain
         val activity = NavigationObservation.resumedActivity()
         if (activity == null) {
             Log.w(TAG, "setScreen: no resumed activity; ignored")
