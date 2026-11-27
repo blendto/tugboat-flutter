@@ -5,7 +5,7 @@
   "description": "First 16 lowercase hex chars of SHA-256 over the UTF-8 bytes.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "value": "Go"

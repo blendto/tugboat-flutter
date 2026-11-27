@@ -5,7 +5,7 @@
   "description": "A non-List iterable (a set) is copied as a list, and its items count against the budget.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "set",

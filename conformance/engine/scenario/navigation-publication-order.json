@@ -5,7 +5,7 @@
   "description": "Design section 9.3 #3 (decided: the serialized order is kept). Route finalization holds the publication queue until its route is done; a completed gesture or a settled tap with a frame publishes through that queue, so it waits. A degraded tap observation (no frame) publishes at once. The swipe's capture resolves while /a's route finalize waits for its own capture: the swipe publishes only after /a's route_change. A tap on the nested navigator, whose capture is suppressed by that navigator's transition and which has no temporal frame, publishes before both. The nested navigation advanced the route epoch after /a's capture was requested, so /a's capture resolves superseded_route_epoch and its route_change records the failure.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

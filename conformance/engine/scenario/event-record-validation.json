@@ -5,7 +5,7 @@
   "description": "Invalid event.record inputs are invalid_message with a JSON path and change nothing: an unknown stream (session schema 10 has semantic, evidence, and diagnostic; legacy_projection was removed), a missing stream or attachActionContext, an empty or engine-owned eventType, a non-finite number in data, a negative atMonoUs, and an unknown key. The next valid event still gets the next id.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

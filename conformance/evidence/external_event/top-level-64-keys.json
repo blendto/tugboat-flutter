@@ -5,7 +5,7 @@
   "description": "Exactly 64 top-level keys: all listed and kept, nothing truncated.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "wide",

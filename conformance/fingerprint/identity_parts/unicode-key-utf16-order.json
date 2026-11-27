@@ -5,7 +5,7 @@
   "description": "Keys are compared by UTF-16 code unit (Dart String.compareTo). U+1F600 (surrogate D83D) sorts before U+FF5A; a UTF-8 byte comparison would order them the other way.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "parts": [

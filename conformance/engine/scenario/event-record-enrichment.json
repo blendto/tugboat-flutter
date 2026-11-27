@@ -5,7 +5,7 @@
   "description": "event.record mints the id, computes atMs, and enriches like _addEvent: the current locale is stamped, and the capture session, activation, and exploration ids are stamped with attachActionContext true or false. stream, data, and targetAnchor pass through; empty data is omitted. scene_inventory is engine-owned and cannot be forged through event.record.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

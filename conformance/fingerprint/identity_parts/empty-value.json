@@ -5,7 +5,7 @@
   "description": "An empty value still contributes 'key=' and hashes normally.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "parts": [

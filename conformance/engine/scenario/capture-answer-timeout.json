@@ -5,7 +5,7 @@
   "description": "Change C18: a capture the host never answers resolves capture.answerTimeoutMs (here 2000) after it was requested (timer capture.answer.<requestId>) as paint_readiness_timeout with failure answer_timeout, and records a capture_diagnostic even without the captureDiagnostics capability, so hosts can count it. The queue then runs on. Here the host drops the route capture a navigation in the background asked for; the lifecycle capture of the resume waits behind it and is issued at the deadline. A late answer to the timed-out id is ignored and its frame released; later captures work normally. Dart has no answer deadline.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C18"

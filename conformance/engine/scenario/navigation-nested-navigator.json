@@ -5,7 +5,7 @@
   "description": "A nested navigator (the adapter names its parent) gets its own nav-N, stack, and route-capture work; route_change carries parentNavigatorId. A navigator first named as a parent is numbered right after its child, as Dart's idForNavigator does. Work on one navigator does not supersede another's: both route changes are recorded, each with its own barrier and epoch.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

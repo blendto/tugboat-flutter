@@ -5,7 +5,7 @@
   "description": "The name and source are trimmed with Dart's whitespace set (here U+00A0, U+FEFF, U+3000, U+0085, tabs, newlines) on both ends; inner whitespace stays.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "\u00a0\ufeff\t USER  LOGIN\n\u3000",

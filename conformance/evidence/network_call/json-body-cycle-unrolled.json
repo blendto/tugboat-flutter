@@ -5,7 +5,7 @@
   "description": "Dart has no cycle check for bodies: a self-containing list is followed until the depth limit.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

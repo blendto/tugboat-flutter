@@ -5,7 +5,7 @@
   "description": "Lifecycle dedupe is reset by session.start: the second session emits app_backgrounded again even though the last state of the first session was hidden. The id counter is per engine and keeps counting across sessions (change C7 is kept as Dart has it).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

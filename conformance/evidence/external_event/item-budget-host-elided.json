@@ -5,7 +5,7 @@
   "description": "A host walking 300-item lists under the item budget (section 4.4): the first list sends its first 256 items and omitted 1 at the 257th slot; every later collection sends its leading non-string-key run and omitted 1 at its first counted slot. Equal to Dart on the full lists.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "items",

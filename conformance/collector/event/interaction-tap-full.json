@@ -5,7 +5,7 @@
   "description": "Tap with every optional field. The flat interaction record keeps a reduced targetAnchor (no schemaVersion, no fingerprintParts) and drops result.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -62,14 +62,14 @@
       "type": "interaction",
       "stream": "semantic",
       "targetAnchor": {
-        "schemaVersion": 6,
+        "schemaVersion": 7,
         "widgetType": "FilledButton",
         "role": "button",
         "fingerprint": "bef605389f2f5207",
         "fingerprintConfidence": "medium",
         "tagFingerprint": "0a1b2c3d4e5f6a7b",
         "fingerprintParts": {
-          "schemaVersion": "6",
+          "schemaVersion": "7",
           "routeKey": "/checkout",
           "tag": "pay-button"
         },
@@ -158,7 +158,7 @@
         "platform": "android",
         "versionName": "2.4.0",
         "buildNumber": "240",
-        "fingerprintSchemaVersion": 6
+        "fingerprintSchemaVersion": 7
       }
     }
   }

@@ -5,7 +5,7 @@
   "description": "Lists and maps with 128 items are not truncated.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

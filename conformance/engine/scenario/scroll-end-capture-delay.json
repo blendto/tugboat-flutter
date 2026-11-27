@@ -5,7 +5,7 @@
   "description": "With scrollEndCaptureDelayMs the scroll-end capture waits for the viewport to idle (a timer). A new pointer-down or scroll start before the timer makes the wait stale: the timer is cancelled and the scroll publishes at once with its facts but without a frame.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

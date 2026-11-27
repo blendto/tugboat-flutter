@@ -1009,7 +1009,7 @@ A new fixture kind, `engine.scenario`, under `conformance/engine/scenario/`:
 
 ```json
 {"fixtureFormat": 1, "kind": "engine.scenario", "name": "…", "description": "…",
- "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6},
+ "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 7},
  "input": {"configure": { }, "steps": [{"send": { }, "expect": {"records": [ ], "effects": [ ]}}]},
  "expected": {"finalSnapshot": { }}}
 ```

@@ -5,7 +5,7 @@
   "description": "When an interaction capture fails, the after-frame falls back to the session's latest frame only when it is a temporal observation: same session, completed no earlier than release, and newer than the frame sequence at release. A swipe whose capture failed and whose latest frame predates its release has none; a tap released while an earlier tap's capture was in flight (one capture runs at a time) falls back to the frame that capture produced, which completed after its release.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

@@ -44,7 +44,7 @@ extern "C" {
 /* Contract versions this engine produces. They match the Dart SDK constants
  * `tugboatSessionSchemaVersion` and `tugboatFingerprintSchemaVersion`. */
 #define TB_SESSION_ENGINE_SESSION_SCHEMA_VERSION 10
-#define TB_SESSION_ENGINE_FINGERPRINT_SCHEMA_VERSION 6
+#define TB_SESSION_ENGINE_FINGERPRINT_SCHEMA_VERSION 7
 
 /* Limits applied when the matching config field is 0. */
 #define TB_SESSION_ENGINE_DEFAULT_MAX_MESSAGE_BYTES 1048576u

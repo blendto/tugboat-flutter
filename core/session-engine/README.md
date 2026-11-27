@@ -97,7 +97,7 @@ core/session-engine/
 | --- | --- |
 | `tb_session_engine_version()` | Library semantic version (`"0.2.0"`). |
 | `tb_session_engine_abi_version()` | `TB_SESSION_ENGINE_ABI_VERSION` of the linked library (`1`). |
-| `tb_session_engine_session_schema_version()` / `..._fingerprint_schema_version()` | Contract versions the engine produces (`10` / `6`). |
+| `tb_session_engine_session_schema_version()` / `..._fingerprint_schema_version()` | Contract versions the engine produces (`10` / `7`). |
 | `tb_session_status_name(status)` | Stable lowercase name (`"invalid_message"`), static string. |
 | `tb_session_engine_create_v1(config, &engine)` | Allocates a handle. `config->abi_version` must equal the header's ABI version. Zero limits use defaults. |
 | `tb_session_engine_destroy(engine)` | Frees the handle and every buffer it owns. `NULL` is a no-op. |
@@ -198,7 +198,7 @@ by `type`:
 ### Envelope
 
 ```json
-{"type": "event.record", "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6}, "at": {"monoUs": 81234567, "wallUs": 1791712345678901}, "input": { }}
+{"type": "event.record", "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 7}, "at": {"monoUs": 81234567, "wallUs": 1791712345678901}, "input": { }}
 ```
 
 | Key | Required | Meaning |

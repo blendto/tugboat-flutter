@@ -5,7 +5,7 @@
   "description": "Released taps stay claimable until their claim window closes; the sweep also caps them at interaction.maxReleased (8), evicting the oldest. Ten taps in quick succession: the sweep at the first deadline expires tap 1 and evicts tap 2, then re-arms for tap 3's deadline. Expired taps leave the claimable set but keep settling; at session end the eight still released are cancelled while taps 1 and 2, whose settles are cancelled, are dropped.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

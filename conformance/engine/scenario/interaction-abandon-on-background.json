@@ -5,7 +5,7 @@
   "description": "Going to the background (paused) applies the same teardown before app_backgrounded: pending pointers are abandoned (a swipe keeps its gesture; only a pointer cancel would make it cancelled), released taps are cancelled, waiting gestures and scrolls publish without a frame, observations flush. Pointer input in the background is ignored, and the contacts are forgotten, so a pointer that went down before the background lifting after resume does nothing. After resumed, a new tap is recorded.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

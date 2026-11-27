@@ -79,7 +79,7 @@ unit test.
   "kind": "collector.event",
   "name": "interaction-tap-full",
   "description": "What this case pins and why.",
-  "contract": { "sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6 },
+  "contract": { "sessionSchemaVersion": 10, "fingerprintSchemaVersion": 7 },
   "input": { },
   "expected": { }
 }
@@ -111,7 +111,7 @@ Absent and `null` mean the same thing in inputs. In outputs they differ (see
 
 ### `fingerprint.identityParts`
 
-Hashes identity parts into a fingerprint (fingerprint schema v6). Toolkit
+Hashes identity parts into a fingerprint (fingerprint schema 7). Toolkit
 adapters compute the parts. The engine owns only the hash.
 
 | Input | Type | Meaning |
@@ -457,7 +457,7 @@ Fixtures contain no ambient state:
 - Session and app metadata: everything comes from `host` and `session`.
   Transport settings are not inputs.
 - Contract constants (`interactionSchema` 2, `routeChangeSchema` 2,
-  `fingerprintSchemaVersion` 6) are outputs, not inputs.
+  `fingerprintSchemaVersion` 7) are outputs, not inputs.
 
 ## Comparison
 
@@ -478,7 +478,7 @@ integer/double distinction) is not pinned yet.
 ## Versioning
 
 Every fixture pins `contract.sessionSchemaVersion` (`10`) and
-`contract.fingerprintSchemaVersion` (`6`). The Dart runner fails every fixture
+`contract.fingerprintSchemaVersion` (`7`). The Dart runner fails every fixture
 when `tugboatSessionSchemaVersion` or `tugboatFingerprintSchemaVersion`
 changes. Bumping either one therefore forces each fixture to be re-reviewed and
 re-pinned, and a fixture never carries over to a new contract silently.

@@ -5,7 +5,7 @@
   "description": "locale.set before the first session emits nothing but becomes the current locale; a session.start without a locale stamps it on the session and on session_start. Without explorationRunId or activationRequestId the session and events omit them.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

@@ -5,7 +5,7 @@
   "description": "durationMs is the difference of two floored millisecond readings: start 1.999 ms, end 3.000 ms gives 2, not 1.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

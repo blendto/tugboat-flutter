@@ -5,7 +5,7 @@
   "description": "Edge: an anchor whose fingerprint, canonicalPath, fingerprintConfidence and tagFingerprint are empty strings and with no other field reduces to nothing, so targetAnchor is omitted.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -45,13 +45,13 @@
       "type": "interaction",
       "stream": "semantic",
       "targetAnchor": {
-        "schemaVersion": 6,
+        "schemaVersion": 7,
         "fingerprint": "",
         "fingerprintConfidence": "",
         "tagFingerprint": "",
         "canonicalPath": "",
         "fingerprintParts": {
-          "schemaVersion": "6",
+          "schemaVersion": "7",
           "routeKey": "/home"
         }
       },
@@ -93,7 +93,7 @@
         "platform": "ios",
         "versionName": "1.0.0",
         "buildNumber": "1",
-        "fingerprintSchemaVersion": 6
+        "fingerprintSchemaVersion": 7
       }
     }
   }

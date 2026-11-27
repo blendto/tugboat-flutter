@@ -5,7 +5,7 @@
   "description": "A dialog is dismissed over an unchanged activity (change C21). The initial frame carries overlayWindow. The next reusable capture has the same dHash and contentHash but no overlayWindow (and the structure without the overlay token): its mask coverage differs from the retained frame with that content, so it is accepted again rather than reused, and records capture_masking with reasons []. A later capture with the same content and the same coverage as that frame is still exact-content reused. When the dialog opens and is dismissed again over the same screen, each capture is exact-content reused from the retained frame with the same content and the same coverage, so the dialog cycle adds no frame: first the overlay frame, though the frame without the overlay has the same content and is newer, then the frame without the overlay.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C21"

@@ -5,7 +5,7 @@
   "description": "A scene.sample answer that reaches a later watch is dropped; the exact-repeat key of a re-sample has no scrollKey, so content sent earlier under a scrollKey is held back when a later visit finds it again.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

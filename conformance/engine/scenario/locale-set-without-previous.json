@@ -5,7 +5,7 @@
   "description": "The first locale.set in a session started without any locale emits locale_changed without previousLocale; empty country and script are dropped from locale JSON.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

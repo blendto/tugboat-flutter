@@ -5,7 +5,7 @@
   "description": "Without the captureDiagnostics capability the secure_window capture_diagnostic is recorded only for the first secureWindow failure of each route instance in a session (the session before any route counts as one); later failures are counted, and each teardown (going to the background, session end) records one capture_diagnostic {component: capture_secure_window, routeInstanceId?, repeatCount} per route instance with repeats since the last report, in first-failure order. A route instance stays throttled for the rest of the session; a new session starts afresh.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

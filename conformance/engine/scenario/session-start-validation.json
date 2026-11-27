@@ -5,7 +5,7 @@
   "description": "session.start needs a viewport with finite, non-negative width and height, a platform, and a non-negative integer sessionEpoch; a locale needs language and tag; unknown keys are rejected.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

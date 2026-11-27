@@ -5,7 +5,7 @@
   "description": "jsonText from a Kotlin or Swift string can hold raw lone surrogates; jsonDecode keeps them in strings and keys, so the body is json.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

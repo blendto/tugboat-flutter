@@ -3,7 +3,7 @@
   "kind": "engine.scenario",
   "name": "navigation-session-start-dropped-duplicate-seed",
   "description": "A second session_start with the same navigator in one session is accepted and dropped with no record.",
-  "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6},
+  "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 7},
   "runners": ["cpp"],
   "input": {
     "configure": {

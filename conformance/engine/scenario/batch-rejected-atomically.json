@@ -5,7 +5,7 @@
   "description": "A batch is validated as a whole before anything is applied: an invalid message, an unknown type, a stateless or query message, a nested batch, or a non-object element rejects the batch with the element's path, and none of its messages apply (no session is started).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

@@ -5,7 +5,7 @@
   "description": "retryAfter on transport.result is only allowed with outcome http; the engine rejects the message. C++ only: the Dart runners skip error steps, and a Dart HTTP client cannot report a Retry-After header without an HTTP response.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

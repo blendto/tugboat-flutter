@@ -5,7 +5,7 @@
   "description": "Lone surrogates in values and keys are kept and written as escapes.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "surrogates",

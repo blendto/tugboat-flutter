@@ -5,7 +5,7 @@
   "description": "network_call 404 with a JSON error body. The capture-metadata sidecar is dropped; relatedEventId is not carried; the payload repeats the stream.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -113,7 +113,7 @@
         "platform": "android",
         "versionName": "2.4.0",
         "buildNumber": "240",
-        "fingerprintSchemaVersion": 6
+        "fingerprintSchemaVersion": 7
       }
     }
   }

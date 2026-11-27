@@ -5,7 +5,7 @@
   "description": "Every state-changing fact carries at.monoUs (a non-negative integer); session.start, session.end, and identity.set also need at.wallUs within Dart's DateTime range. engine.configure and session.snapshot accept an at (validated, not used); stateless messages take none. Rejected messages change nothing.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

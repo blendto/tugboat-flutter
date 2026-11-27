@@ -5,7 +5,7 @@
   "description": "A pass uploads frames between event batches, and drains only the events queued when it reached them. A frame captured while the first of two batches is in flight goes out before the second batch, not at the start of a pass; the interaction event that references it waits for the next pass.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "collector": {

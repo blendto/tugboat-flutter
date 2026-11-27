@@ -5,7 +5,7 @@
   "description": "Non-ASCII input is hashed over its UTF-8 bytes.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "value": "\u65e5\u672c\u8a9e \u2713"

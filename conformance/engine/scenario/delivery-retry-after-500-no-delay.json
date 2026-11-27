@@ -5,7 +5,7 @@
   "description": "HTTP 500 with Retry-After does not arm a lane wait (only 429 and 503). Delivery's own collector_request reports (Dart 0.11.1) are events like any other: they join batches and take request ids, so a request a step answers may be a batch of reports, and step notes describe the state without them.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {
@@ -231,7 +231,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"collector-request-baf9fe3d-0c8a-4ac2-8764-a8864d7c50d7\",\"atMs\":2000,\"triggeredAt\":\"2026-06-19T00:00:02.000Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"failed\",\"statusCode\":500},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"session-44ccc5b9-ccc6-4f49-ad84-d7c7626c9481\"},{\"id\":\"collector-request-40faaed5-b0cf-41ce-b8ed-3c4d27f90daf\",\"atMs\":2110,\"triggeredAt\":\"2026-06-19T00:00:02.110Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"session-44ccc5b9-ccc6-4f49-ad84-d7c7626c9481\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-baf9fe3d-0c8a-4ac2-8764-a8864d7c50d7\",\"atMs\":2000,\"triggeredAt\":\"2026-06-19T00:00:02.000Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"failed\",\"statusCode\":500},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":7},\"sessionId\":\"session-44ccc5b9-ccc6-4f49-ad84-d7c7626c9481\"},{\"id\":\"collector-request-40faaed5-b0cf-41ce-b8ed-3c4d27f90daf\",\"atMs\":2110,\"triggeredAt\":\"2026-06-19T00:00:02.110Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":7},\"sessionId\":\"session-44ccc5b9-ccc6-4f49-ad84-d7c7626c9481\"}]}",
               "sessionId": "session-44ccc5b9-ccc6-4f49-ad84-d7c7626c9481",
               "deliveryKeys": [
                 "session-44ccc5b9-ccc6-4f49-ad84-d7c7626c9481/e/35f1f6700b881dc6"

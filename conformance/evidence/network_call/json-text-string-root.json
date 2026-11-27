@@ -5,7 +5,7 @@
   "description": "A JSON string root decodes to a Dart String: a text body.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

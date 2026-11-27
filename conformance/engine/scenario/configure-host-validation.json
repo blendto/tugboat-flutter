@@ -5,7 +5,7 @@
   "description": "The collector rejects a session_start without app version and build number, the full device with screen size and densities, the client IP, and the configured locale, so engine.configure rejects a host missing any of them with the exact path, and session.start is rejected until a host is configured. Other configure groups are validated too.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

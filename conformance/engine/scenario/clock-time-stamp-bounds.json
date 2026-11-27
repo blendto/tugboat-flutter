@@ -5,7 +5,7 @@
   "description": "Monotonic time stamps (at.monoUs, atMonoUs, startMonoUs, endMonoUs) are in [0, 2^62] and captureMicros is in [0, one day], so no deadline (a time stamp plus at most a few days) or screenshot budget cost can overflow int64. Larger values are rejected as invalid_message and change nothing; 2^62 itself is accepted.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

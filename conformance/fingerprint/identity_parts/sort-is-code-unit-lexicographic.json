@@ -5,7 +5,7 @@
   "description": "Keys sort by code unit, not numerically or case-insensitively: uppercase before lowercase, a prefix before its extensions, '10' before '9'.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "parts": [

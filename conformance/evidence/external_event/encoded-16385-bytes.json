@@ -5,7 +5,7 @@
   "description": "One byte over 16384: every kept value is left out, parameters omitted, droppedCount grows by the number of kept keys, truncated. Keys stay listed.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "size",

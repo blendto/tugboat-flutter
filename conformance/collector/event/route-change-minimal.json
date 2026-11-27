@@ -5,7 +5,7 @@
   "description": "Edge: empty-ish data. Only routeChangeSchema is added; null values are dropped; routeStackTruncated false is omitted.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -65,7 +65,7 @@
         "platform": "ios",
         "versionName": "1.0.0",
         "buildNumber": "1",
-        "fingerprintSchemaVersion": 6
+        "fingerprintSchemaVersion": 7
       }
     }
   }

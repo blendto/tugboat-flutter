@@ -5,7 +5,7 @@
   "description": "A background and foreground cycle in Flutter's order: inactive, hidden, paused, inactive, resumed. hidden and paused both map to app_backgrounded, so paused is a consecutive duplicate and emits nothing. Each event carries data.state.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

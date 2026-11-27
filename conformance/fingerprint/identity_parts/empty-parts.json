@@ -5,7 +5,7 @@
   "description": "No parts: the fingerprint is the empty string, not the hash of an empty string. Adapters treat it as 'no fingerprint'.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "parts": []

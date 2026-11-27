@@ -5,7 +5,7 @@
   "description": "A transport failure: outcome network_error, no statusCode. attemptCount 0 is omitted.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

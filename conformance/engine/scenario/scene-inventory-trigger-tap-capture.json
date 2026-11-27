@@ -5,7 +5,7 @@
   "description": "With nativeSceneInventory the capture.request of a tap's settle carries inventoryTrigger tap, so the adapter labels the inventory of that frame.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

@@ -5,7 +5,7 @@
   "description": "Frame evictions are reported as dropped when the cumulative count is 1 or a power of two, with droppedFrameCount (change C6: gap records). Delivery's own collector_request reports (Dart 0.11.1) are events like any other: they join batches and take request ids, so a request a step answers may be a batch of reports, and step notes describe the state without them.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C6"

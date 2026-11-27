@@ -5,7 +5,7 @@
   "description": "Design section 9.3 #4: replacing route work on a navigator cancels every waiting capture (superseded_route), the swipe's and the scroll end's included, and the capture in flight becomes stale (its late answer is released). The swipe and the scroll then walk the route barriers and take the replacement route's frame.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

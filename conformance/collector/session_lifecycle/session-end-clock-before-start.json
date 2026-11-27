@@ -5,7 +5,7 @@
   "description": "Edge: triggeredAt earlier than startedAt (wall clock moved back). atMs is negative; nothing clamps it.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {

@@ -5,7 +5,7 @@
   "description": "Two-finger swipe. payload carries position, endPosition, delta (raw double subtraction, not rounded), and pointerCount.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -62,7 +62,7 @@
       "type": "interaction",
       "stream": "semantic",
       "targetAnchor": {
-        "schemaVersion": 6,
+        "schemaVersion": 7,
         "widgetType": "PageView",
         "role": "scrollable",
         "fingerprint": "77aa00bb11cc22dd",
@@ -148,7 +148,7 @@
         "platform": "android",
         "versionName": "2.4.0",
         "buildNumber": "240",
-        "fingerprintSchemaVersion": 6
+        "fingerprintSchemaVersion": 7
       }
     }
   }

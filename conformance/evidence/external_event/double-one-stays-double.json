@@ -5,7 +5,7 @@
   "description": "An analytics parameter 1.0 (a floating NSNumber in Swift, a Double in Kotlin) is tagged {\"double\": 1}, whatever the JSON writer prints, and stays the double 1.0.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "purchase",

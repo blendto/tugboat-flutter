@@ -5,7 +5,7 @@
   "description": "How a reusable (not forced) capture resolves, in Dart's order. The engine offers the dHash baseline of the last accepted (or exactly reused) frame together with that frame's visible structure; the host reports a perceptual match as captured with the baseline's dHash. With the same structure that is perceptual_hash_coalesced: the frame is released and the latest frame reused, and the baseline stays the referenced frame's. Under another structure the frame is new (fresh_accepted). A frame whose content hash equals a compatible retained frame is exact_content_reused: released, that frame reused, and its dHash and structure become the baseline. paintUnchanged reuses the latest compatible frame (paint_generation_unchanged). Forced captures (here a swipe's) get no baseline.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

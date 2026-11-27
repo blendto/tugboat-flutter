@@ -5,7 +5,7 @@
   "description": "session.start asks for an initial capture (forced, fresh paint) after session_start; resumed asks for a forced lifecycle capture before app_foregrounded is recorded, also when the state is a duplicate. Going to the background cancels every request (lifecycle_deactivate) and, change C16, stops waiting for the capture in flight (Dart awaits it): its late answer is released like any unknown id, and the next request is issued without waiting for it.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C16"

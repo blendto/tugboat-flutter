@@ -5,7 +5,7 @@
   "description": "Items past a collection's 128th are never encoded, so they never count toward the host's 4097-node budget: a 5000-item list sends 128 items and omitted, and the message after it is kept.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

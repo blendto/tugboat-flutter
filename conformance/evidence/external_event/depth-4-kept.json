@@ -5,7 +5,7 @@
   "description": "Top-level values are depth 1. A value at depth 4 is kept.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "deep",

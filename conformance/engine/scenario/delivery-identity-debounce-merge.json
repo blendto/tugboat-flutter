@@ -5,7 +5,7 @@
   "description": "User id and traits changes wait out identityDebounceMs after the last change and merge into one post: session_identify (triggered at the later change) when both changed, user_changed or traits_updated when one did. An unchanged user id or an equal traits bag is not a change.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

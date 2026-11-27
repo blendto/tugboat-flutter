@@ -5,7 +5,7 @@
   "description": "The text budget counts keys too: the third key takes the text past 4096 units, so the host sends it with the value null and stops. Dart's prefix on the full body (whose value is a long string) is the same.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

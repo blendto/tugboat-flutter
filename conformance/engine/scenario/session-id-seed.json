@@ -5,7 +5,7 @@
   "description": "session.start needs idSeed, 64 lowercase hex characters (32 random bytes from the host): a missing, empty, short, long, upper-case or non-hex seed is rejected at $.input.idSeed. With a seed the engine mints session-<UUIDv4> and event-<UUIDv4> from SHA-256(seed || stream index): the session id is stream index 0, then each event takes the next index. A replacing session.start (with its own seed) ends the first session with a session_end under the old stream, then restarts the stream. The id format is also pinned by conformance/capture_id_vectors.json, which Dart runs too.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

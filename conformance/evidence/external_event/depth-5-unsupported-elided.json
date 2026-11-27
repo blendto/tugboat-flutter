@@ -5,7 +5,7 @@
   "description": "A host sends any value at depth 5 as unsupported: the result equals sending it.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "deep",

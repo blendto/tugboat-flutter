@@ -5,7 +5,7 @@
   "description": "One byte over: the longest prefix within 4096 bytes, truncated.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

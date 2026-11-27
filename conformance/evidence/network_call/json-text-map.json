@@ -5,7 +5,7 @@
   "description": "jsonText is decoded as Dart's jsonDecode would: objects are maps in source order, 1.0 is a double.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

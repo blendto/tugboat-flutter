@@ -5,7 +5,7 @@
   "description": "Change C11: transition suppression is per navigator. A capture is suppressed (cancelled, route_transition) while the navigator of its context, the visible navigator, is in a transition, until that navigator's route deadline. Another navigator's navigation or deadline does not end it. Here the root navigator pushes /a with a 300 ms transition; a nested navigator then pops to no route, which keeps /a visible. Dart's one _skipCapture flag would be cleared by that zero-transition pop and the swipe captured in the middle of /a's transition; the engine suppresses it. The nested pop's own route capture is made in /a's context too and is suppressed, so its route_change records the failure; the swipe walks to that barrier, which has no frame. /a's capture is made at its deadline.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C11"

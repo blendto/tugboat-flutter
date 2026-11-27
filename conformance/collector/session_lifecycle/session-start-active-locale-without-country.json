@@ -5,7 +5,7 @@
   "description": "Edge: the active locale has no country. Configured language and country are removed and not replaced, so the record has no locale.country; timezone survives. configuredUserId is null and userId is null, so userId is null.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {

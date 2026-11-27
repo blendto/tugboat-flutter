@@ -5,7 +5,7 @@
   "description": "route_change as the Flutter controller emits it. Allow-listed keys are copied to the top level; navigator/instance bookkeeping (navigatorId, routeInstanceId, stackRevision, visualObservationGeneration, navigationOrigin, interactionAttribution) is dropped; result is dropped; routeStackTruncated true is kept.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -148,7 +148,7 @@
         "platform": "android",
         "versionName": "2.4.0",
         "buildNumber": "240",
-        "fingerprintSchemaVersion": 6
+        "fingerprintSchemaVersion": 7
       }
     }
   }

@@ -5,7 +5,7 @@
   "description": "Decomposed e + U+0301 in a value. No Unicode normalization: this differs from unicode-nfc.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "parts": [

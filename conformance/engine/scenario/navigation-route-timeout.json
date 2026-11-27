@@ -5,7 +5,7 @@
   "description": "A route capture the host never answers ends with the barrier timeout (transition + settle delay + routeBarrierTimeoutMs, here 2000): route_change records captureOutcome timed_out and result unknown, without a frame. The capture request is cancelled (route_timeout) and the capture generation advances, so the late answer is stale (superseded_route_epoch) and its frame released. The tap that caused the route gets no frame and publishes at once (a degraded observation).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

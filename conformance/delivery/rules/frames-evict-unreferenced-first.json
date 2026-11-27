@@ -5,7 +5,7 @@
   "description": "While frame uploads stall, frames wait under maxPendingFrames. Over the bound the oldest frame no event references goes first, even when an older frame is referenced, and the newest frame is kept; when every older frame is referenced, the oldest goes. Each drop counts in health and is reported (collector_frame_upload dropped).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "collector": {

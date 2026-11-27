@@ -3,7 +3,7 @@
   "kind": "engine.scenario",
   "name": "navigation-session-start-nested",
   "description": "Nested navigators each get one session_start (parent first); parentNavigatorId is wired on the child record.",
-  "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6},
+  "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 7},
   "runners": ["cpp"],
   "input": {
     "configure": {

@@ -5,7 +5,7 @@
   "description": "A single pointer that travels past touchSlop is a swipe. Its pointer-up asks for a fresh forced interaction capture and the swipe publishes with that frame (fresh and temporal) as afterFrame, position and endPosition normalised against the before-frame boundary, and their delta. Tap evidence on the up is discarded.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

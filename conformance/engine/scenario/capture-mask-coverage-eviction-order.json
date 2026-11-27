@@ -5,7 +5,7 @@
   "description": "capture_masking is recorded right after its frame record, before the frame-accepted hooks run: here the accepted frame evicts the older pending frame (collector.maxPendingFrames 1, the session_start post still in flight), and the delivery gap record (change C6) follows the capture_masking diagnostic instead of landing between the frame and it.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C6"

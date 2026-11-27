@@ -5,7 +5,7 @@
   "description": "A fact stamped before its session started (atMonoUs earlier than session.start at.monoUs, possible behind an asynchronous seam) records atMs 0 instead of a negative value.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C13"

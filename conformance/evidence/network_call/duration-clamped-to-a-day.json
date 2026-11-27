@@ -5,7 +5,7 @@
   "description": "Durations are clamped to 86400000 ms.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

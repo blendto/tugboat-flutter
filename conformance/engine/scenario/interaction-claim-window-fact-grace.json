@@ -5,7 +5,7 @@
   "description": "Window timers are scheduled factGraceMs late (design section 5) so a fact stamped inside the window that arrives late can still claim: with a 50 ms grace the sweep and the settle's claim-window wait both fire at release + 1250 + 50. A host fire before the deadline is stale and ignored.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

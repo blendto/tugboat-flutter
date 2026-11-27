@@ -5,7 +5,7 @@
   "description": "Known divergence: Dart upper-cases a non-ASCII method with Unicode simple case mapping (g\u00e9t -> G\u00c9T); the engine records nothing for a non-ASCII method. HTTP methods are ASCII tokens.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

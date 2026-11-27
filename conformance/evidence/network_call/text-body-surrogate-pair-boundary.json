@@ -5,7 +5,7 @@
   "description": "A 4-byte emoji that would cross 4096 bytes is left out whole.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

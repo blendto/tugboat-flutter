@@ -5,7 +5,7 @@
   "description": "Change C17: navigator and route-instance ids (nav-N, route-N) are per session. A route seen in an earlier session gets a fresh id in the next one. Dart keeps a route's id across sessions (an Expando on the route object) while its counter restarts, so the revealed /home would reuse route-0, already the id of /detail in the new session.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C17"

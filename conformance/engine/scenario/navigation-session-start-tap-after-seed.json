@@ -3,7 +3,7 @@
   "kind": "engine.scenario",
   "name": "navigation-session-start-tap-after-seed",
   "description": "session_start re-stamps the initial capture; after the initial frame lands, a tap gets beforeFrame (the initial frame) and position on the seeded route. A later push claiming the tap is navigation-session-start-tap-claims-push.",
-  "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6},
+  "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 7},
   "runners": ["cpp"],
   "input": {
     "configure": {

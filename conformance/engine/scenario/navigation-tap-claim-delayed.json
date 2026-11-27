@@ -5,7 +5,7 @@
   "description": "Design section 9.3 #1 and #6: a navigation that arrives after the pointer-up, inside the tap's claim window, claims the released tap as delayed_likely. The claim happens before the route epoch advances, and the tap waiting out its claim window is woken only once the route's barrier is registered: its claim-window timer is cancelled and it joins the barrier, taking no capture of its own. settleDelayMs is 100 here, so the tap is already waiting out the claim window when the navigation arrives.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

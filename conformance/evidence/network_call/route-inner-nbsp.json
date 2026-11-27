@@ -5,7 +5,7 @@
   "description": "U+00A0 inside a route is allowed (only code points up to U+0020 and DEL are forbidden).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

@@ -5,7 +5,7 @@
   "description": "Two pointers that travel together past panSlop (36) without their span changing by scaleSlop (18) are a pan. The secondary pointer is absorbed into the primary's transaction (no event of its own). The pan completes when the last contact lifts; after the primary lifts, the end position continues by active-centroid travel.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

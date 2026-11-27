@@ -5,7 +5,7 @@
   "description": "Omitted nested items stand in as unsupported values (map entries as string-keyed entries with unsupported values): each counts an item and is dropped. Exact only when elided past the item budget, as the host rules require; this fixture pins the stand-in itself.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "items",

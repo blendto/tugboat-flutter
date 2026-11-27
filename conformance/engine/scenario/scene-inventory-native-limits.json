@@ -5,7 +5,7 @@
   "description": "Native scene.inventory limits (C20) with maxSceneInventoryElements 2 standing in for the default 500: totalElements reports adapter-side truncation, the capture_diagnostic is recorded only for a new dedupe key, scrollKey dedupe, an empty canonicalPath, the bounds epsilon, and string, alias, and action bounds.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": ["cpp"],
   "engineOnly": ["C20"],

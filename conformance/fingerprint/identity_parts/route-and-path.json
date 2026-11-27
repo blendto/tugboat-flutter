@@ -5,7 +5,7 @@
   "description": "Target fingerprint as the Flutter resolver builds it: routeKey plus the full canonical path.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "parts": [

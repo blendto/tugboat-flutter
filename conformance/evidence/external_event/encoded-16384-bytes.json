@@ -5,7 +5,7 @@
   "description": "Kept values whose jsonEncode is exactly 16384 UTF-8 bytes are kept.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "size",

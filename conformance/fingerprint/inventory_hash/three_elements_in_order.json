@@ -5,7 +5,7 @@
   "description": "inventoryHash keeps fingerprints that already arrive in UTF-16 order in that order: the sort is a strict ordering, not a swap of any two different fingerprints.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "fingerprints": [

@@ -5,7 +5,7 @@
   "description": "Interaction captures are forced (they must observe a fresh paint), so a paintUnchanged answer to one breaks the host contract: the capture resolves as capture_processing_failed and records a capture_diagnostic with failure contract_violation, even without the captureDiagnostics capability. The tap then falls back to the latest frame, which completed before its release, so neither the tap nor the swipe has an afterFrame. (A reusable capture's paintUnchanged answer reuses the latest compatible frame: capture-reuse-decisions.)",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

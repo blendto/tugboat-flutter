@@ -5,7 +5,7 @@
   "description": "A waiting observation publishes without a frame when the app goes to the background (before app_backgrounded) or the session ends (before session_end), and its late capture answer is ignored. Input facts in the background are not recorded.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

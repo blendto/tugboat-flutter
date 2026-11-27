@@ -5,7 +5,7 @@
   "description": "129 items: the first 128 are kept, truncated. A host may send 128 and omitted.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

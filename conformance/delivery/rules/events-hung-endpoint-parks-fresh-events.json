@@ -5,7 +5,7 @@
   "description": "When the retry head of the events lane got no response at all (a timeout), a pass sends the head once and parks the fresh events behind it, in retry batches and unsent, so a hung endpoint costs one timeout per pass. Parked events go out in order once the head is accepted. The first failed post of the outage is reported (collector_request failed) and so is its recovery.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "collector": {

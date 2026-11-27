@@ -5,7 +5,7 @@
   "description": "A ref (an ancestor collection, a cycle) is dropped like Dart's seen check; its collection stays. A map containing itself is also how a host writes a value that is the parameters map itself.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "cycle",

@@ -5,7 +5,7 @@
   "description": "A string of 1024 UTF-16 units is kept; 1025 is dropped (droppedCount, truncated). An emoji counts 2 units.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "strings",

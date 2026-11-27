@@ -5,7 +5,7 @@
   "description": "A session starts and ends. session_start and session_end are enriched with the capture session id, activation and exploration ids, and the active locale; the session id and startedAt both come from session.start at.wallUs. atMs is the monotonic elapsed time floored to milliseconds (1234.999 ms -> 1234). The snapshot is schema 10 with appInfo from engine.configure host.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

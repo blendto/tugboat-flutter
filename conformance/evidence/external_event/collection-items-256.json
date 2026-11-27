@@ -5,7 +5,7 @@
   "description": "One list of 256 items is within the item budget.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "items",

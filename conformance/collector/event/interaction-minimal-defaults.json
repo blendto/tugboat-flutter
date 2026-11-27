@@ -5,7 +5,7 @@
   "description": "Edge: empty data. interactionSchema defaults to 2; no sessionId (before the start handshake) omits sessionId; null userId is sent as null; no traitsId omits it.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -61,7 +61,7 @@
         "platform": "ios",
         "versionName": "1.0.0",
         "buildNumber": "1",
-        "fingerprintSchemaVersion": 6
+        "fingerprintSchemaVersion": 7
       }
     }
   }

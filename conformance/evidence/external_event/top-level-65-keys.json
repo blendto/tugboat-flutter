@@ -5,7 +5,7 @@
   "description": "65 top-level keys: the 65th is not read (the host may omit it) and adds 1 to droppedCount with truncated.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "wide",

@@ -5,7 +5,7 @@
   "description": "A failing frame upload does not stall events: the failure report goes out in the same pass. A frame arriving while frames retry starts no pass, and every pass starts with the frames step.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "collector": {

@@ -5,7 +5,7 @@
   "description": "capture.result is validated strictly: a frame is required with captured and not allowed otherwise (nor is boundaryRect), the outcome vocabulary is closed, frame sizes are non-negative, masked is required, and requestId is non-empty. An answer for an unknown request id, or a second answer for the same request, is ignored (principle 4): no frame is accepted.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

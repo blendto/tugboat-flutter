@@ -5,7 +5,7 @@
   "description": "The prefix keeps whole code points: 4095 bytes then a 2-byte U+00E9 does not fit.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

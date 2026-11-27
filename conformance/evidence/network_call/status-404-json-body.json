@@ -5,7 +5,7 @@
   "description": "A 404 with a decoded JSON body keeps it as json/native, in host order. attemptCount > 0 is recorded.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

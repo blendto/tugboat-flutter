@@ -296,7 +296,7 @@ void test_version_queries() {
   CHECK(std::strcmp(tb_session_engine_version(), "0.2.0") == 0);
   CHECK(tb_session_engine_abi_version() == TB_SESSION_ENGINE_ABI_VERSION);
   CHECK(tb_session_engine_session_schema_version() == 10);
-  CHECK(tb_session_engine_fingerprint_schema_version() == 6);
+  CHECK(tb_session_engine_fingerprint_schema_version() == 7);
   CHECK(std::strcmp(tb_session_status_name(TB_SESSION_OK), "ok") == 0);
   CHECK(std::strcmp(tb_session_status_name(TB_SESSION_INVALID_MESSAGE),
                     "invalid_message") == 0);
@@ -430,7 +430,7 @@ void test_submit_errors() {
   EXPECT_STATUS("{\"type\":\"session.pointerDown\",\"input\":{}}",
                 TB_SESSION_UNSUPPORTED_MESSAGE, "$.type");
   EXPECT_STATUS("{\"type\":\"fingerprint.labelHash\",\"contract\":{"
-                "\"sessionSchemaVersion\":11,\"fingerprintSchemaVersion\":6},"
+                "\"sessionSchemaVersion\":11,\"fingerprintSchemaVersion\":7},"
                 "\"input\":{\"value\":\"a\"}}",
                 TB_SESSION_CONTRACT_MISMATCH, "sessionSchemaVersion 10");
   EXPECT_STATUS("{\"type\":\"fingerprint.labelHash\",\"contract\":{"

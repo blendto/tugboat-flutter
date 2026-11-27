@@ -5,7 +5,7 @@
   "description": "engine.dispose, sent before tb_session_engine_destroy and only between sessions, reports the work the collector never confirmed once as a collector_delivery health record (undelivered: queued; inFlight: the request whose answer is pending), releases every frame delivery still references, and leaves the engine inert (change C6: the report is a record).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C6"

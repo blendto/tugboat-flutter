@@ -5,7 +5,7 @@
   "description": "session.end ends the session once; repeating it emits nothing. A session.end before any session.start is a no-op too.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

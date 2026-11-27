@@ -5,7 +5,7 @@
   "description": "Anonymous route: the adapter supplies a struct:<signature> route key. The hash treats it as an opaque string.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "parts": [

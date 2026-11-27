@@ -5,7 +5,7 @@
   "description": "1365 lone surrogates are 4095 bytes in Dart's measure: kept whole.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

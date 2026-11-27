@@ -5,7 +5,7 @@
   "description": "names_only lists the valid keys and keeps no values: parameters is omitted and nothing counts as dropped.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "search",

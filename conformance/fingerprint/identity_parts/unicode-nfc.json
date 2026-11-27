@@ -5,7 +5,7 @@
   "description": "Precomposed U+00E9 in a value. Values are UTF-8 encoded as-is; compare with unicode-nfd.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "parts": [

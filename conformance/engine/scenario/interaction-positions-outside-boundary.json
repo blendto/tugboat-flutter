@@ -5,7 +5,7 @@
   "description": "Positions are normalised against the before-frame's capture boundary. A down point outside the boundary is unavailable, never clamped: the swipe has no position, endPosition, or delta. For a down inside the boundary, the end point is clamped onto the boundary (Dart interactionNormalizedPoint).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

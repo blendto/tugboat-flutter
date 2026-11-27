@@ -5,7 +5,7 @@
   "description": "The screenshot budget charges each capture's queue wait (the settle delay included, as in Dart) and the host's timings within budgetWindowMs (monotonic, change C1). Over budgetMs it is degraded: physical captures ask for scale degradedScale, and a reusable capture (not forced, not initial or lifecycle) with a compatible frame reuses it as screenshot_budget_skip without asking the host. The observation then takes the reused frame. Samples older than the window drop out when the next cost is charged, and the scale returns to 1.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"
