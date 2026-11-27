@@ -110,7 +110,7 @@ class ReactNativeSeamsTest {
     }
 
     @Test
-    fun whenTheHostNamesScreensTheActivityIsNotARouteAndTheFirstScreenIsTheFirst() {
+    fun whenTheHostNamesScreensTheActivityIsNotARouteAndTheFirstScreenIsTheInitialRoute() {
         TugboatAdapters.setHostNamesScreens(true)
         TugboatAdapters.install(app)
         Robolectric.buildActivity(FragmentActivity::class.java).setup()
@@ -120,9 +120,10 @@ class ReactNativeSeamsTest {
 
         Tugboat.setScreen("Tabs/Home", "k1")
         val home = navigation().single()
-        assertEquals("push", home.getString("kind"))
-        assertEquals("Tabs/Home", home.getJSONObject("route").getString("name"))
-        assertFalse(home.has("departing"))
+        assertEquals("session_start", home.getString("kind"))
+        assertEquals("Tabs/Home", home.getJSONArray("routes").getJSONObject(0).getString("name"))
+        assertTrue(home.getBoolean("captureFrame"))
+        assertFalse(home.has("route"))
 
         // Later screens push over it.
         Tugboat.setScreen("Tabs/Catalog", "k2")
@@ -130,6 +131,33 @@ class ReactNativeSeamsTest {
         assertEquals("push", catalog.getString("kind"))
         assertEquals("k1", catalog.getJSONObject("departing").getString("instanceId"))
         adapter.stop()
+    }
+
+    @Test
+    fun whenTheHostNamesScreensARestartedSessionSeedsTheStackAndTheFlagDoesNotLeak() {
+        TugboatAdapters.setHostNamesScreens(true)
+        TugboatAdapters.install(app)
+        Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        val first = startAdapter()
+        Tugboat.setScreen("Tabs/Home", "k1")
+        assertEquals("session_start", navigation().single().getString("kind"))
+        Tugboat.setScreen("Tabs/Catalog", "k2")
+        assertEquals("push", navigation().single().getString("kind"))
+        first.stop()
+
+        // A session started after a stop seeds the screens still on the stack
+        // (no frame asked for: its initial frame comes after the seed), and a
+        // screen named next is a push: the first-screen flag is not left over.
+        sink.batches.clear()
+        val second = startAdapter()
+        while (frames.hasPending) frames.runFrame()
+        val seeds = sink.batches.flatten().filter { it.type == "navigation" }.map { JSONObject(it.inputJson) }
+        assertEquals(listOf("session_start"), seeds.map { it.getString("kind") })
+        assertEquals(2, seeds.single().getJSONArray("routes").length())
+        assertFalse(seeds.single().has("captureFrame"))
+        Tugboat.setScreen("Tabs/Settings", "k3")
+        assertEquals("push", navigation().single().getString("kind"))
+        second.stop()
     }
 
     @Test

@@ -1,0 +1,360 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "navigation-session-start-late-seed-capture-frame",
+  "description": "A session_start seed with captureFrame arriving after the initial frame was accepted (a host that names its first screen late) takes a route frame of the seeded screen; the route_change keeps no afterFrame and no fromRoute, as in Flutter. The same seed without captureFrame is pinned by navigation-session-start-initial-answered-before-seed.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 7
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "$preset": "default-host"
+      },
+      "interaction": {
+        "settleDelayMs": 0,
+        "claimWindowMs": 0
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "idSeed": "4f7b94696c49c5d5eaae2787b79700d252602587017edad54cfc996a4c5b1ff7"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-724b7803-04c9-4397-8c2a-3e475ef503c9",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-861c38c8-f8b9-4aab-8217-f88553b89dfc"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5020000
+          },
+          "input": {
+            "requestId": "capture-0",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-initial",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-initial",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-initial",
+              "frame": {
+                "id": "frame-1",
+                "atMs": 20,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-initial",
+                "masked": true,
+                "trigger": "initial",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-861c38c8-f8b9-4aab-8217-f88553b89dfc"
+              }
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "navigation",
+          "at": {
+            "monoUs": 5050000
+          },
+          "input": {
+            "kind": "session_start",
+            "navigatorId": "root",
+            "routes": [
+              {
+                "instanceId": "a-home",
+                "name": "/home",
+                "type": "Page",
+                "overlayKind": "page",
+                "transitionMs": 0
+              }
+            ],
+            "captureFrame": true
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-fe744312-ead0-4230-8f63-67920d2b949a",
+                "atMs": 50,
+                "type": "route_change",
+                "stream": "evidence",
+                "captureSessionId": "session-861c38c8-f8b9-4aab-8217-f88553b89dfc",
+                "result": "unknown",
+                "data": {
+                  "route": "/home",
+                  "navigation": "session_start",
+                  "routeName": "/home",
+                  "routeType": "Page",
+                  "routeNamed": true,
+                  "navigatorId": "nav-0",
+                  "routeInstanceId": "route-0",
+                  "stackRevision": 1,
+                  "overlayKind": "page",
+                  "visualObservationGeneration": 1,
+                  "navigationOrigin": "automatic_or_unknown",
+                  "routeStack": [
+                    {
+                      "routeInstanceId": "route-0",
+                      "route": "/home",
+                      "routeNamed": true,
+                      "overlayKind": "page",
+                      "navigatorId": "nav-0"
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-1",
+              "trigger": "route",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5050000,
+              "context": {
+                "routeEpoch": 0,
+                "navigatorId": "nav-0",
+                "routeInstanceId": "route-0",
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-1",
+              "atMonoUs": 10050000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 5100000
+          },
+          "input": {
+            "requestId": "capture-1",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-route",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-route",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-route",
+              "frame": {
+                "id": "frame-4",
+                "atMs": 100,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-route",
+                "masked": true,
+                "trigger": "route",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-861c38c8-f8b9-4aab-8217-f88553b89dfc"
+              }
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-1"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-861c38c8-f8b9-4aab-8217-f88553b89dfc",
+        "captureSessionId": "session-861c38c8-f8b9-4aab-8217-f88553b89dfc",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [
+        {
+          "id": "frame-1",
+          "atMs": 20,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-initial",
+          "masked": true,
+          "trigger": "initial",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-861c38c8-f8b9-4aab-8217-f88553b89dfc"
+        },
+        {
+          "id": "frame-4",
+          "atMs": 100,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-route",
+          "masked": true,
+          "trigger": "route",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-861c38c8-f8b9-4aab-8217-f88553b89dfc"
+        }
+      ],
+      "events": [
+        {
+          "id": "event-724b7803-04c9-4397-8c2a-3e475ef503c9",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-861c38c8-f8b9-4aab-8217-f88553b89dfc"
+        },
+        {
+          "id": "event-fe744312-ead0-4230-8f63-67920d2b949a",
+          "atMs": 50,
+          "type": "route_change",
+          "stream": "evidence",
+          "captureSessionId": "session-861c38c8-f8b9-4aab-8217-f88553b89dfc",
+          "result": "unknown",
+          "data": {
+            "route": "/home",
+            "navigation": "session_start",
+            "routeName": "/home",
+            "routeType": "Page",
+            "routeNamed": true,
+            "navigatorId": "nav-0",
+            "routeInstanceId": "route-0",
+            "stackRevision": 1,
+            "overlayKind": "page",
+            "visualObservationGeneration": 1,
+            "navigationOrigin": "automatic_or_unknown",
+            "routeStack": [
+              {
+                "routeInstanceId": "route-0",
+                "route": "/home",
+                "routeNamed": true,
+                "overlayKind": "page",
+                "navigatorId": "nav-0"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

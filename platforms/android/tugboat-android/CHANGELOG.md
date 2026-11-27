@@ -17,9 +17,11 @@ wiring, window capture, and the Android Views adapter.
 - React Native seam: `TugboatAdapters.setHostNamesScreens(true)` (adapter
   opt-in) for a host that names its own screens with `Tugboat.setScreen`: no
   activity route is reported, so the session's first route is the first screen
-  named (a push, captured like any navigation), not the activity followed by
-  that screen. An app that never names a screen then reports no routes. Off by
-  default: apps that do not call it are unchanged.
+  named, sent as the `session_start` seed as in Flutter (not the activity
+  followed by that screen). The host names it after the first frame, so the
+  seed asks the engine for a frame of that screen (`captureFrame`). An app that
+  never names a screen then reports no routes. Off by default: apps that do not
+  call it are unchanged.
 - Taps carry `routeKey` (the route key the fingerprint was hashed under) as in
   Flutter. The engine reads it from the anchor's `fingerprintParts`; the Views
   adapter already sent it. Needs the engine in this tree (`capture-runtime`

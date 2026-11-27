@@ -676,7 +676,8 @@ navigation {kind: push|pop|replace|remove|session_start, navigatorId,
             parentNavigatorId?,
             route?: {instanceId, name?, type, overlayKind, transitionMs},
             departing?: {instanceId, name?, type?},
-            routes?: [{instanceId, name?, type, overlayKind, transitionMs}, …]}
+            routes?: [{instanceId, name?, type, overlayKind, transitionMs}, …],
+            captureFrame?: bool}
 ```
 
 `session_start` seeds the visible stack at session start (Flutter
@@ -710,6 +711,17 @@ matching Flutter's outcome when `seedSessionStartRoute()` runs before the
 initial capture request. A live navigation re-stamps nothing: an `initial`
 capture requested before it keeps the route context it had (the last
 seed's, or none) and is stale because its route epoch is older, as in Dart.
+
+`captureFrame` (`session_start` only, default `false`; rejected on any other
+kind) is for a host that names its first screen after the session's first
+frame (React Native): the `initial` frame was taken before the route was
+known, or failed, so a recorded seed with `captureFrame: true` requests one
+forced `route` capture of the seeded route (owner-less: no `route_change`
+waits on it, which keeps no `afterFrame`, as in Flutter). The frame is stored
+even when its content equals the initial frame's. A dropped seed requests
+nothing; without the flag nothing is requested. If the `initial` capture is
+still in flight at the seed it is re-stamped as above and the route capture
+queues behind it.
 
 `route` is the destination: the pushed route, the replacement, or the route
 a pop or removal reveals; it is absent when none is (Dart's `previousRoute`

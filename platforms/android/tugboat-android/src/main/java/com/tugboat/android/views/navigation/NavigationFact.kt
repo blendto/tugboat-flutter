@@ -55,6 +55,8 @@ internal data class SessionStartSnapshot(
     val navigatorId: String,
     val parentNavigatorId: String?,
     val routes: List<RouteEntry>,
+    /** Ask for a frame of the seeded route when the seed arrives after the first frame (host-named screens). */
+    val captureFrame: Boolean = false,
 ) {
     fun toFact(at: HostTime): ViewsFact {
         val input = JSONObject()
@@ -62,6 +64,7 @@ internal data class SessionStartSnapshot(
             .put("navigatorId", navigatorId)
         parentNavigatorId?.let { input.put("parentNavigatorId", it) }
         input.put("routes", JSONArray().apply { routes.forEach { put(routeWireJson(it)) } })
+        if (captureFrame) input.put("captureFrame", true)
         return ViewsFact(FactTypes.NAVIGATION, input, at)
     }
 }
