@@ -9,7 +9,7 @@ written for React Native 0.88 / React 19.3. They are not production code.
 ## Touched fiber (S1)
 
 ```js
-// RN <= 0.80 had event._targetInst. On 0.88 it is gone; event.target is a
+// On 0.88 event._targetInst is gone (older RN not run here; unverified); event.target is a
 // ReactNativeElement with own keys __nativeTag, __internalInstanceHandle, __viewConfig.
 function fiberFromRef(ref) {
   const r = ref && ref.current;
@@ -114,3 +114,20 @@ XMLHttpRequest.prototype.send = function () {
   localhost collector.
 - Build flags used on Android: `-PreactNativeArchitectures=arm64-v8a`, `compileSdk 36`,
   build-tools 36.0.0, NDK 28.2 (the SDK already on the machine; nothing was installed).
+
+## Captured Android output (copied from the session; the capture files were overwritten)
+
+```
+SPIKE env {"os":"android","osVersion":31,"rn":{"minor":88,"patch":1,"major":0},"react":"19.3.0","flash":"2.3.3","dev":false,"hermes":true,"hermesProps":{...,"Build":"Release",...   (cut off at 400 chars)
+I/SpikeOkHttp: REQ GET https://example.com/?via=fetch
+I/SpikeOkHttp: REQ GET https://example.com/?via=xhr
+I/SpikeOkHttp: RES 200 https://example.com/?via=fetch
+I/SpikeOkHttp: RES 200 https://example.com/?via=xhr
+SPIKE net {"via":"xhr-wrapper","method":"GET","url":"https://example.com/?via=fetch","status":200,"ms":1723,...}
+SPIKE net {"via":"xhr-wrapper","method":"GET","url":"https://example.com/?via=xhr","status":200,"ms":1724,...}
+SPIKE netdone {"via":"fetch","len":577}   SPIKE netdone {"via":"xhr","status":200}
+TOUCH tgt=20 inst=true/target.internalInstanceHandle host=AndroidSwitch#sw act=Switch route=Main/Main/Feed
+TOUCH tgt=16 inst=true/target.internalInstanceHandle host=AndroidTextInput#input-single act=TextInput
+TOUCH tgt=34 host=RCTText#hs-1 chain=RCTText<RCTView#hs-1<AndroidHorizontalScrollContentView<AndroidHorizontalScrollView#hscroll<RCTView
+      scr=[{AndroidHorizontalScrollContentView,70},{AndroidHorizontalScrollView,72,hscroll},{RCTScrollView,84,outer-scroll}]
+```

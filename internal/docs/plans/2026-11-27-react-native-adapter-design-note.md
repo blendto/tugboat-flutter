@@ -572,7 +572,7 @@ and the BLE-670 alias work are to be confirmed before release).
   | --- | --- |
   | `Pressable` | a fiber with `onPress`, `onPressIn` or `onLongPress`, on its nearest host node |
   | `TextInput` | `AndroidTextInput`, `RCTSinglelineTextInputView`, `RCTMultilineTextInputView` |
-  | `Switch` | `AndroidSwitch`, and the iOS name **[spike: confirm]** |
+  | `Switch` | `AndroidSwitch`; iOS `RCTSwitch` (spike 15.4, 0.88) |
   | `Scrollable` | `RCTScrollView`, **`AndroidHorizontalScrollView`**, and any other per-OS scroll host (without it, carousels differ across OSes) |
   | `Image` | `RCTImageView` |
   | `Text` | `RCTText`, `RCTVirtualText` |
@@ -594,8 +594,8 @@ and the BLE-670 alias work are to be confirmed before release).
 - **Kept.** Pressables, text inputs, switches, scrollables, nodes with a `testID`,
   maskable leaves. Everything else collapses.
 - **Lists.** A list cell is recognized **without function names** by its prop shape:
-  a numeric `index` prop together with a `cellKey` (or the FlashList cell
-  container's `index`), **[spike]**. It adds `[item:<index>]`. Without a match the
+  a numeric `index` prop together with a `cellKey` (`FlatList`, spike 15.5); FlashList 2 does
+  not match this and needs a second branch (`ViewHolder` props, not yet run). It adds `[item:<index>]`. Without a match the
   segment is `[item]` at `low`. The index, not the key, matches Flutter and Android.
 - **Pager.** Section 12.
 - **Route key.** Section 4: the path of route names of the nearest enclosing
@@ -709,7 +709,7 @@ Expo Router.
 
 | # | Item | Pass |
 | --- | --- | --- |
-| S1 | Fiber walk: `event._targetInst`, `.return`, `memoizedProps` | Resolves the touched node and its ancestors on every matrix cell, in release builds. |
+| S1 | Fiber walk: `event._targetInst` (absent on 0.88; see 15.2), `.return`, `memoizedProps` | Resolves the touched node and its ancestors on every matrix cell, in release builds. |
 | S2 | Route-context provider walk, including the React 19 provider shape, compared against exported `NavigationRouteContext` by reference | Finds the route of a control on every cell. |
 | S3 | Host component names per OS and version (text input, switch, scroll, horizontal scroll, image, text, view, pager) | The role table is complete and the same per role on both OSes. |
 | S4 | FlatList and FlashList (v1 and v2) cell recognition and `index` by prop shape | `[item:index]` matches the data index on every list type. |
@@ -738,7 +738,7 @@ passing.
 | Android | Nokia 5.4 (Android 12, 720x1560), arm64, `assembleRelease` APK (Hermes bytecode, R8 off), real touches by `adb shell input tap`/`swipe`, `uiautomator dump`, `dumpsys activity top`, logcat. Spike package `com.tugboatspike.s88`, uninstalled afterwards. |
 | iOS | iOS 27.2 simulator (iPhone 18 Pro), **Debug** only, real UIKit touches from an XCUITest, a native hierarchy dump written by the mask view. iOS **Release was not run** (time-box). |
 | App | React Navigation 7 (native-stack, bottom-tabs), `react-native-screens` 4.30.1, `@shopify/flash-list` 2.3.3, a custom Fabric component `TugboatMaskView` (autolinked library with iOS `.mm` and Android Kotlin, codegen on). Probe code: [spike probes](2026-11-27-react-native-spike-probes.md). |
-| Env facts | `nativeFabricUIManager` is an `object`, `RN$Bridgeless` is `true`, `__turboModuleProxy` is `undefined` (bridgeless) on both OS; `Hermes` `Build: "Release"`, bytecode version 99. |
+| Env facts | **iOS debug:** `nativeFabricUIManager` is an `object`, `RN$Bridgeless` is `true`, `__turboModuleProxy` is `undefined`. **Android release:** the env line showed `os: android`, `osVersion: 31` (API level), RN `0.88.1`, React `19.3.0`, `dev: false`, Hermes `Build: "Release"`, bytecode version 99; the Fabric and bridgeless fields were cut off in the capture, so they are **not recorded for Android** (the Fabric mask view and `react-native-screens` did render there). The Android lines quoted in this section are copied from the session output; the capture files were overwritten (see the probes doc). |
 
 Result key: **pass** (observed), **fail**, **fallback** (works another way), **partial**,
 **not run**.
@@ -749,8 +749,8 @@ Result key: **pass** (observed), **fail**, **fallback** (works another way), **p
 | S2 | Route-context walk, React 19 shape | path found, compared by reference | same | **pass**, with a duplicate-segment caveat (15.3). React 18 shape **not run** |
 | S3 | Host names | table in 15.4, complete for core roles | table in 15.4 | **partial**: roles differ by OS, pager not run |
 | S4 | List cell index | `FlatList` pass; FlashList v2 **fail** (rule as written) | same | **partial** (15.5) |
-| S5 | Custom mask view | exists natively with and without `collapsable={false}`; layout neutral | same, plus the hierarchy dump | **pass** for the 0.88 cases tested; `react-native-screens`, `removeClippedSubviews` and animation **not run** |
-| S6 | New Architecture detection | `nativeFabricUIManager` = `object` | same | **pass** for "present". The old-architecture "absent" leg **not run** |
+| S5 | Custom mask view | native views exist for the mask with `collapsable={false}` and for a mask without it, but the without-prop case also had `testID` and `onLayout` (15.6); layout neutral | same, plus the hierarchy dump | **pass with `collapsable={false}`**. "Survives without the prop" is **not isolated**. `react-native-screens`, `removeClippedSubviews` and animation **not run** |
+| S6 | New Architecture detection | not logged (see Env facts) | `nativeFabricUIManager` = `object` | **pass on iOS** for "present"; Android **not recorded**. The old-architecture "absent" leg **not run** |
 | S7 | Touch matching by timestamp + identifier | `nativeEvent.timestamp` is on the `uptimeMillis` scale (consistent with `MotionEvent.eventTime`); native side **not hooked** | **20 of 20** JS touches equal a native `UITouch.timestamp * 1000` within 0.001 ms; `identifier` was always `0` (single touch) | **pass** iOS, **partial** Android; multi-touch and brownfield offsets **not run** |
 | S8 | Scroll matching by view tag | JS tag equals the native view id (`#54` = 84 outer, `#48` = 72 horizontal) | JS tag equals `UIView.tag` (84 outer scroll) | **pass** for tag equality. Native scroll-start to anchor matching **not run** |
 | S9 | Native hit view: React-managed or not | **not run** | native-stack back button hit view is `_UIButtonBarButton` with `tag=0`; the JS root handler also fired | **partial** (15.6) |
@@ -763,21 +763,27 @@ Network (asked for in the narrowed scope; not an S item):
 
 | Check | Result |
 | --- | --- |
-| Native OkHttp interceptor on Android (release) | **pass.** `NetworkingModule.setCustomClientBuilder(CustomClientBuilder { b -> b.addInterceptor { ... } })` in `Application.onCreate` saw `REQ` and `RES 200` for both a `fetch` and an `XMLHttpRequest` (`https://example.com/`). It also saw the probe's own `http://localhost` posts, i.e. everything RN's networking module sends. |
-| JS wrapper on `XMLHttpRequest.prototype.open/send` (Android release) | **pass.** Saw the `fetch` call (it rides on XHR) and the direct XHR, with method, URL, status, duration and `responseURL`. |
+| Native OkHttp interceptor on Android (release) | **pass.** `NetworkingModule.setCustomClientBuilder(CustomClientBuilder { b -> b.addInterceptor { ... } })` in `Application.onCreate` saw `REQ` and `RES 200` for both a `fetch` and an `XMLHttpRequest` (`https://example.com/`). It also saw the probe's own `http://localhost` posts, i.e. everything RN's networking module sends. Observed live in logcat; the lines are quoted in the probes doc, the capture file was not retained. |
+| JS wrapper on `XMLHttpRequest.prototype.open/send` (Android release) | **pass.** Saw the `fetch` call (it rides on XHR) and the direct XHR, with method, URL, status, duration and `responseURL`. Observed live; lines quoted in the probes doc, capture file not retained. |
 | Not covered | Image loads (Fresco), `WebView`, libraries with their own OkHttp, `expo/fetch`; iOS (`URLProtocol` or the same JS wrapper) not run. |
 
 ### 15.2 S1: the touched fiber (changes the design)
 
 - **`event._targetInst` does not exist in React Native 0.88 / React 19.3.** The
   touch event's own keys are `_defaultPrevented, _type, _bubbles, _cancelable,
-  _composed, _rnIsDirect, _timeStamp, _nativeEvent, _dispatchConfig`. Sections 2.4
-  and 10 named `_targetInst` as the primary source: that is wrong for this version.
-- **What works** (Android release and iOS debug, every probed target, 0 misses):
+  _composed, _rnIsDirect, _timeStamp, _nativeEvent, _dispatchConfig`. Section 2.4
+  named `_targetInst` as the primary source (and the S1 row of section 15): that is
+  wrong for this version. Older RN versions were **not run**, so whether they have
+  `_targetInst` is unverified here.
+- **What works** (every probed target, 0 misses). Android release: `Text` in a `Pressable`,
+  `Switch`, `TextInput`, horizontal-scroll rows, the outer scroll, tab buttons, `FlatList`
+  and `FlashList` rows (the `Switch`, `TextInput` and horizontal-scroll lines are from the
+  first Android capture, which was overwritten; they are quoted in the probes doc). iOS
+  debug: the same set, kept in `ios88-debug.log`.
   `event.target` is a `ReactNativeElement` whose own keys are `__nativeTag`,
   `__internalInstanceHandle` and `__viewConfig`. `event.target.__internalInstanceHandle`
   **is the host fiber** (`.return`, `.memoizedProps`, `.type` are all there).
-  Resolution order for the adapter: `_targetInst` (older RN, if present), then
+  Proposed resolution order for the adapter: `_targetInst` (if present; unverified on older RN), then
   `event.target.__internalInstanceHandle`, then a search of the committed tree by
   `nativeEvent.target` (the React tag). The tag search is written in the probe but
   was never needed here.
@@ -812,11 +818,14 @@ Network (asked for in the narrowed scope; not an S item):
   `NavigationRouteContext` (exported by `@react-navigation/native`) compared **by
   reference** against `fiber.type`, and `memoizedProps.value.name` gave the route
   name. This works in the release build on Android and in debug on iOS.
-- **Caveat found:** with a stack screen `Main` containing a tab navigator, the walk
-  returned `Main/Main/Feed`, not `Main/Feed`. The same route appears to be provided
-  more than once on the way up. The probe did not log `route.key`, so the cause is
-  unconfirmed. The adapter needs to collapse consecutive providers with the same
-  `route.key` (and a test for it); this is not proven to be the whole story.
+- **Caveat found:** the walk returned `Main/Main/Feed` for a tab screen inside the
+  stack screen `Main` (expected `Main/Feed`), and the iOS log also shows `Detail/Detail`
+  for a plain stack screen, while the tab route `Feed` was not doubled. So the doubling
+  follows **native-stack screens**, not nested navigators: the stack route appears to be
+  provided twice. A tap on the native-stack back button returned an **empty** route
+  (the target is outside any route provider). The probe did not log `route.key`, so the
+  cause is unconfirmed. The adapter needs to collapse consecutive providers with the
+  same `route.key` (and a test for it).
 
 ### 15.4 S3: host component names (Fabric, RN 0.88.1)
 
@@ -829,16 +838,19 @@ what the native allowlist (section 3.4) sees.
 | Text | `RCTText` | `ReactTextView` | `RCTText` | `RCTParagraphComponentView` |
 | Text input | `AndroidTextInput` (single and multiline) | `ReactEditText` | `RCTSinglelineTextInputView`, `RCTMultilineTextInputView` | `RCTTextInputComponentView` |
 | Switch | `AndroidSwitch` | `ReactSwitch` | `RCTSwitch` | `RCTSwitchComponentView` |
-| Vertical scroll, `FlatList`, `FlashList` | `RCTScrollView` | `ReactScrollView` | `RCTScrollView` + child `RCTScrollContentView` | `RCTScrollViewComponentView` |
+| Vertical scroll, `FlatList`, `FlashList` | `RCTScrollView` + a plain `RCTView` content child | `ReactScrollView` | `RCTScrollView` + child `RCTScrollContentView` | `RCTScrollViewComponentView` |
 | Horizontal scroll | **`AndroidHorizontalScrollView`** + child `AndroidHorizontalScrollContentView` | `ReactHorizontalScrollView` | `RCTScrollView` + child `RCTScrollContentView` | `RCTScrollViewComponentView` |
 | Image | `RCTImageView` | `ReactImageView` (Fresco) | `RCTImageView` | image component view |
 
 - Differences the role table must absorb: text input (`AndroidTextInput` vs two iOS
   names), switch (`AndroidSwitch` vs `RCTSwitch`), horizontal scroll (a separate
-  Android type), and the **content-view hosts** (`RCTScrollContentView` on iOS for
-  every scroll view, `AndroidHorizontalScrollContentView` on Android only for the
-  horizontal one). The content views must be transparent (no segment), or ordinals
-  differ between OSes.
+  Android type), and the **content-view hosts**: iOS uses `RCTScrollContentView` for
+  every scroll view, Android uses `AndroidHorizontalScrollContentView` for the
+  horizontal one and a plain `RCTView` child for vertical ones (a tap on the list body
+  targeted an `RCTView` child of the `RCTScrollView`). The content child must not get
+  its own segment, or ordinals differ between OSes; because the Android vertical content
+  child is an ordinary `RCTView`, it has to be recognized by position (direct child of a
+  scroll host), not by type.
 - Third-party hosts seen: `RNCSafeAreaProvider`, `RNSScreenStack`, `RNSScreen`,
   `RNSScreenContentWrapper`, `RNSScreenStackHeaderConfig`, plus `RNSScreenContainer`
   (Android) vs `RNSScreenNavigationContainer` and `RNSSafeAreaView` (iOS). The
@@ -856,19 +868,24 @@ what the native allowlist (section 3.4) sees.
   host): every tap in a FlashList row returned `cell: null`. FlashList 2 renders
   rows through `ViewHolder` (inside `ViewHolderCollection`); from its source
   (`recyclerview/ViewHolderCollection.tsx`, `ViewHolder.tsx`) the props are `index`,
-  `item`, `layout`, `refHolder`, `target="Cell"`, `renderItem`, `extraData`. A rule
+  `item`, `trailingItem`, `layout`, `refHolder`, `onSizeChanged`, `target="Cell"`,
+  `renderItem`, `extraData`, `CellRendererComponent`. A rule
   of "numeric `index` plus `target === 'Cell'`" is the likely second branch.
   **Not verified by a run**; FlashList 1 not run.
 
 ### 15.6 S5 and S9: the custom mask view, and native hit views
 
-- **Never flattened (iOS dump, `TugboatMaskView` tags in the hierarchy).** In three
-  nested layout-only `View`s, the mask view survived **both with `collapsable={false}`
-  and without the prop**, and the three wrapper `View`s were flattened away (the mask's
-  parent in the native tree is the scroll content view). A `View` with only a
-  `nativeID` was kept, as the docs say. On Android the same two mask views exist as
-  native `ViewGroup`s (the `uiautomator` tree shows `maskA` and `maskA2` with their
-  `testID`s). Keep `collapsable={false}` anyway.
+- **Survives flattening with `collapsable={false}` (iOS dump, `TugboatMaskView` tags in
+  the hierarchy).** In three nested layout-only `View`s, the mask view was present and
+  the three wrapper `View`s were flattened away (the mask's parent in the native tree is
+  the scroll content view). **Caveat, not isolated:** the "without the prop" mask (A2)
+  also had a `testID` and an `onLayout`, and either of those keeps a plain `View`, as
+  does the `nativeID` and `onLayout` on the row B wrapper. The one mask with none of
+  those (row D) was created with `collapsable={false}`. So the run shows the production
+  shape works and does **not** show that a custom Fabric component survives without the
+  prop; section 18's open question stays open. On Android the mask views exist as native
+  `ViewGroup`s (the `uiautomator` tree shows `maskA` and `maskA2` with their `testID`s).
+  Keep `collapsable={false}`.
 - **Layout neutral.** Rows A (mask, `collapsable={false}`), A2 (mask without it), B
   (plain wrapper) and C (no wrapper) sit on an exact 29 dp (iOS) / 55 px (Android)
   pitch, and the mask's `onLayout` rectangle equals its child text's rectangle
@@ -884,39 +901,45 @@ what the native allowlist (section 3.4) sees.
   `UIView` (it is a category), so it is not a usable test. The rule needs "walk to the
   nearest `tag != 0` ancestor, and treat a known allowlist of internal subviews as that
   ancestor", plus a check that the hit view is inside the React root. The JS root
-  touch handler **also fired** on the nav-bar tap, so the "JS sees only React views"
-  assumption in section 5.4 is wrong for native-stack headers on iOS. `Alert`, native
+  touch handler **also fired** on the nav-bar tap, so on iOS a tap on a native-stack header
+  reaches JS with the target set to an ancestor (`RNSScreenStack`). Section 5.4 decides
+  native-only targets natively at `down`, which still holds, but JS must not assume every
+  touch it receives hit a React-managed view. `Alert`, native
   tab bars and Android: **not run**.
 
 ### 15.7 What this changes (recommendation for 0.0.1)
 
-The plan holds. Build release 1 on **RN 0.82 and later, New Architecture**, with these
+The plan holds on 0.88.1 (the only version run). The note's decision stays **0.76 and later**
+(section 2.1, Q1, section 7); nothing below 0.88.1 was run, so 0.76 to 0.87 is untested
+and a narrower range (for example 0.82 and later) is a scope option, not a result. Proposed
 changes to the note:
 
 1. **Identity source (sections 2.4, 10, 14).** Use `event.target.__internalInstanceHandle`
-   first, `_targetInst` as a legacy fallback, the tag search as the last resort. The
-   canary tests this path on every RN bump. `_targetInst` is not usable on 0.88.
+   first, `_targetInst` as a fallback (unverified on older RN), the tag search as the last
+   resort. The canary tests this path on every RN bump. `_targetInst` is not usable on 0.88.
 2. **Native degraded identity.** When JS identity is missing, native can still send
    class, `testID` (a11y id / `accessibilityIdentifier`) and React tag for the hit view.
    Treat it as `low` confidence; it is not a structural path.
-3. **Role table (section 10).** Use the 15.4 names; make the scroll and scroll content
-   hosts, `RNS*` and `RNC*` hosts `Node` (transparent), and absorb the per-OS names.
+3. **Role table (section 10).** Use the 15.4 names; scroll hosts keep the `Scrollable` role; the scroll
+   *content* child (see 15.4), `RNS*` and `RNC*` hosts are `Node` (transparent); absorb the
+   per-OS names.
 4. **Lists (section 10).** `FlatList`: numeric `index` plus `cellKey`. `FlashList` 2:
    add a second branch for `ViewHolder` props; verify before relying on it.
 5. **Route walk (section 4, 10).** React 19 shape confirmed; collapse duplicate
    consecutive providers by `route.key`.
-6. **Mask (section 3.3).** A custom Fabric component survives flattening on 0.88; keep
-   `collapsable={false}`; the hierarchy-dump technique in the probes doc is reusable
+6. **Mask (section 3.3).** A custom Fabric component with `collapsable={false}` survives
+   flattening on 0.88 (the without-prop case is not isolated); keep `collapsable={false}`; the hierarchy-dump technique in the probes doc is reusable
    for the device tests.
 7. **Network (section 9).** Both routes work on Android: a native OkHttp interceptor
    through `NetworkingModule.setCustomClientBuilder`, and a JS `XMLHttpRequest`
-   wrapper. They would **double-record** if both were on. For 0.0.1 the JS wrapper is
-   the smaller change (one resolver, both OSes, iOS native path not yet tested); if
-   the native interceptor is chosen, JS wrapping must stay off. The roadmap
-   contradiction is not resolved by this spike.
+   wrapper. They would **double-record** if both were on. If network is pulled forward
+   from release 2 into 0.0.1 (the user's narrowed goal; decision 8 and section 9 currently
+   say release 2), the JS wrapper is the smaller change (one resolver, both OSes, iOS
+   native path not yet tested); if the native interceptor is chosen, JS wrapping must stay
+   off. The roadmap contradiction is not resolved by this spike.
 8. **Time-to-working.** A custom Fabric view, the identity walk and the network hooks
-   all built and ran on the first or second attempt on 0.88; the risk is not "does it
-   work" but the untested legs below.
+   all built and ran on 0.88 (the iOS probe needed fixes to my own probe code, not to
+   RN); the risk is the untested legs below, not these.
 
 **Still open (not run):** 0.76 and a mid version; React 18; iOS Release and
 debug-vs-release fingerprint equality (S14); `react-native-screens` detach,
