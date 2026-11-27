@@ -21,7 +21,9 @@ import com.tugboat.android.views.facts.FactSink
 import com.tugboat.android.views.facts.FrameScheduler
 import com.tugboat.android.views.facts.ViewsFact
 import com.tugboat.android.views.identity.AnchorResolver
+import com.tugboat.android.adapter.TugboatAdapters
 import com.tugboat.android.views.identity.AndroidResourceNames
+import com.tugboat.android.views.identity.FallbackNames
 import com.tugboat.android.views.input.FocusState
 import com.tugboat.android.views.input.GestureConfig
 import com.tugboat.android.views.inventory.SceneInventoryBuilder
@@ -74,7 +76,7 @@ internal class ViewsAdapter(
     private val clock = FactClock(hostClock)
     private val batcher = FactBatcher(sink, frames, ::onFrame)
     private val routes = NavigationObservation.routesAccessor
-    private val names = AndroidResourceNames(application.resources)
+    private val names = FallbackNames(AndroidResourceNames(application.resources)) { TugboatAdapters.viewNameProvider }
     private val anchors = AnchorResolver(names, routes)
     private val inventory = SceneInventoryEmitter(
         routes,

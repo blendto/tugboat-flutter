@@ -8,6 +8,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.Lifecycle
+import com.tugboat.android.adapter.TugboatAdapters
 import com.tugboat.android.views.AdapterGuard
 import com.tugboat.android.views.OptionalAndroidx
 import com.tugboat.android.views.identity.Confidence
@@ -127,7 +128,11 @@ internal class FragmentNavigation(
             AdapterGuard.run("fragment destroyed") { onDestroyed(f) }
     }
 
+    private fun isIgnored(fragment: Fragment): Boolean =
+        TugboatAdapters.fragmentFilter?.invoke(fragment.javaClass.name) == true
+
     private fun onResumed(fm: FragmentManager, fragment: Fragment) {
+        if (isIgnored(fragment)) return
         val view = fragment.view ?: return
         // Children resume before their parent's callback: show the parent first.
         fragment.parentFragment?.let { parent -> onResumed(parent.parentFragmentManager, parent) }
@@ -142,6 +147,7 @@ internal class FragmentNavigation(
     }
 
     private fun onDestroyed(fragment: Fragment) {
+        if (isIgnored(fragment)) return
         val entry = entries.remove(fragment) ?: return
         fragment.view?.let(roots::remove)
         val stack = stackFor(fragment) ?: return
