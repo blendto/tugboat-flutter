@@ -30,7 +30,8 @@ compile_plugin() {
 }
 
 echo "Plugin against the pinned capture-runtime:"
-compile_plugin
+# The example otherwise always resolves the in-repo runtime.
+TUGBOAT_PUBLISHED_CAPTURE_RUNTIME=1 compile_plugin
 
 echo "Plugin against capture-runtime $runtime_version from .local-maven only:"
 TUGBOAT_CAPTURE_RUNTIME_VERSION="$runtime_version" TUGBOAT_LOCAL_MAVEN="$local_maven" \

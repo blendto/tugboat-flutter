@@ -6,10 +6,19 @@
   A failing row is recorded with its reason and does not fail the run.
 - `capture_profile_test.dart`: capture backend benchmark (below).
 
-CI runs all three on an Android emulator and an iOS simulator through
+The device suite workflow (`.github/workflows/device-suite.yml`) runs all
+three on an Android emulator and an iOS simulator through
 `tool/ci/device-report/run-device-suite.sh`, and
-`tool/ci/device-report/render-report.py` posts the results as one PR
-comment (`.github/workflows/flutter-integration.yml`).
+`tool/ci/device-report/render-report.py` renders the results as one report.
+It is not a merge gate and runs only when asked for:
+
+- Actions tab, "Device suite", "Run workflow" (optionally a ref, the
+  platforms, and a PR number to post the report on).
+- A pull request labelled `device-report`: the suite runs on every push
+  while the label is on and keeps one PR comment up to date. A run that
+  does not finish leaves the last full report in place and marks it out of
+  date.
+- Another workflow, with `uses: ./.github/workflows/device-suite.yml`.
 
 # Capture backend profiling
 

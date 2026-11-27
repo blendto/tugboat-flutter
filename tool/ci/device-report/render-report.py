@@ -6,8 +6,13 @@ one Markdown document. The first line is a hidden marker the workflow uses to
 find and update its PR comment.
 
 Usage:
-  render-report.py --android DIR --ios DIR --sdk-version-file PATH \
-      --sha SHA --run-url URL [--expected-rows N] > report.md
+  render-report.py [--android DIR] [--ios DIR] --sdk-version-file PATH \
+      --sha SHA --run-url URL [--expected-rows N] [--complete-file PATH] \
+      > report.md
+
+A platform left out was not requested in this run. --complete-file receives
+"true" when every requested platform recorded the full checklist and a
+default-backend profile, else "false".
 """
 
 import argparse
@@ -76,8 +81,13 @@ def describe_device(data):
     return text + ", " + ", ".join(e for e in extra if e)
 
 
+NOT_REQUESTED = "not requested"
+
+
 def load_platform(root):
-    if not root or not Path(root).is_dir():
+    if root is None:
+        return NOT_REQUESTED
+    if not Path(root).is_dir():
         return None
     base = Path(root)
     return {
@@ -97,7 +107,7 @@ def checklist_section(platforms, expected_rows):
     order, titles = [], {}
     results = {}
     for key, _ in PLATFORMS:
-        data = platforms.get(key)
+        data = requested(platforms.get(key))
         rows = ((data or {}).get("checklist") or {}).get("checklist") or []
         results[key] = {row["id"]: row for row in rows}
         for row in rows:
@@ -113,7 +123,9 @@ def checklist_section(platforms, expected_rows):
         cells = []
         for key, name in PLATFORMS:
             row = results[key].get(row_id)
-            if row is None:
+            if platforms.get(key) == NOT_REQUESTED:
+                cells.append("– not requested")
+            elif row is None:
                 cells.append("– not run")
             elif row["pass"]:
                 cells.append("✅")
@@ -122,6 +134,8 @@ def checklist_section(platforms, expected_rows):
                 failures.append(f"- **{name} · {titles[row_id]}:** {row.get('reason') or 'no reason recorded'}")
         lines.append(f"| {titles[row_id]} | " + " | ".join(cells) + " |")
     for key, name in PLATFORMS:
+        if platforms.get(key) == NOT_REQUESTED:
+            continue
         got = len(results[key])
         if got < max(expected_rows, len(order)):
             failures.append(f"- **{name}:** only {got} of {max(expected_rows, len(order))} rows were recorded (see the run logs).")
@@ -205,6 +219,9 @@ def benchmark_section(platforms):
     for key, name in PLATFORMS:
         data = platforms.get(key)
         lines += ["", f"#### {name}", ""]
+        if data == NOT_REQUESTED:
+            lines.append("Not requested in this run.")
+            continue
         if not data:
             lines.append("No results: the job produced no report artifact.")
             continue
@@ -232,7 +249,7 @@ def benchmark_section(platforms):
 
 def header(platforms, args):
     flutter = next(
-        (p["flutter"] for p in platforms.values() if p and p.get("flutter")), None
+        (p["flutter"] for p in platforms.values() if requested(p) and p.get("flutter")), None
     ) or {}
     flutter_text = flutter.get("frameworkVersion", "unknown")
     if flutter.get("dartSdkVersion"):
@@ -247,11 +264,11 @@ def header(platforms, args):
         "| | " + " | ".join(n for _, n in PLATFORMS) + " |",
         "|---|" + "---|" * len(PLATFORMS),
     ]
-    devices = [describe_device(platforms[k]) if platforms.get(k) else "no results" for k, _ in PLATFORMS]
+    devices = [device_cell(platforms.get(k)) for k, _ in PLATFORMS]
     lines.append("| Device / runtime | " + " | ".join(devices) + " |")
     modes = []
     for key, _ in PLATFORMS:
-        data = platforms.get(key) or {}
+        data = requested(platforms.get(key)) or {}
         found = sorted({(s or {}).get("mode") for s in (data.get("profiles") or {}).values() if s})
         modes.append(", ".join(m for m in found if m) or "–")
     lines.append("| Benchmark build mode | " + " | ".join(modes) + " |")
@@ -267,6 +284,31 @@ def header(platforms, args):
     return lines
 
 
+def requested(data):
+    """The platform's data, or None when it was not requested."""
+    return None if data == NOT_REQUESTED else data
+
+
+def device_cell(data):
+    if data == NOT_REQUESTED:
+        return "not requested"
+    return describe_device(data) if data else "no results"
+
+
+def is_complete(platforms, expected_rows):
+    """Every requested platform has the full checklist and a default profile."""
+    ran = [d for d in platforms.values() if d != NOT_REQUESTED]
+    if not ran:
+        return False
+    for data in ran:
+        if not data:
+            return False
+        rows = (data.get("checklist") or {}).get("checklist") or []
+        if len(rows) < expected_rows or not data["profiles"].get(BACKENDS[0]):
+            return False
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--android")
@@ -275,12 +317,16 @@ def main():
     parser.add_argument("--sha", required=True)
     parser.add_argument("--run-url", required=True)
     parser.add_argument("--expected-rows", type=int, default=13)
+    parser.add_argument("--complete-file")
     args = parser.parse_args()
     platforms = {"android": load_platform(args.android), "ios": load_platform(args.ios)}
     lines = header(platforms, args)
     lines += checklist_section(platforms, args.expected_rows)
     lines += [""] + benchmark_section(platforms)
     print("\n".join(lines))
+    if args.complete_file:
+        complete = is_complete(platforms, args.expected_rows)
+        Path(args.complete_file).write_text("true" if complete else "false")
 
 
 if __name__ == "__main__":

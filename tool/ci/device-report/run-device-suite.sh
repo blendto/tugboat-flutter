@@ -82,10 +82,34 @@ else
 fi
 cat "$out/device.json"
 
+# ---- 0. iOS warm-up -----------------------------------------------------------
+# On the first launch after the simulator boots, flutter has missed the VM
+# service line the app printed and waited for it until the time limit
+# (about 6 minutes lost per run). Build the app once and launch it outside
+# flutter, so every timed run below is a later launch and its Xcode build is
+# incremental. The cold build moves here; nothing below depends on it.
+first_limit=720
+if [[ "$platform" == ios ]]; then
+  if bounded 1200 "$logs/warmup-build.log" flutter build ios --simulator --debug --no-pub; then
+    app=build/ios/iphonesimulator/Runner.app
+    bundle=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")
+    if xcrun simctl install "$device" "$app" &&
+      xcrun simctl launch "$device" "$bundle" > "$logs/warmup-launch.log" 2>&1; then
+      sleep 20
+      first_limit=420
+    else
+      note "ios warm-up launch failed; the smoke test launches the app first"
+    fi
+    xcrun simctl terminate "$device" "$bundle" 2>/dev/null || true
+  else
+    note "ios warm-up build failed; the smoke test builds from cold"
+  fi
+fi
+
 # ---- 1. smoke test -----------------------------------------------------------
 smoke_ok=false
 for attempt in 1 2; do
-  limit=$(( attempt == 1 ? 720 : 360 ))
+  limit=$(( attempt == 1 ? first_limit : 360 ))
   if bounded "$limit" "$logs/smoke-$attempt.log" \
     flutter test --no-pub ${verbose[@]+"${verbose[@]}"} --reporter expanded -d "$device" \
     integration_test/capture_smoke_test.dart; then
