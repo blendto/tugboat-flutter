@@ -10,8 +10,8 @@ import Foundation
 ///
 /// - The layer classes are mangled private Swift classes that can change
 ///   between releases, so each major version is verified on its own (the
-///   probe on branch `spike/swiftui-a11y-probe`, and CI layer dumps) before
-///   it is listed.
+///   probe on branch `spike/swiftui-a11y-probe`, `LayerProbeTests`, and CI
+///   layer dumps) before it is listed.
 /// - The drawing layer also carries custom drawing, and the shape layer also
 ///   draws non-rectangular shapes; every one is masked (over-masking is
 ///   accepted), and neither is read as "text only" or "image only".

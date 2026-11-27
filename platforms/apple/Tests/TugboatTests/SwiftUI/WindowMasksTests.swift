@@ -72,7 +72,7 @@ final class WindowMasksTests: XCTestCase {
       return
     }
     let result = window.settledMasks(allowlist: allowlist)
-    let found = "found \(result.stats); verify iOS \(major) with the probe (spike/swiftui-a11y-probe)"
+    let found = "found \(result.stats); verify iOS \(major) with the probe (LayerProbeTests, spike/swiftui-a11y-probe)"
     XCTAssertNil(result.fallback, found)
     XCTAssertGreaterThan(result.stats.textLayers, 0, "REGRESSION: no CGDrawingLayer on a screen with text; \(found)")
     XCTAssertGreaterThan(result.stats.imageLayers, 0, "REGRESSION: no SwiftUI.ImageLayer on a screen with a bitmap image; \(found)")

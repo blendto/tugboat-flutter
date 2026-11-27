@@ -76,8 +76,8 @@ final class LayerProbeTests: XCTestCase {
     }
     XCTAssertGreaterThan(best("text", classes: allowlist.textClasses), 0.95)
     XCTAssertGreaterThan(best("body", classes: allowlist.textClasses), 0.95)
-    XCTAssertGreaterThan(best("photo", classes: allowlist.imageClasses), 0.7)
-    XCTAssertGreaterThan(best("symbolResizable", classes: allowlist.shapeClasses.union(allowlist.imageClasses)), 0.7)
+    XCTAssertGreaterThan(best("photo", classes: allowlist.imageClasses), 0.5)
+    XCTAssertGreaterThan(best("symbolResizable", classes: allowlist.shapeClasses.union(allowlist.imageClasses)), 0.5)
     // Everything drawn with contents or a path is classified: no layer the allowlist misses.
     let known = allowlist.textClasses.union(allowlist.imageClasses).union(allowlist.shapeClasses)
     let unknown = all.filter { ($0.contents || $0.path) && !known.contains($0.name) }

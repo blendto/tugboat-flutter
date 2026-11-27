@@ -307,8 +307,9 @@ this section. On iOS 26.5 with VoiceOver off:
 - **Regression guard.**
   - An XCTest renders a screen known to contain text and an image, and
     fails loudly when no allowlisted class is found.
-  - The probe is kept on its spike branch so it can be re-run on each new
-    iOS major version.
+  - The probe is kept on its spike branch, and `LayerProbeTests` (dump and
+    IoU checks) in the Swift host tests, so it can be re-run on each new iOS
+    major version.
 
 ## 7. Configuration, IDs and metadata
 
