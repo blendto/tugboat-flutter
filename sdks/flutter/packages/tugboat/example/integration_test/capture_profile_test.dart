@@ -20,7 +20,11 @@ void main() {
 
   const rounds = int.fromEnvironment('TUGBOAT_PROFILE_ROUNDS', defaultValue: 3);
 
-  testWidgets('capture backend profile', (tester) async {
+  // Without TUGBOAT_PROFILE nothing is measured, so the package test run
+  // (which also loads this folder on the host renderer) skips it.
+  testWidgets('capture backend profile', skip: !profilingEnabled, (
+    tester,
+  ) async {
     final profiler = CaptureProfiler.instance..start();
     await tester.pumpWidget(const ReplayDemoApp());
     await _idle(tester, 3000);

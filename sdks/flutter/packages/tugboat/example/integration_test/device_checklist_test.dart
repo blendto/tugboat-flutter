@@ -14,14 +14,14 @@ import 'package:tugboat/tugboat.dart';
 /// Each row mounts its own fixture app, records pass or fail with a one-line
 /// reason, and never fails the test process, so one broken feature cannot
 /// hide the rest. Results go to `binding.reportData` (written on the host by
-/// `flutter drive`, see test_driver/integration_test.dart) and to one
+/// `flutter drive`, see test_driver/integration_driver.dart) and to one
 /// `TBCHECK {...}` log line per row.
 ///
 /// Run with `tool/ci/device-report/run-device-suite.sh`, or by hand:
 ///
 /// ```sh
 /// TBPROF_OUT=device_checklist flutter drive -d DEVICE \
-///   --driver test_driver/integration_test.dart \
+///   --driver test_driver/integration_driver.dart \
 ///   --target integration_test/device_checklist_test.dart
 /// ```
 const _home = '/';

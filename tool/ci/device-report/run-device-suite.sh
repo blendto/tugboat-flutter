@@ -108,7 +108,7 @@ drive() {
   rm -f "build/$name.json"
   TBPROF_OUT="$name" bounded "$limit" "$log" \
     flutter drive --no-pub ${verbose[@]+"${verbose[@]}"} -d "$device" \
-    --driver test_driver/integration_test.dart \
+    --driver test_driver/integration_driver.dart \
     --target "integration_test/$target" "$@"
 }
 

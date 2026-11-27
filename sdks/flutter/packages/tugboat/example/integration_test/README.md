@@ -22,13 +22,13 @@ Run it on a physical device in profile mode, once per backend:
 ```sh
 cd sdks/flutter/packages/tugboat/example
 TBPROF_OUT=profile_flutter flutter drive --profile -d <device-id> \
-  --driver test_driver/integration_test.dart \
+  --driver test_driver/integration_driver.dart \
   --target integration_test/capture_profile_test.dart \
   --dart-define=TUGBOAT_PROFILE=true \
   --dart-define=TUGBOAT_BACKEND=flutterRepaintBoundary
 
 TBPROF_OUT=profile_native flutter drive --profile -d <device-id> \
-  --driver test_driver/integration_test.dart \
+  --driver test_driver/integration_driver.dart \
   --target integration_test/capture_profile_test.dart \
   --dart-define=TUGBOAT_PROFILE=true \
   --dart-define=TUGBOAT_BACKEND=nativeCpuExperimental
