@@ -56,7 +56,9 @@ internal class ControllerNavigation(private val report: (NavigationChange) -> Un
      * Back to [known]: one `pop` per entry above it, top first (as Flutter's
      * `popUntil` reports each route). The engine's `pop` removes one route; its
      * route work for the navigator is superseded by the next, so the session
-     * records one `route_pop` with the remaining stack.
+     * records one `route_pop` with the remaining stack. As with `popUntil`
+     * in Flutter, a tap's cause attaches to the first pop only, so that
+     * `route_pop` carries no cause (the engine's claim logic is shared).
      */
     private fun popBackTo(stack: NavigatorStack, known: RouteEntry) {
         while (stack.top.let { it != null && it !== known }) stack.remove(checkNotNull(stack.top))?.let(report)

@@ -19,7 +19,9 @@ wiring, window capture, and the Android Views adapter.
   as Flutter's `popUntil` does. The engine's `pop` removes one route, so the
   single `pop` sent before left the in-between screens in `routeStack` and
   later routes stacked on them. The session records one `route_pop` whose
-  `routeStack` is the remaining screens.
+  `routeStack` is the remaining screens. As with `popUntil` in Flutter (the
+  engine's cause logic is shared), the tap that caused a multi-level pop is
+  not linked to that `route_pop`.
 
 - Seams for the React Native SDK (no change for apps that do not use them):
   `Tugboat.setScreen(name, instanceId = name)` names the current screen
