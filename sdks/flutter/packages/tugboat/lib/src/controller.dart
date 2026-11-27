@@ -12,6 +12,7 @@ import 'settled_inventory_watch.dart';
 import 'sink_ledger.dart';
 import 'capture_sink.dart';
 import 'collector_http_sink.dart';
+import 'controller_clock.dart';
 import 'coordinate_space.dart';
 import 'debug_logging.dart';
 import 'evidence_recorder.dart';
@@ -1064,7 +1065,9 @@ class TugboatReplayController extends ChangeNotifier {
     String? initialTraitsId,
     String? initialUserId,
     bool initialUserIdOverride = false,
+    @visibleForTesting TugboatElapsedClock? debugClock,
   }) : _boundaryKey = boundaryKey,
+       _clock = debugClock ?? TugboatStopwatchClock(),
        _initialTraits = initialTraits == null
            ? null
            : Map<String, dynamic>.from(initialTraits),
@@ -1093,7 +1096,7 @@ class TugboatReplayController extends ChangeNotifier {
   String? _initialUserId;
   bool _initialUserIdOverride;
 
-  final Stopwatch _clock = Stopwatch();
+  final TugboatElapsedClock _clock;
   Future<void> _queue = Future.value();
   int _queuedTaskCount = 0;
   Future<void>? _endSessionFuture;
@@ -1235,6 +1238,31 @@ class TugboatReplayController extends ChangeNotifier {
   /// Production acquires/disposes semantics transiently inside the map builder.
   bool get _holdPersistentSemanticsHandle =>
       _viewportSemantics.holdPersistentSemanticsHandle;
+
+  /// Records one toolkit-produced event through the evidence recorder's
+  /// admission and append path, like `recordExternalEvent`: nothing is
+  /// recorded without an open session. Test-only; the session engine's
+  /// conformance scenarios use it for `event.record`.
+  @visibleForTesting
+  void debugRecordEvent({
+    required String type,
+    required TugboatEventStream stream,
+    Map<String, Object?> data = const {},
+    TugboatTargetAnchor? targetAnchor,
+  }) {
+    final evidence = _evidence;
+    if (!evidence.accepting) return;
+    evidence.appendEvidence(
+      TugboatEvent(
+        id: evidence.nextEventId('event'),
+        atMs: evidence.nowMs(),
+        type: type,
+        stream: stream,
+        targetAnchor: targetAnchor,
+        data: data,
+      ),
+    );
+  }
 
   @visibleForTesting
   void debugSetCurrentRoute(String? route) {
@@ -1749,14 +1777,12 @@ class TugboatReplayController extends ChangeNotifier {
     _lastLifecycleState = null;
     _lastLifecycleEventType = null;
     _endSessionFuture = null;
-    _clock
-      ..reset()
-      ..start();
+    _clock.restart();
     final effectiveLocale = locale ?? _currentLocale;
     _currentLocale = effectiveLocale;
     _session = TugboatSession(
       id: generateTugboatCaptureId('session'),
-      startedAt: DateTime.now(),
+      startedAt: _now(),
       platform: platform,
       viewport: TugboatRect(0, 0, viewport.width, viewport.height),
       appInfo: config.appInfo ?? config.collector?.appInfo,
@@ -1803,7 +1829,8 @@ class TugboatReplayController extends ChangeNotifier {
       final all = <TugboatCaptureSink>[
         ..._builtinSinks,
         for (final factory in config.sinkFactories)
-          _FactorySinkAdapter(factory.create(context), context),
+          if (_createFactorySink(factory, context) case final sink?)
+            _FactorySinkAdapter(sink, context),
       ];
       _sinkHub = TugboatCaptureSinkHub(all);
     }
@@ -3363,10 +3390,10 @@ class TugboatReplayController extends ChangeNotifier {
         .toList(growable: false);
     if (elements.isEmpty) return null;
     if (elements.length == inventory.elements.length) return inventory;
-    final fingerprints = elements.map((entry) => entry.fingerprint).toList()
-      ..sort();
     return TugboatSceneInventory(
-      inventoryHash: tugboatLabelHash(fingerprints.join('|')),
+      inventoryHash: tugboatInventoryHash([
+        for (final entry in elements) entry.fingerprint,
+      ]),
       routeKey: inventory.routeKey,
       elements: elements,
       surface: inventory.surface,
@@ -6601,8 +6628,7 @@ class _FactorySinkAdapter implements TugboatCaptureSink {
 
   @override
   void startSession(TugboatSession session) {
-    // ignore: discarded_futures
-    _sink.start(_context);
+    _runDetached(() => _sink.start(_context));
   }
 
   @override
@@ -6654,7 +6680,35 @@ class _FactorySinkAdapter implements TugboatCaptureSink {
 
   @override
   void dispose() {
-    // ignore: discarded_futures
-    _sink.dispose();
+    _runDetached(_sink.dispose);
   }
+}
+
+/// Creates one factory's session sink. A factory that throws is skipped, so
+/// the session and the other sinks still start.
+TugboatSessionCaptureSink? _createFactorySink(
+  TugboatCaptureSinkFactory factory,
+  TugboatSinkSessionContext context,
+) {
+  try {
+    return factory.create(context);
+  } catch (error) {
+    debugPrint(
+      '[tugboat] sink factory ${factory.runtimeType} failed; skipped: $error',
+    );
+    return null;
+  }
+}
+
+/// Runs a sink call the SDK does not wait for. A synchronous throw or a
+/// failed future stays here: sink failures must never reach the host app as
+/// uncaught errors.
+///
+/// `then(onError:)` rather than `catchError`: a sink may return a typed
+/// future such as `Future<bool>` as its `Future<void>`, and a `catchError`
+/// handler returning nothing would itself fail with an `ArgumentError`.
+void _runDetached(Future<void> Function() call) {
+  try {
+    unawaited(call().then<void>((_) {}, onError: (Object _) {}));
+  } catch (_) {}
 }

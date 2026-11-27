@@ -1,0 +1,34 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "json-body-root-iterable",
+  "description": "An iterable root (Dart's `value is List` is false) means no body.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 500,
+    "errorResponseBody": {
+      "value": {
+        "iterable": [
+          1
+        ]
+      }
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 500,
+      "outcome": "response",
+      "durationMs": 150
+    }
+  }
+}

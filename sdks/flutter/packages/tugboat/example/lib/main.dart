@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:tugboat/tugboat.dart';
 
+import 'profiling.dart';
 import 'screens/home_screen.dart';
 
 /// HTTP collector config for production ingestion. See
@@ -8,7 +9,13 @@ import 'screens/home_screen.dart';
 /// control — mobile tokens are client-visible.
 const TugboatCollectorConfig? _productionCollector = null;
 
-void main() => runApp(const ReplayDemoApp());
+void main() {
+  if (profilingEnabled) {
+    WidgetsFlutterBinding.ensureInitialized();
+    CaptureProfiler.instance.start();
+  }
+  runApp(const ReplayDemoApp());
+}
 
 class ReplayDemoApp extends StatelessWidget {
   const ReplayDemoApp({super.key});
@@ -33,6 +40,11 @@ class ReplayDemoApp extends StatelessWidget {
           ),
           // Standalone HTTP collector for production ingestion.
           collector: _productionCollector,
+          // Backend comparison runs: see integration_test/README.md.
+          enabled: profilingEnabled,
+          screenshotCaptureBackend: profileBackend,
+          emitCaptureDiagnostics: profilingEnabled,
+          sinkFactories: [if (profilingEnabled) CaptureProfiler.instance],
         ),
         child: child!,
       ),

@@ -1,35 +1,40 @@
 package com.tugboat.capture.internal
 
-import android.annotation.TargetApi
 import android.graphics.Bitmap
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.view.PixelCopy
-import android.view.SurfaceView
 import com.tugboat.capture.CaptureStatus
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 internal data class PixelCopyOutcome(
     val status: CaptureStatus,
     val callerOwnsDestination: Boolean = true,
 )
 
-internal object PixelCopyCapture {
-    @TargetApi(Build.VERSION_CODES.N)
+/** Copies a resolved target into a caller-allocated bitmap. */
+internal fun interface FrameCopier {
     fun copy(
-        surfaceView: SurfaceView,
+        target: PixelCopyTarget,
+        destination: Bitmap,
+        timeoutMs: Long,
+        isCurrent: () -> Boolean,
+    ): PixelCopyOutcome
+}
+
+internal object PixelCopyCapture : FrameCopier {
+    override fun copy(
+        target: PixelCopyTarget,
         destination: Bitmap,
         timeoutMs: Long,
         isCurrent: () -> Boolean,
     ): PixelCopyOutcome {
-        if (!surfaceView.holder.surface.isValid) {
+        if (!target.isAvailable()) {
             return PixelCopyOutcome(CaptureStatus.SurfaceUnavailable)
         }
         val latch = CountDownLatch(1)
-        val code = AtomicInteger(Int.MIN_VALUE)
+        val outcome = AtomicReference<CaptureStatus?>(null)
         val handler = Handler(Looper.getMainLooper())
         val guard =
             PixelCopyRecycleGuard {
@@ -43,19 +48,8 @@ internal object PixelCopyCapture {
                 guard.onCallback()
                 return@post
             }
-            try {
-                PixelCopy.request(
-                    surfaceView,
-                    destination,
-                    { result ->
-                        code.set(result)
-                        latch.countDown()
-                        guard.onCallback()
-                    },
-                    handler,
-                )
-            } catch (_: IllegalArgumentException) {
-                code.set(PixelCopy.ERROR_SOURCE_INVALID)
+            target.issue(destination, handler, isCurrent) { status ->
+                outcome.compareAndSet(null, status)
                 latch.countDown()
                 guard.onCallback()
             }
@@ -77,13 +71,7 @@ internal object PixelCopyCapture {
             when {
                 !isCurrent() -> CaptureStatus.Cancelled
                 !completed -> CaptureStatus.Timeout
-                else ->
-                    when (code.get()) {
-                        PixelCopy.SUCCESS -> CaptureStatus.Ok
-                        PixelCopy.ERROR_TIMEOUT -> CaptureStatus.Timeout
-                        Int.MIN_VALUE -> CaptureStatus.Timeout
-                        else -> CaptureStatus.PixelCopyFailed
-                    }
+                else -> outcome.get() ?: CaptureStatus.Timeout
             }
         return PixelCopyOutcome(status, callerOwnsDestination)
     }

@@ -1,0 +1,30 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "json-text-empty",
+  "description": "Empty jsonText means no body (Dio returns null for an empty JSON response).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 500,
+    "errorResponseBody": {
+      "jsonText": ""
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 500,
+      "outcome": "response",
+      "durationMs": 150
+    }
+  }
+}

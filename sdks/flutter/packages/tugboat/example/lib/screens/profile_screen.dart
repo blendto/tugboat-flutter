@@ -164,13 +164,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         context: context,
                         builder: (context) => AlertDialog(
                           title: const Text('Human verification required'),
-                          content: const TugboatSensitive(
-                            child: TextField(
-                              decoration: InputDecoration(
-                                labelText: 'One-time verification code',
-                              ),
+                          content: const TextField(
+                            decoration: InputDecoration(
+                              labelText: 'One-time verification code',
                             ),
-                          ),
+                          ).tugboatSensitive(),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context),

@@ -1,0 +1,54 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "allow-list",
+  "description": "allow_list keeps values of the allowed keys only. Every other valid key is listed and adds 1 to droppedCount without truncated.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "checkout",
+    "policy": {
+      "mode": "allow_list",
+      "allowedKeys": [
+        "method",
+        "missing"
+      ]
+    },
+    "parameters": {
+      "map": [
+        [
+          "method",
+          "card"
+        ],
+        [
+          "amount",
+          null
+        ],
+        [
+          "email",
+          null
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "checkout",
+      "parameterKeys": [
+        "method",
+        "amount",
+        "email"
+      ],
+      "parameters": {
+        "method": "card"
+      },
+      "capture": {
+        "values": "allow_list",
+        "truncated": false,
+        "droppedCount": 2
+      }
+    }
+  }
+}

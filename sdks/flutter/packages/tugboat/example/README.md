@@ -26,5 +26,16 @@ flutter test -d <device-id> integration_test/capture_smoke_test.dart
 The test launches a small Flutter fixture and checks the evidence delivered to
 an in-memory sink. It covers named navigation, scene inventory, repeatable tap
 fingerprints, and privacy masking in a real encoded frame. No collector is
-required. The Flutter integration workflow runs both platforms on relevant
-pull requests and supports manual runs.
+required. It also runs on the host in the package tests. The device suite
+workflow (`.github/workflows/device-suite.yml`) runs the per-feature
+checklist and the capture benchmarks on both platforms when asked for: a
+manual run from the Actions tab, or a pull request labelled `device-report`.
+
+The example always builds against the native runtimes in this repo, not the
+published ones. iOS compiles `TugboatCaptureRuntime` from source through the
+Podfile. Android resolves `capture-runtime` from the repo's `.local-maven`;
+build it first, and again after changing `platforms/android/capture-runtime`:
+
+```sh
+bash tool/ci/publish-android-runtime-local.sh
+```

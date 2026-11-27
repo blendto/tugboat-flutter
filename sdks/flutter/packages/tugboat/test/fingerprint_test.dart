@@ -356,6 +356,36 @@ void main() {
     expect(tagged.fingerprintParts, containsPair('tag', 'checkout-cta'));
   });
 
+  testWidgets('tugboatTag extension matches the TugboatTag wrapper identity', (
+    tester,
+  ) async {
+    final rootKey = GlobalKey();
+    final button = FilledButton(onPressed: () {}, child: const Text('Pay now'));
+
+    Future<TugboatTargetAnchor> capture(Widget body) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RepaintBoundary(
+            key: rootKey,
+            child: Scaffold(body: body),
+          ),
+        ),
+      );
+      await tester.pump();
+      final center = tester.getCenter(find.text('Pay now'));
+      return AnchorResolver(rootKey: rootKey).targetAt(center)!;
+    }
+
+    final wrapper = await capture(TugboatTag('checkout-cta', child: button));
+    final extension = await capture(button.tugboatTag('checkout-cta'));
+
+    expect(extension.fingerprint, wrapper.fingerprint);
+    expect(extension.canonicalPath, wrapper.canonicalPath);
+    expect(extension.tagFingerprint, wrapper.tagFingerprint);
+    expect(extension.tagFingerprint, isNotNull);
+    expect(extension.fingerprintParts, containsPair('tag', 'checkout-cta'));
+  });
+
   testWidgets('target fingerprint excludes schema version metadata', (
     tester,
   ) async {

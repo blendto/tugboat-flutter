@@ -1,0 +1,32 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "json-body-root-nan",
+  "description": "A non-finite root means no body.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 500,
+    "errorResponseBody": {
+      "value": {
+        "double": "NaN"
+      }
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 500,
+      "outcome": "response",
+      "durationMs": 150
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "route-change-minimal",
+  "description": "Edge: empty-ish data. Only routeChangeSchema is added; null values are dropped; routeStackTruncated false is omitted.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "1.0.0",
+        "buildNumber": "1",
+        "installationId": "inst-0002",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0002",
+        "platform": "ios",
+        "screenSize": {
+          "width": 390,
+          "height": 844
+        },
+        "screenDensity": 3,
+        "screenDpi": 460,
+        "screenPixelDensity": 3
+      },
+      "ip": {
+        "ip": "198.51.100.2"
+      },
+      "locale": {},
+      "configuredUserId": null
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": null
+    },
+    "event": {
+      "id": "event-2",
+      "atMs": 5,
+      "type": "route_change",
+      "stream": "evidence",
+      "data": {
+        "fromRoute": null,
+        "routeStackTruncated": false
+      }
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-2",
+      "atMs": 5,
+      "triggeredAt": "2026-06-19T00:00:00.005Z",
+      "sessionId": "collector-session-9",
+      "userId": null,
+      "eventType": "route_change",
+      "stream": "evidence",
+      "enrichmentCandidate": false,
+      "routeChangeSchema": 2,
+      "build": {
+        "appId": "com.example.app",
+        "platform": "ios",
+        "versionName": "1.0.0",
+        "buildNumber": "1",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}

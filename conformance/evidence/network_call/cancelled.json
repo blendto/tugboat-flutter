@@ -1,0 +1,27 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "cancelled",
+  "description": "A cancelled call.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "post",
+    "route": "/v1/cart",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "cancelled",
+    "attemptCount": 1
+  },
+  "expected": {
+    "data": {
+      "method": "POST",
+      "route": "/v1/cart",
+      "outcome": "cancelled",
+      "durationMs": 150,
+      "attemptCount": 1
+    }
+  }
+}

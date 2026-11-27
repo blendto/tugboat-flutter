@@ -1,0 +1,98 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "json-body-depth-5-kept-6-unsupported",
+  "description": "The root is depth 0. Lists and maps up to depth 5 are kept; one at depth 6 is unsupported (left out, truncated), while a string at depth 6 is kept.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 400,
+    "errorResponseBody": {
+      "value": [
+        [
+          [
+            [
+              [
+                "five"
+              ]
+            ]
+          ]
+        ],
+        [
+          [
+            [
+              [
+                [
+                  "six"
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          [
+            [
+              [
+                [
+                  []
+                ]
+              ]
+            ]
+          ]
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 400,
+      "outcome": "response",
+      "durationMs": 150,
+      "errorResponseBody": [
+        [
+          [
+            [
+              [
+                "five"
+              ]
+            ]
+          ]
+        ],
+        [
+          [
+            [
+              [
+                [
+                  "six"
+                ]
+              ]
+            ]
+          ]
+        ],
+        [
+          [
+            [
+              [
+                []
+              ]
+            ]
+          ]
+        ]
+      ],
+      "errorResponseBodyCapture": {
+        "format": "json",
+        "representation": "native",
+        "truncated": true
+      }
+    }
+  }
+}

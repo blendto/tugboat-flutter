@@ -1,0 +1,52 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "depth-4-kept",
+  "description": "Top-level values are depth 1. A value at depth 4 is kept.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "deep",
+    "policy": {
+      "mode": "allow_all"
+    },
+    "parameters": {
+      "map": [
+        [
+          "v",
+          [
+            [
+              [
+                "leaf"
+              ]
+            ]
+          ]
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "deep",
+      "parameterKeys": [
+        "v"
+      ],
+      "parameters": {
+        "v": [
+          [
+            [
+              "leaf"
+            ]
+          ]
+        ]
+      },
+      "capture": {
+        "values": "allow_all",
+        "truncated": false,
+        "droppedCount": 0
+      }
+    }
+  }
+}

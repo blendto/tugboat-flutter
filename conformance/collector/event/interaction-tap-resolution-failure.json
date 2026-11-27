@@ -1,0 +1,93 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "interaction-tap-resolution-failure",
+  "description": "Tap with no resolvable target: no targetFingerprint, a targetResolutionFailureReason, and no anchor.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "1.0.0",
+        "buildNumber": "1",
+        "installationId": "inst-0002",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0002",
+        "platform": "ios",
+        "screenSize": {
+          "width": 390,
+          "height": 844
+        },
+        "screenDensity": 3,
+        "screenDpi": 460,
+        "screenPixelDensity": 3
+      },
+      "ip": {
+        "ip": "198.51.100.2"
+      },
+      "locale": {},
+      "configuredUserId": null
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime",
+      "traitsId": "traits-123"
+    },
+    "event": {
+      "id": "event-12",
+      "atMs": 1200,
+      "type": "interaction",
+      "stream": "semantic",
+      "beforeFrame": "frame-3",
+      "data": {
+        "interactionSchema": 2,
+        "gesture": "tap",
+        "route": "/home",
+        "targetResolutionFailureReason": "no_target_at_point",
+        "payload": {
+          "position": {
+            "xNorm": 0.5,
+            "yNorm": 0.02
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-12",
+      "atMs": 1200,
+      "triggeredAt": "2026-06-19T00:00:01.200Z",
+      "sessionId": "collector-session-9",
+      "userId": "user-runtime",
+      "eventType": "interaction",
+      "stream": "semantic",
+      "enrichmentCandidate": true,
+      "interactionSchema": 2,
+      "route": "/home",
+      "targetResolutionFailureReason": "no_target_at_point",
+      "gesture": "tap",
+      "payload": {
+        "position": {
+          "xNorm": 0.5,
+          "yNorm": 0.02
+        }
+      },
+      "beforeFrame": "frame-3",
+      "traitsId": "traits-123",
+      "build": {
+        "appId": "com.example.app",
+        "platform": "ios",
+        "versionName": "1.0.0",
+        "buildNumber": "1",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}

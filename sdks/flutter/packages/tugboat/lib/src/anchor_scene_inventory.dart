@@ -304,9 +304,9 @@ extension TugboatSceneInventoryApi on AnchorResolver {
     TugboatInventoryViewport? viewport,
     TugboatInventoryScroll? scroll,
   }) {
-    final fingerprints = elements.map((entry) => entry.fingerprint).toList()
-      ..sort();
-    final inventoryHash = tugboatLabelHash(fingerprints.join('|'));
+    final inventoryHash = tugboatInventoryHash([
+      for (final entry in elements) entry.fingerprint,
+    ]);
 
     return TugboatSceneInventory(
       inventoryHash: inventoryHash,

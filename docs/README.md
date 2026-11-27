@@ -9,7 +9,8 @@ gates, canaries) are not listed below.
 ## Getting started
 
 - [SDK README](../sdks/flutter/packages/tugboat/README.md) — install, public API, configuration, and limits
-- [Collector integration](integration/collector.md) — Flutter HTTP wire behavior
+- [Tagging controls](integration/tagging.md) — `tugboatTag` on every SDK, naming rules, the `accessibility` option, and an [agent prompt](integration/tagging-agent-prompt.md)
+- [Collector integration](integration/collector.md) — HTTP wire behavior for Flutter and the native SDKs
 - [Experimental native CPU capture](integration/native-cpu-experimental.md) — opt-in native CPU backend and fallback rules
 - [Common build](integration/common-build.md) — host commands for core, AAR, and Flutter tests
 - [Android development](integration/android-development.md)
@@ -40,6 +41,9 @@ gates, canaries) are not listed below.
 - [0006 Mask coordinates](decisions/0006-mask-coordinates.md)
 - [0007 GPU processing deferred](decisions/0007-gpu-deferred.md)
 - [0008 Independent versioning](decisions/0008-independent-versioning.md)
+- [0009 Shared session engine](decisions/0009-shared-session-engine.md)
+- [0010 SwiftUI accessibility identity](decisions/0010-swiftui-accessibility-identity.md)
+- [0011 Error and crash reporting](decisions/0011-error-and-crash-reporting.md) (proposed)
 
 ## Privacy
 

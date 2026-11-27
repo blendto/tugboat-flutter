@@ -1,0 +1,47 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "run-counts-towards-64",
+  "description": "Entries in a nonStringKeys run use up the first 64: a run of 70 leaves no room for later keys, which are counted as dropped.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "keys",
+    "policy": {
+      "mode": "allow_all"
+    },
+    "parameters": {
+      "map": [
+        [
+          "first",
+          1
+        ],
+        {
+          "nonStringKeys": 70
+        },
+        [
+          "late",
+          2
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "keys",
+      "parameterKeys": [
+        "first"
+      ],
+      "parameters": {
+        "first": 1
+      },
+      "capture": {
+        "values": "allow_all",
+        "truncated": true,
+        "droppedCount": 71
+      }
+    }
+  }
+}

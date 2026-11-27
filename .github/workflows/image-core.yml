@@ -1,5 +1,7 @@
 name: Image core
 
+# Also runs the session engine (core/session-engine), the second C++ core.
+
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -7,6 +9,9 @@ on:
     paths:
       - "core/image-processing/**"
       - "tool/ci/run-image-core-tests.sh"
+      - "core/session-engine/**"
+      - "conformance/**"
+      - "tool/ci/run-session-engine-tests.sh"
       - ".github/workflows/image-core.yml"
 
 permissions:
@@ -42,3 +47,36 @@ jobs:
         run: ./build/image-core-fuzz/tb_mask_fuzz -max_total_time=20 -timeout=5
       - name: Fuzz metadata
         run: ./build/image-core-fuzz/tb_metadata_fuzz -max_total_time=20 -timeout=5
+
+  session-engine-test:
+    name: Session engine unit and conformance tests with ASan/UBSan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure, build, test
+        run: bash tool/ci/run-session-engine-tests.sh
+
+  session-engine-fuzz:
+    name: Session engine short libFuzzer run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install clang
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-rt-dev
+      - name: Build fuzzers
+        run: |
+          cmake -S core/session-engine -B build/session-engine-fuzz \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DTB_SESSION_ENGINE_FUZZ=ON
+          cmake --build build/session-engine-fuzz
+      - name: Fuzz messages
+        # Fixtures seed the corpus; new inputs go to the first (scratch) dir.
+        run: |
+          mkdir -p build/session-engine-fuzz/corpus
+          ./build/session-engine-fuzz/tb_message_fuzz \
+            build/session-engine-fuzz/corpus conformance \
+            -max_total_time=20 -timeout=5 -max_len=8192

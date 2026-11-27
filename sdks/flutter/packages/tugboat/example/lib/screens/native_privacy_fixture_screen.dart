@@ -26,26 +26,25 @@ class NativePrivacyFixtureScreen extends StatelessWidget {
           child: Stack(
             children: [
               const Positioned.fill(child: ColoredBox(color: publicFill)),
-              const Positioned(
+              Positioned(
                 left: 0,
                 top: 0,
                 width: secretSize,
                 height: secretSize,
-                child: TugboatSensitive(
-                  child: ColoredBox(
-                    color: secretFill,
-                    child: SizedBox.expand(),
-                  ),
-                ),
+                child: const ColoredBox(
+                  color: secretFill,
+                  child: SizedBox.expand(),
+                ).tugboatSensitive(),
               ),
-              const Positioned(
+              Positioned(
                 right: 0,
                 bottom: 0,
                 width: secretSize,
                 height: secretSize,
-                child: TugboatSensitive(
-                  child: ColoredBox(color: edgeFill, child: SizedBox.expand()),
-                ),
+                child: const ColoredBox(
+                  color: edgeFill,
+                  child: SizedBox.expand(),
+                ).tugboatSensitive(),
               ),
             ],
           ),

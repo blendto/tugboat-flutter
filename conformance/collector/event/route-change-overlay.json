@@ -1,0 +1,96 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "route-change-overlay",
+  "description": "A dialog presented over a page: overlay presentation keys are copied.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "1.0.0",
+        "buildNumber": "1",
+        "installationId": "inst-0002",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0002",
+        "platform": "ios",
+        "screenSize": {
+          "width": 390,
+          "height": 844
+        },
+        "screenDensity": 3,
+        "screenDpi": 460,
+        "screenPixelDensity": 3
+      },
+      "ip": {
+        "ip": "198.51.100.2"
+      },
+      "locale": {},
+      "configuredUserId": null
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime",
+      "traitsId": "traits-123"
+    },
+    "event": {
+      "id": "event-43",
+      "atMs": 57000,
+      "type": "route_change",
+      "stream": "evidence",
+      "afterFrame": "frame-37",
+      "data": {
+        "fromRoute": "/receipt",
+        "route": "DialogRoute<void>",
+        "navigation": "push",
+        "routeType": "DialogRoute<void>",
+        "routeNamed": false,
+        "overlayKind": "dialog",
+        "presentedOverRoute": "/receipt",
+        "presentedOverRouteInstanceId": "route-5",
+        "presentedOverOverlayKind": "page",
+        "hostPageRoute": "/receipt",
+        "hostPageRouteInstanceId": "route-5"
+      }
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-43",
+      "atMs": 57000,
+      "triggeredAt": "2026-06-19T00:00:57.000Z",
+      "sessionId": "collector-session-9",
+      "userId": "user-runtime",
+      "eventType": "route_change",
+      "stream": "evidence",
+      "enrichmentCandidate": false,
+      "routeChangeSchema": 2,
+      "fromRoute": "/receipt",
+      "route": "DialogRoute<void>",
+      "navigation": "push",
+      "routeType": "DialogRoute<void>",
+      "routeNamed": false,
+      "overlayKind": "dialog",
+      "presentedOverRoute": "/receipt",
+      "presentedOverRouteInstanceId": "route-5",
+      "presentedOverOverlayKind": "page",
+      "hostPageRoute": "/receipt",
+      "hostPageRouteInstanceId": "route-5",
+      "afterFrame": "frame-37",
+      "traitsId": "traits-123",
+      "build": {
+        "appId": "com.example.app",
+        "platform": "ios",
+        "versionName": "1.0.0",
+        "buildNumber": "1",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}

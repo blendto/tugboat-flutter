@@ -7,7 +7,8 @@
 # must increase, and the compatibility table must change.
 # Apple public Swift API or TugboatCaptureRuntime.podspec → Apple runtime
 # version must increase, and the compatibility table must change.
-# Publishable Flutter READMEs and Dio source also trigger the lockstep release.
+# Publishable Flutter READMEs and Dio/HTTP source also trigger the lockstep
+# release; tugboat, tugboat_dio and tugboat_http always share one version.
 # Flutter's Maven pin must not be newer than capture-runtime VERSION_NAME.
 # Changing that pin requires it to equal VERSION_NAME; runtime-only PRs may lag.
 # Flutter's CocoaPods pin must not be newer than TugboatCaptureRuntime s.version.
@@ -78,6 +79,21 @@ extract_apple_version() {
   grep -E "s\.version[[:space:]]*=" "$file" | head -1 | sed -E "s/.*['\"]([0-9][^'\"]*)['\"].*/\1/"
 }
 
+# Prints the higher of two versions. Unlike `sort -V`, a release ranks above
+# its own prereleases (0.10.11 > 0.10.11-dev.6), as in SemVer. Prerelease tags
+# of the same release compare with `sort -V`.
+higher_version() {
+  local a="$1" b="$2"
+  local a_core="${a%%-*}" b_core="${b%%-*}"
+  if [[ "$a_core" != "$b_core" ]]; then
+    printf '%s\n%s\n' "$a_core $a" "$b_core $b" | sort -V -k1,1 | tail -n 1 | cut -d' ' -f2
+    return
+  fi
+  if [[ "$a" == "$a_core" ]]; then echo "$a"; return; fi
+  if [[ "$b" == "$b_core" ]]; then echo "$b"; return; fi
+  printf '%s\n%s\n' "$a" "$b" | sort -V | tail -n 1
+}
+
 extract_runtime_version() {
   local file="$1"
   if [[ ! -f "$file" ]]; then
@@ -135,7 +151,7 @@ if [[ -n "$plugin_pin" && -n "$runtime_now" ]]; then
   echo "Flutter capture-runtime pin: $plugin_pin"
   echo "capture-runtime VERSION_NAME: $runtime_now"
   if [[ "$plugin_pin" != "$runtime_now" ]]; then
-    higher="$(printf '%s\n%s\n' "$plugin_pin" "$runtime_now" | sort -V | tail -n 1)"
+    higher="$(higher_version "$plugin_pin" "$runtime_now")"
     if [[ "$higher" == "$plugin_pin" ]]; then
       echo "::error::Flutter plugin pins capture-runtime $plugin_pin which is newer than VERSION_NAME $runtime_now."
       exit 1
@@ -156,7 +172,7 @@ if [[ -n "$apple_pin" && -n "$apple_now" ]]; then
   echo "Flutter TugboatCaptureRuntime pin: $apple_pin"
   echo "TugboatCaptureRuntime s.version: $apple_now"
   if [[ "$apple_pin" != "$apple_now" ]]; then
-    apple_higher="$(printf '%s\n%s\n' "$apple_pin" "$apple_now" | sort -V | tail -n 1)"
+    apple_higher="$(higher_version "$apple_pin" "$apple_now")"
     if [[ "$apple_higher" == "$apple_pin" ]]; then
       echo "::error::Flutter plugin pins TugboatCaptureRuntime $apple_pin which is newer than podspec $apple_now."
       exit 1
@@ -165,6 +181,9 @@ if [[ -n "$apple_pin" && -n "$apple_now" ]]; then
   fi
 fi
 
+# Membership checks below use `grep -x ... >/dev/null`, not `grep -q`: under
+# `pipefail`, `grep -q` exits at the first match and the upstream command
+# can die of SIGPIPE, which fails the whole pipeline at random.
 changed=()
 while IFS= read -r path; do
   changed+=("$path")
@@ -199,6 +218,9 @@ is_flutter_adapter() {
     sdks/flutter/packages/tugboat_dio/README.md | \
     sdks/flutter/packages/tugboat_dio/lib/* | \
     sdks/flutter/packages/tugboat_dio/pubspec.yaml | \
+    sdks/flutter/packages/tugboat_http/README.md | \
+    sdks/flutter/packages/tugboat_http/lib/* | \
+    sdks/flutter/packages/tugboat_http/pubspec.yaml | \
     sdks/flutter/packages/tugboat/pubspec.yaml)
       return 0
       ;;
@@ -264,7 +286,7 @@ require_greater_version() {
     exit 1
   fi
   local higher
-  higher="$(printf '%s\n%s\n' "$base_version" "$head_version" | sort -V | tail -n 1)"
+  higher="$(higher_version "$base_version" "$head_version")"
   if [[ "$higher" != "$head_version" ]]; then
     echo "::error::$label PR version ($head_version) must be greater than base ($base_version)."
     exit 1
@@ -282,12 +304,14 @@ if [[ "$needs_flutter_bump" -eq 1 ]]; then
     echo "::error::Could not read version from $head_pubspec"
     exit 1
   fi
-  dio_version="$(extract_pubspec_version sdks/flutter/packages/tugboat_dio/pubspec.yaml)"
-  if [[ "$dio_version" != "$head_version" ]]; then
-    echo "::error::Set tugboat and tugboat_dio to the same release version before opening the PR."
-    exit 1
-  fi
-  for package in tugboat tugboat_dio; do
+  for package in tugboat_dio tugboat_http; do
+    package_version="$(extract_pubspec_version "sdks/flutter/packages/$package/pubspec.yaml")"
+    if [[ "$package_version" != "$head_version" ]]; then
+      echo "::error::Set tugboat, tugboat_dio and tugboat_http to the same release version before opening the PR ($package is $package_version, tugboat is $head_version)."
+      exit 1
+    fi
+  done
+  for package in tugboat tugboat_dio tugboat_http; do
     if ! grep -Fxq "## $head_version" "sdks/flutter/packages/$package/CHANGELOG.md"; then
       echo "::error::Add a ## $head_version entry to the $package changelog."
       exit 1
@@ -365,9 +389,9 @@ else
 fi
 
 if [[ "$needs_compat" -eq 1 ]]; then
-  if git diff --name-only "$BASE_SHA" | grep -qx "$compat_file"; then
+  if git diff --name-only "$BASE_SHA" | grep -x "$compat_file" >/dev/null; then
     echo "Compatibility table updated ($compat_file)."
-  elif git ls-files --others --exclude-standard | grep -qx "$compat_file"; then
+  elif git ls-files --others --exclude-standard | grep -x "$compat_file" >/dev/null; then
     echo "Compatibility table added ($compat_file)."
   else
     echo "::error::Adapter or public runtime API changed; update $compat_file."
@@ -377,8 +401,8 @@ else
   echo "No adapter/runtime API pairing change; compatibility table not required."
 fi
 
-if git diff --name-only "$BASE_SHA" | grep -qx "$plugin_gradle" \
-  || git ls-files --others --exclude-standard | grep -qx "$plugin_gradle"; then
+if git diff --name-only "$BASE_SHA" | grep -x "$plugin_gradle" >/dev/null \
+  || git ls-files --others --exclude-standard | grep -x "$plugin_gradle" >/dev/null; then
   if [[ -z "$plugin_pin" || -z "$runtime_now" ]]; then
     echo "::error::Could not compare Flutter capture-runtime pin to VERSION_NAME."
     exit 1
@@ -393,8 +417,8 @@ if git diff --name-only "$BASE_SHA" | grep -qx "$plugin_gradle" \
   fi
 fi
 
-if git diff --name-only "$BASE_SHA" | grep -qx "$plugin_ios_podspec" \
-  || git ls-files --others --exclude-standard | grep -qx "$plugin_ios_podspec"; then
+if git diff --name-only "$BASE_SHA" | grep -x "$plugin_ios_podspec" >/dev/null \
+  || git ls-files --others --exclude-standard | grep -x "$plugin_ios_podspec" >/dev/null; then
   if [[ -z "$apple_now" ]]; then
     echo "::error::Could not compare Flutter TugboatCaptureRuntime pin to podspec s.version."
     exit 1
