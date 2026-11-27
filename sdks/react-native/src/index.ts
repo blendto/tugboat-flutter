@@ -57,6 +57,19 @@ function Sensitive(props: ViewProps) {
   return React.createElement(Native, { ...props, collapsable: false });
 }
 
+/** The focused route path (`Main/Feed`) and its leaf route key, from a React Navigation state. */
+function focusedRoute(state: any): { name: string; key: string } | null {
+  const names: string[] = [];
+  let key = '';
+  while (state && Array.isArray(state.routes) && state.routes.length > 0) {
+    const route = state.routes[Math.min(state.index ?? 0, state.routes.length - 1)];
+    names.push(String(route.name));
+    key = String(route.key ?? route.name);
+    state = route.state;
+  }
+  return names.length > 0 ? { name: names.join('/'), key } : null;
+}
+
 export const Tugboat = {
   start(config: TugboatConfig): void {
     call('start', () => NativeTugboat!.start({ ...config }));
@@ -69,6 +82,40 @@ export const Tugboat = {
   },
   stop(): void {
     call('stop', () => NativeTugboat!.stop());
+  },
+  /**
+   * Names the current screen (a custom navigator). A new `instanceId` is a push, one
+   * already seen is a pop back to it. `instanceId` defaults to `name`.
+   */
+  setScreen(name: string, instanceId?: string): void {
+    call('setScreen', () => NativeTugboat!.setScreen(name, instanceId ?? null));
+  },
+  /**
+   * React Navigation: one `route_change` per navigation, named by the focused route
+   * path. Pass the ref given to `NavigationContainer`. Returns a function that stops
+   * tracking. Never throws.
+   */
+  trackNavigation(navigationRef: any): () => void {
+    let last = '';
+    const report = () => {
+      try {
+        const focused = focusedRoute(navigationRef?.getRootState?.());
+        if (focused == null) return;
+        const id = `${focused.name}\u0000${focused.key}`;
+        if (id === last) return;
+        last = id;
+        Tugboat.setScreen(focused.name, focused.key);
+      } catch (e) {
+        console.warn('[Tugboat] trackNavigation failed', e);
+      }
+    };
+    try {
+      const subs = [navigationRef.addListener('state', report), navigationRef.addListener('ready', report)];
+      return () => subs.forEach((unsubscribe: () => void) => unsubscribe());
+    } catch (e) {
+      console.warn('[Tugboat] trackNavigation failed', e);
+      return () => {};
+    }
   },
   setUserId(id: string | null): void {
     call('setUserId', () => NativeTugboat!.setUserId(id));

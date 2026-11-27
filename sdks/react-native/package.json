@@ -1,6 +1,6 @@
 {
   "name": "@tugboat/react-native",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "description": "Tugboat session capture for React Native (Android only, unpublished).",
   "main": "src/index.ts",
