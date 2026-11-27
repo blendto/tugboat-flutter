@@ -25,6 +25,12 @@ const char* const kCollectorKeys[] = {
     "batchSize",        "maxPendingEvents",     "maxPendingBatches",
     "maxPendingFrames", "maxPendingFrameBytes"};
 
+// The host's per-session `idSeed`: 64 lowercase hex digits, one digit value
+// per session so every session of a fixture gets its own ids.
+std::string id_seed(int64_t epoch) {
+  return std::string(64, "0123456789abcdef"[epoch % 16]);
+}
+
 std::string quote(const std::string& text) {
   std::string out = "\"";
   for (const char c : text) {
@@ -258,7 +264,8 @@ bool Run::new_session(Json* reply) {
   if (!act("session.start",
            "{\"viewport\":{\"width\":412.0,\"height\":915.0},"
            "\"platform\":\"android\",\"sessionEpoch\":" +
-               std::to_string(epoch_) + "}",
+               std::to_string(epoch_) + ",\"idSeed\":" +
+               quote(id_seed(epoch_)) + "}",
            reply) ||
       !read_effects(*reply)) {
     return false;
@@ -360,7 +367,8 @@ bool Run::run() {
   mono_us_ = kStartMonoUs;
   if (!send("{\"type\":\"session.start\",\"at\":" + at_json() +
                 ",\"input\":{\"viewport\":{\"width\":412.0,\"height\":915.0},"
-                "\"platform\":\"android\",\"sessionEpoch\":0}}",
+                "\"platform\":\"android\",\"sessionEpoch\":0,\"idSeed\":" +
+                quote(id_seed(0)) + "}}",
             &reply) ||
       !read_effects(reply)) {
     return false;

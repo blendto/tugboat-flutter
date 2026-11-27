@@ -124,17 +124,17 @@ void test_frame_gaps() {
 void test_request_gaps() {
   FrameGaps gaps;
   const auto failed = gaps.request_failed("/v1/sessions", 502, nullptr);
-  CHECK(failed && failed->id == "collector-request-0");
+  CHECK(failed && failed->id_prefix == "collector-request");
   CHECK(!gaps.request_failed("/v1/sessions", 502, nullptr));  // once per outage
   CHECK(gaps.request_failed("/v1/events/batch", std::nullopt, "timeout"));
   CHECK(!gaps.request_accepted("/v1/frames"));  // never failed
   const auto recovered = gaps.request_accepted("/v1/sessions");
-  CHECK(recovered && recovered->id == "collector-request-2");
+  CHECK(recovered && recovered->id_prefix == "collector-request");
   CHECK(!gaps.request_accepted("/v1/sessions"));
-  // A new outage reports again; ids share one sequence with frame gaps.
+  // A new outage reports again.
   CHECK(gaps.request_failed("/v1/sessions", 503, nullptr));
   const auto frames = gaps.failed(503, 1);
-  CHECK(frames && frames->id == "collector-frame-upload-4");
+  CHECK(frames && frames->id_prefix == "collector-frame-upload");
 }
 
 void test_flush_gaps() {

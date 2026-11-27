@@ -34,7 +34,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "b56d7b94990b00a5167314067cbb1cc237b49ccd6eac6070f561bd8c1776e60f"
           }
         },
         "expect": {
@@ -42,11 +43,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-132eaa22-c93b-42d3-9dfd-ec0436ae5fab",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d"
               },
               "userId": "user-configured"
             }
@@ -63,10 +64,10 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
-              "sessionId": "session-1781827200000000",
+              "jsonBody": "{\"sessionId\":\"session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
               "deliveryKeys": [
-                "session-1781827200000000/l/session_start/2026-06-19T00:00:00.000Z"
+                "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d/l/session_start/2026-06-19T00:00:00.000Z"
               ],
               "isSessionEnd": false
             },
@@ -118,11 +119,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-8c990a8d-6b87-4231-b5c8-a805638dc473",
                 "atMs": 100,
                 "type": "external_event",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
                 "data": {
                   "name": "e1"
                 }
@@ -154,11 +155,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-27112533-b3a2-4a83-ae19-73bbacbaf50d",
                 "atMs": 110,
                 "type": "external_event",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
                 "data": {
                   "name": "e2"
                 }
@@ -190,11 +191,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-b2aaad1e-5bba-41b4-8ea8-4e4b8217db26",
                 "atMs": 120,
                 "type": "external_event",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
                 "data": {
                   "name": "e3"
                 }
@@ -227,11 +228,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-5",
+                "id": "event-1de55a8a-b02a-42f8-86e6-6fac46b889ed",
                 "atMs": 130,
                 "type": "external_event",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
                 "data": {
                   "name": "e4"
                 }
@@ -241,11 +242,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "collector-event-upload-0",
+                "id": "collector-event-upload-63ea5160-6aa3-4c80-99de-3439dc6d087e",
                 "atMs": 130,
                 "type": "capture_diagnostic",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
                 "data": {
                   "component": "collector_event_upload",
                   "result": "dropped",
@@ -259,11 +260,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "collector-event-upload-1",
+                "id": "collector-event-upload-ad4099ea-d09d-4d68-9244-b2d779f2aa69",
                 "atMs": 130,
                 "type": "capture_diagnostic",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
                 "data": {
                   "component": "collector_event_upload",
                   "result": "dropped",
@@ -305,10 +306,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-5\",\"atMs\":130,\"triggeredAt\":\"2026-06-19T00:00:00.130Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e4\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-event-upload-0\",\"atMs\":130,\"triggeredAt\":\"2026-06-19T00:00:00.130Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_event_upload\",\"result\":\"dropped\",\"reason\":\"evicted\",\"eventCount\":1,\"droppedEventCount\":1},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-event-upload-1\",\"atMs\":130,\"triggeredAt\":\"2026-06-19T00:00:00.130Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_event_upload\",\"result\":\"dropped\",\"reason\":\"evicted\",\"eventCount\":1,\"droppedEventCount\":2},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-1de55a8a-b02a-42f8-86e6-6fac46b889ed\",\"atMs\":130,\"triggeredAt\":\"2026-06-19T00:00:00.130Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e4\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-event-upload-63ea5160-6aa3-4c80-99de-3439dc6d087e\",\"atMs\":130,\"triggeredAt\":\"2026-06-19T00:00:00.130Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_event_upload\",\"result\":\"dropped\",\"reason\":\"evicted\",\"eventCount\":1,\"droppedEventCount\":1},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-event-upload-ad4099ea-d09d-4d68-9244-b2d779f2aa69\",\"atMs\":130,\"triggeredAt\":\"2026-06-19T00:00:00.130Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_event_upload\",\"result\":\"dropped\",\"reason\":\"evicted\",\"eventCount\":1,\"droppedEventCount\":2},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/0b4ed86292b4e79e"
+                "srv-1/e/16bea68c203f3f3d"
               ],
               "isSessionEnd": false
             },
@@ -339,11 +340,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "collector-request-0",
+                "id": "collector-request-49ec39dd-0e70-4d93-9a65-8729659ef1c3",
                 "atMs": 210,
                 "type": "capture_diagnostic",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
                 "data": {
                   "component": "collector_request",
                   "path": "/v1/events/batch",
@@ -356,11 +357,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "collector-event-upload-2",
+                "id": "collector-event-upload-708531b6-b792-430e-976e-4f8ad07db571",
                 "atMs": 210,
                 "type": "capture_diagnostic",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
                 "data": {
                   "component": "collector_event_upload",
                   "result": "dropped",
@@ -402,11 +403,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-6",
+                "id": "event-ffea173e-eca6-4d67-aa81-887312b8b0c2",
                 "atMs": 300,
                 "type": "external_event",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
                 "data": {
                   "name": "r1"
                 }
@@ -435,10 +436,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"collector-request-0\",\"atMs\":210,\"triggeredAt\":\"2026-06-19T00:00:00.210Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":400},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-event-upload-2\",\"atMs\":210,\"triggeredAt\":\"2026-06-19T00:00:00.210Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_event_upload\",\"result\":\"dropped\",\"reason\":\"rejected\",\"statusCode\":400,\"eventCount\":3,\"droppedEventCount\":6},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-6\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-49ec39dd-0e70-4d93-9a65-8729659ef1c3\",\"atMs\":210,\"triggeredAt\":\"2026-06-19T00:00:00.210Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":400},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-event-upload-708531b6-b792-430e-976e-4f8ad07db571\",\"atMs\":210,\"triggeredAt\":\"2026-06-19T00:00:00.210Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_event_upload\",\"result\":\"dropped\",\"reason\":\"rejected\",\"statusCode\":400,\"eventCount\":3,\"droppedEventCount\":6},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-ffea173e-eca6-4d67-aa81-887312b8b0c2\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/ba105b835af7a2c1"
+                "srv-1/e/96f0fb87e514cc63"
               ],
               "isSessionEnd": false
             },
@@ -495,11 +496,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-7",
+                "id": "event-686df595-fec5-4f33-b53c-ab20bb2338f6",
                 "atMs": 400,
                 "type": "external_event",
                 "stream": "evidence",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
                 "data": {
                   "name": "r2"
                 }
@@ -528,10 +529,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"collector-request-0\",\"atMs\":210,\"triggeredAt\":\"2026-06-19T00:00:00.210Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":400},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-event-upload-2\",\"atMs\":210,\"triggeredAt\":\"2026-06-19T00:00:00.210Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_event_upload\",\"result\":\"dropped\",\"reason\":\"rejected\",\"statusCode\":400,\"eventCount\":3,\"droppedEventCount\":6},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-6\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-49ec39dd-0e70-4d93-9a65-8729659ef1c3\",\"atMs\":210,\"triggeredAt\":\"2026-06-19T00:00:00.210Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":400},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-event-upload-708531b6-b792-430e-976e-4f8ad07db571\",\"atMs\":210,\"triggeredAt\":\"2026-06-19T00:00:00.210Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_event_upload\",\"result\":\"dropped\",\"reason\":\"rejected\",\"statusCode\":400,\"eventCount\":3,\"droppedEventCount\":6},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-ffea173e-eca6-4d67-aa81-887312b8b0c2\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/ba105b835af7a2c1"
+                "srv-1/e/96f0fb87e514cc63"
               ],
               "isSessionEnd": false
             },
@@ -569,10 +570,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-7\",\"atMs\":400,\"triggeredAt\":\"2026-06-19T00:00:00.400Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-686df595-fec5-4f33-b53c-ab20bb2338f6\",\"atMs\":400,\"triggeredAt\":\"2026-06-19T00:00:00.400Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/5976124a116880e3"
+                "srv-1/e/73ab08334c9bf5b4"
               ],
               "isSessionEnd": false
             },
@@ -603,11 +604,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "collector-event-upload-3",
+                "id": "collector-event-upload-e6cd67ce-45e5-4b54-8af4-c02374c2e36e",
                 "atMs": 430,
                 "type": "capture_diagnostic",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
                 "data": {
                   "component": "collector_event_upload",
                   "result": "dropped",
@@ -645,10 +646,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-7\",\"atMs\":400,\"triggeredAt\":\"2026-06-19T00:00:00.400Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-686df595-fec5-4f33-b53c-ab20bb2338f6\",\"atMs\":400,\"triggeredAt\":\"2026-06-19T00:00:00.400Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/5976124a116880e3"
+                "srv-1/e/73ab08334c9bf5b4"
               ],
               "isSessionEnd": false
             },
@@ -678,11 +679,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "collector-request-1",
+                "id": "collector-request-afebfd97-c815-4db6-a073-dd3b8585d063",
                 "atMs": 510,
                 "type": "capture_diagnostic",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
                 "data": {
                   "component": "collector_request",
                   "path": "/v1/events/batch",
@@ -703,10 +704,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"collector-event-upload-3\",\"atMs\":430,\"triggeredAt\":\"2026-06-19T00:00:00.430Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_event_upload\",\"result\":\"dropped\",\"reason\":\"evicted\",\"eventCount\":3,\"droppedEventCount\":9},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-1\",\"atMs\":510,\"triggeredAt\":\"2026-06-19T00:00:00.510Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"collector-event-upload-e6cd67ce-45e5-4b54-8af4-c02374c2e36e\",\"atMs\":430,\"triggeredAt\":\"2026-06-19T00:00:00.430Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_event_upload\",\"result\":\"dropped\",\"reason\":\"evicted\",\"eventCount\":3,\"droppedEventCount\":9},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-afebfd97-c815-4db6-a073-dd3b8585d063\",\"atMs\":510,\"triggeredAt\":\"2026-06-19T00:00:00.510Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/6af2c5f1513d8f69"
+                "srv-1/e/e9dd8b6042b3546f"
               ],
               "isSessionEnd": false
             },
@@ -747,8 +748,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
+        "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -770,58 +771,58 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-132eaa22-c93b-42d3-9dfd-ec0436ae5fab",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d"
         },
         {
-          "id": "event-2",
+          "id": "event-8c990a8d-6b87-4231-b5c8-a805638dc473",
           "atMs": 100,
           "type": "external_event",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
           "data": {
             "name": "e1"
           }
         },
         {
-          "id": "event-3",
+          "id": "event-27112533-b3a2-4a83-ae19-73bbacbaf50d",
           "atMs": 110,
           "type": "external_event",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
           "data": {
             "name": "e2"
           }
         },
         {
-          "id": "event-4",
+          "id": "event-b2aaad1e-5bba-41b4-8ea8-4e4b8217db26",
           "atMs": 120,
           "type": "external_event",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
           "data": {
             "name": "e3"
           }
         },
         {
-          "id": "event-5",
+          "id": "event-1de55a8a-b02a-42f8-86e6-6fac46b889ed",
           "atMs": 130,
           "type": "external_event",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
           "data": {
             "name": "e4"
           }
         },
         {
-          "id": "collector-event-upload-0",
+          "id": "collector-event-upload-63ea5160-6aa3-4c80-99de-3439dc6d087e",
           "atMs": 130,
           "type": "capture_diagnostic",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
           "data": {
             "component": "collector_event_upload",
             "result": "dropped",
@@ -831,11 +832,11 @@
           }
         },
         {
-          "id": "collector-event-upload-1",
+          "id": "collector-event-upload-ad4099ea-d09d-4d68-9244-b2d779f2aa69",
           "atMs": 130,
           "type": "capture_diagnostic",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
           "data": {
             "component": "collector_event_upload",
             "result": "dropped",
@@ -845,11 +846,11 @@
           }
         },
         {
-          "id": "collector-request-0",
+          "id": "collector-request-49ec39dd-0e70-4d93-9a65-8729659ef1c3",
           "atMs": 210,
           "type": "capture_diagnostic",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
           "data": {
             "component": "collector_request",
             "path": "/v1/events/batch",
@@ -858,11 +859,11 @@
           }
         },
         {
-          "id": "collector-event-upload-2",
+          "id": "collector-event-upload-708531b6-b792-430e-976e-4f8ad07db571",
           "atMs": 210,
           "type": "capture_diagnostic",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
           "data": {
             "component": "collector_event_upload",
             "result": "dropped",
@@ -873,31 +874,31 @@
           }
         },
         {
-          "id": "event-6",
+          "id": "event-ffea173e-eca6-4d67-aa81-887312b8b0c2",
           "atMs": 300,
           "type": "external_event",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
           "data": {
             "name": "r1"
           }
         },
         {
-          "id": "event-7",
+          "id": "event-686df595-fec5-4f33-b53c-ab20bb2338f6",
           "atMs": 400,
           "type": "external_event",
           "stream": "evidence",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
           "data": {
             "name": "r2"
           }
         },
         {
-          "id": "collector-event-upload-3",
+          "id": "collector-event-upload-e6cd67ce-45e5-4b54-8af4-c02374c2e36e",
           "atMs": 430,
           "type": "capture_diagnostic",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
           "data": {
             "component": "collector_event_upload",
             "result": "dropped",
@@ -907,11 +908,11 @@
           }
         },
         {
-          "id": "collector-request-1",
+          "id": "collector-request-afebfd97-c815-4db6-a073-dd3b8585d063",
           "atMs": 510,
           "type": "capture_diagnostic",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-9d99c0d3-3e40-4718-b1d3-96f594a0df4d",
           "data": {
             "component": "collector_request",
             "path": "/v1/events/batch",

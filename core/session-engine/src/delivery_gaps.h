@@ -14,7 +14,7 @@
 // `/v1/sessions` or `/v1/events/batch` post per path and outage, then
 // `recovered` on the path's next accepted post. Flush lane
 // (`component: collector_flush`): the first slow flush pass of an outage.
-// All of them draw ids from one per-session sequence.
+// Their ids are `collector-...-<UUIDv4>` (BLE-618).
 // Event lane (`component: collector_event_upload`, opt-in with
 // `reportEventLaneGaps`, change C6): `dropped` events, evicted or rejected,
 // reported each time the cumulative count crosses a power of two.
