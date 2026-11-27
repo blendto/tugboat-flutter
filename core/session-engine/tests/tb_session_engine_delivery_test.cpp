@@ -108,11 +108,44 @@ void test_frame_gaps() {
   CHECK(gaps.flushed(false));           // recovered, latch cleared
   CHECK(!gaps.flushed(false));
   CHECK(gaps.failed(std::nullopt, 1));  // reported again
-  CHECK(gaps.evicted(1));               // 1
-  CHECK(!gaps.evicted(2));              // 3
-  CHECK(gaps.evicted(1));               // 4
-  CHECK(!gaps.evicted(3));              // 7: Dart misses the crossing of 4..8
+  CHECK(gaps.evicted(1));               // 1: first report
   CHECK(!gaps.evicted(0));
+  CHECK(gaps.evicted(2));               // 3 reached 2: next report at 4
+  CHECK(!gaps.final_drops());           // 3 is what was reported
+  CHECK(!gaps.evicted(0));
+  CHECK(gaps.evicted(1, 1));            // 4
+  CHECK(!gaps.evicted(3));              // 7 reached none of the next (8)
+  CHECK(gaps.final_drops());            // the session's final count is sent
+  CHECK(!gaps.final_drops());           // once
+  const auto last = gaps.evicted(1, 0);  // 8
+  CHECK(last && last->data.find("droppedReferencedFrameCount") != nullptr);
+}
+
+void test_request_gaps() {
+  FrameGaps gaps;
+  const auto failed = gaps.request_failed("/v1/sessions", 502, nullptr);
+  CHECK(failed && failed->id_prefix == "collector-request");
+  CHECK(!gaps.request_failed("/v1/sessions", 502, nullptr));  // once per outage
+  CHECK(gaps.request_failed("/v1/events/batch", std::nullopt, "timeout"));
+  CHECK(!gaps.request_accepted("/v1/frames"));  // never failed
+  const auto recovered = gaps.request_accepted("/v1/sessions");
+  CHECK(recovered && recovered->id_prefix == "collector-request");
+  CHECK(!gaps.request_accepted("/v1/sessions"));
+  // A new outage reports again.
+  CHECK(gaps.request_failed("/v1/sessions", 503, nullptr));
+  const auto frames = gaps.failed(503, 1);
+  CHECK(frames && frames->id_prefix == "collector-frame-upload");
+}
+
+void test_flush_gaps() {
+  FrameGaps gaps;
+  CHECK(!gaps.flush_pass(false, false, 100, "sessions", 100));
+  CHECK(gaps.flush_pass(true, true, 15000, "events", 15000));
+  CHECK(!gaps.flush_pass(true, true, 15000, "events", 15000));  // once
+  CHECK(!gaps.flush_pass(false, true, 10, "events", 10));       // still waiting
+  CHECK(!gaps.flush_pass(true, true, 15000, "events", 15000));  // same outage
+  CHECK(!gaps.flush_pass(false, false, 10, "events", 10));      // outage over
+  CHECK(gaps.flush_pass(true, false, 12000, "frames", 11000));
 }
 
 void test_event_gaps() {
@@ -150,25 +183,103 @@ void test_frame_retention_exactly_once() {
   CHECK(out.effects.size() == 1);
 }
 
-PendingFrame pending(int64_t n) {
+PendingFrame pending(int64_t n, int64_t bytes = 1) {
   return PendingFrame{n, "frame-" + std::to_string(n), "h-" + std::to_string(n),
-                      Value::object()};
+                      Value::object(), bytes};
 }
+
+const tugboat::engine::FrameBounds kTwoFrames{2, 1000000};
 
 void test_frame_lane_bounds() {
   FrameLane lane;
-  CHECK(lane.push(pending(5), 2).empty());
-  CHECK(lane.push(pending(3), 2).empty());
-  FrameUploads evicted = lane.push(pending(4), 2);
-  CHECK(evicted.size() == 1 && evicted[0].frame_no == 5);
+  tugboat::engine::FrameReferences refs;
+  CHECK(lane.push(pending(5), kTwoFrames, refs).empty());
+  CHECK(lane.push(pending(3), kTwoFrames, refs).empty());
+  tugboat::engine::FrameEviction evicted =
+      lane.push(pending(4), kTwoFrames, refs);
+  CHECK(evicted.frames.size() == 1 && evicted.frames[0].frame_no == 5);
   FrameUploads retry;
   retry.push_back(pending(1));
-  evicted = lane.requeue_front(std::move(retry), 2);  // [1, 3, 4]
-  CHECK(evicted.size() == 1 && evicted[0].frame_no == 1);
+  evicted = lane.requeue_front(std::move(retry), kTwoFrames, refs);  // [1, 3, 4]
+  CHECK(evicted.frames.size() == 1 && evicted.frames[0].frame_no == 1);
   const FrameUploads sorted = lane.take_sorted();
   CHECK(sorted.size() == 2 && sorted[0].frame_no == 3 &&
         sorted[1].frame_no == 4);
   CHECK(lane.empty());
+}
+
+// Eviction keeps frames an event points at, and the newest frame.
+void test_frame_lane_references_and_bytes() {
+  FrameLane lane;
+  tugboat::engine::FrameReferences refs;
+  refs.mark_referenced("frame-1");
+  CHECK(lane.push(pending(1), kTwoFrames, refs).empty());
+  CHECK(lane.push(pending(2), kTwoFrames, refs).empty());
+  // frame-1 is referenced, so the oldest unreferenced frame goes.
+  tugboat::engine::FrameEviction evicted =
+      lane.push(pending(3), kTwoFrames, refs);
+  CHECK(evicted.frames.size() == 1 && evicted.frames[0].frame_no == 2);
+  CHECK(evicted.referenced == 0);
+  // Every older frame referenced: the oldest goes, and counts as referenced.
+  refs.mark_referenced("frame-3");
+  evicted = lane.push(pending(4), kTwoFrames, refs);
+  CHECK(evicted.frames.size() == 1 && evicted.frames[0].frame_no == 1);
+  CHECK(evicted.referenced == 1);
+  // A frame that finished is not marked again by a late event.
+  refs.finish("frame-9", 10);
+  refs.mark_referenced("frame-9");
+  CHECK(!refs.referenced("frame-9"));
+
+  FrameLane bytes;
+  const tugboat::engine::FrameReferences none;
+  const tugboat::engine::FrameBounds by_bytes{100, 250};
+  CHECK(bytes.push(pending(1, 100), by_bytes, none).empty());
+  CHECK(bytes.push(pending(2, 100), by_bytes, none).empty());
+  evicted = bytes.push(pending(3, 100), by_bytes, none);  // 300 > 250
+  CHECK(evicted.frames.size() == 1 && evicted.frames[0].frame_no == 1);
+  const FrameUploads batch = bytes.take_batch(1);
+  CHECK(batch.size() == 1 && batch[0].frame_no == 2 && bytes.size() == 1);
+}
+
+// `byteLength` is any non-negative int64: sums over it must not overflow.
+void test_frame_lane_huge_byte_length() {
+  FrameLane lane;
+  tugboat::engine::FrameReferences refs;
+  const tugboat::engine::FrameBounds bounds{10, 8 * 1024 * 1024};
+  CHECK(lane.push(pending(1, 1), bounds, refs).empty());
+  tugboat::engine::FrameEviction evicted =
+      lane.push(pending(2, INT64_MAX), bounds, refs);
+  CHECK(evicted.frames.size() == 2);  // the huge frame counts for 2^40 bytes
+  evicted = lane.push(pending(3, INT64_MAX), bounds, refs);
+  CHECK(!evicted.empty());
+  CHECK(lane.size() <= 1);
+}
+
+void test_event_queue_park() {
+  EventQueue queue;
+  for (int i = 0; i < 5; ++i) {
+    Value event = Value::object();
+    event.set("id", Value::string("e" + std::to_string(i)));
+    queue.push(std::move(event), 100);
+  }
+  tugboat::engine::EventBatch head;
+  head.push_back(Value::object());
+  queue.push_retry(std::move(head), 10);
+  // Batches of 2: a new batch opens beside the head, never into it.
+  CHECK(queue.park(5, 2, 10) == 0);
+  CHECK(queue.pending() == 0 && queue.event_count() == 6);
+  CHECK(queue.retry_head_size() == 1);
+  // The bound evicts the oldest batch (the head) and reports its events.
+  EventQueue bounded;
+  for (int i = 0; i < 3; ++i) {
+    Value event = Value::object();
+    event.set("id", Value::string("e" + std::to_string(i)));
+    bounded.push(std::move(event), 100);
+  }
+  tugboat::engine::EventBatch old;
+  old.push_back(Value::object());
+  bounded.push_retry(std::move(old), 1);
+  CHECK(bounded.park(3, 1, 1) == 3);  // each parked event evicts one batch
 }
 
 void test_multipart_body() {
@@ -313,6 +424,11 @@ int main() {
   test_handshake_traits_id();
   test_frame_number();
   test_frame_gaps();
+  test_request_gaps();
+  test_flush_gaps();
+  test_frame_lane_references_and_bytes();
+  test_event_queue_park();
+  test_frame_lane_huge_byte_length();
   test_event_gaps();
   test_identity_debounce_tie();
   test_frame_retention_exactly_once();

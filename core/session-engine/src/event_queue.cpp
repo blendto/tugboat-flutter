@@ -1,5 +1,6 @@
 #include "event_queue.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "delivery_bounds.h"
@@ -26,6 +27,23 @@ size_t EventQueue::push_retry(EventBatch batch, size_t bound) {
   size_t evicted_events = 0;
   for (const EventBatch& evicted : evict_oldest(&retry_, bound)) {
     evicted_events += evicted.size();
+  }
+  return evicted_events;
+}
+
+size_t EventQueue::park(size_t count, size_t batch_size, size_t max_batches) {
+  size_t evicted_events = 0;
+  while (count > 0 && !pending_.empty()) {
+    if (!(retry_.size() > 1 && retry_.back().size() < batch_size)) {
+      evicted_events += push_retry(EventBatch(), max_batches);
+    }
+    EventBatch& batch = retry_.back();
+    const size_t size = std::min(batch_size - batch.size(), pending_.size());
+    for (size_t i = 0; i < size; ++i) {
+      batch.push_back(std::move(pending_.front()));
+      pending_.pop_front();
+    }
+    count = size >= count ? 0 : count - size;
   }
   return evicted_events;
 }

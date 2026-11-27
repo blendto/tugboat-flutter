@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "delivery-gap-dropped-power-of-two",
-  "description": "Frame evictions are reported as dropped when the cumulative count is 1 or a power of two, with droppedFrameCount (change C6: gap records).",
+  "description": "Frame evictions are reported as dropped when the cumulative count is 1 or a power of two, with droppedFrameCount (change C6: gap records). Delivery's own collector_request reports (Dart 0.11.1) are events like any other: they join batches and take request ids, so a request a step answers may be a batch of reports, and step notes describe the state without them.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -133,7 +133,25 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-a88b37ea-6a41-466d-980f-c3fbf9c036d3",
+                "atMs": 10,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-b4f595f2-39a7-4c5e-a25a-d31eef10f020",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "failed",
+                  "statusCode": 400
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -264,7 +282,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-a88b37ea-6a41-466d-980f-c3fbf9c036d3",
+                "id": "event-bcac54c2-a358-4e49-9bb2-ffa55759a89c",
                 "atMs": 100,
                 "type": "interaction",
                 "stream": "semantic",
@@ -427,7 +445,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "collector-frame-upload-42e7e704-c412-464e-877d-142c9853cd8e",
+                "id": "collector-frame-upload-3ace837c-1a10-42b9-bbc3-f059e5bcdeff",
                 "atMs": 240,
                 "type": "capture_diagnostic",
                 "stream": "semantic",
@@ -436,7 +454,8 @@
                   "component": "collector_frame_upload",
                   "result": "dropped",
                   "frameCount": 1,
-                  "droppedFrameCount": 1
+                  "droppedFrameCount": 1,
+                  "droppedReferencedFrameCount": 1
                 }
               },
               "userId": "user-configured"
@@ -444,7 +463,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-bcac54c2-a358-4e49-9bb2-ffa55759a89c",
+                "id": "event-42e7e704-c412-464e-877d-142c9853cd8e",
                 "atMs": 200,
                 "type": "interaction",
                 "stream": "semantic",
@@ -590,7 +609,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "collector-frame-upload-69548740-d31f-4f1c-96c1-8524075493c0",
+                "id": "collector-frame-upload-cc4c9b89-43bc-42f9-8bbe-d094ed7d7736",
                 "atMs": 340,
                 "type": "capture_diagnostic",
                 "stream": "semantic",
@@ -599,7 +618,8 @@
                   "component": "collector_frame_upload",
                   "result": "dropped",
                   "frameCount": 2,
-                  "droppedFrameCount": 2
+                  "droppedFrameCount": 2,
+                  "droppedReferencedFrameCount": 2
                 }
               },
               "userId": "user-configured"
@@ -607,7 +627,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3ace837c-1a10-42b9-bbc3-f059e5bcdeff",
+                "id": "event-69548740-d31f-4f1c-96c1-8524075493c0",
                 "atMs": 300,
                 "type": "interaction",
                 "stream": "semantic",
@@ -753,7 +773,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-cc4c9b89-43bc-42f9-8bbe-d094ed7d7736",
+                "id": "event-3ccb806e-7213-4a3c-b4af-698729490840",
                 "atMs": 400,
                 "type": "interaction",
                 "stream": "semantic",
@@ -899,7 +919,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "collector-frame-upload-43e8df5e-b4f5-446f-abaf-907790420c82",
+                "id": "collector-frame-upload-9ac05aa6-5e4f-4cb3-8678-cae6878bcde7",
                 "atMs": 540,
                 "type": "capture_diagnostic",
                 "stream": "semantic",
@@ -908,7 +928,8 @@
                   "component": "collector_frame_upload",
                   "result": "dropped",
                   "frameCount": 4,
-                  "droppedFrameCount": 4
+                  "droppedFrameCount": 4,
+                  "droppedReferencedFrameCount": 4
                 }
               },
               "userId": "user-configured"
@@ -916,7 +937,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3ccb806e-7213-4a3c-b4af-698729490840",
+                "id": "event-43e8df5e-b4f5-446f-abaf-907790420c82",
                 "atMs": 500,
                 "type": "interaction",
                 "stream": "semantic",
@@ -1062,7 +1083,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-9ac05aa6-5e4f-4cb3-8678-cae6878bcde7",
+                "id": "event-d64fb797-f71f-4c85-aeec-cf26e8f4c0fc",
                 "atMs": 600,
                 "type": "interaction",
                 "stream": "semantic",
@@ -1194,7 +1215,20 @@
           "captureSessionId": "session-b4f595f2-39a7-4c5e-a25a-d31eef10f020"
         },
         {
-          "id": "event-a88b37ea-6a41-466d-980f-c3fbf9c036d3",
+          "id": "collector-request-a88b37ea-6a41-466d-980f-c3fbf9c036d3",
+          "atMs": 10,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-b4f595f2-39a7-4c5e-a25a-d31eef10f020",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/sessions",
+            "result": "failed",
+            "statusCode": 400
+          }
+        },
+        {
+          "id": "event-bcac54c2-a358-4e49-9bb2-ffa55759a89c",
           "atMs": 100,
           "type": "interaction",
           "stream": "semantic",
@@ -1206,7 +1240,7 @@
           }
         },
         {
-          "id": "collector-frame-upload-42e7e704-c412-464e-877d-142c9853cd8e",
+          "id": "collector-frame-upload-3ace837c-1a10-42b9-bbc3-f059e5bcdeff",
           "atMs": 240,
           "type": "capture_diagnostic",
           "stream": "semantic",
@@ -1215,11 +1249,12 @@
             "component": "collector_frame_upload",
             "result": "dropped",
             "frameCount": 1,
-            "droppedFrameCount": 1
+            "droppedFrameCount": 1,
+            "droppedReferencedFrameCount": 1
           }
         },
         {
-          "id": "event-bcac54c2-a358-4e49-9bb2-ffa55759a89c",
+          "id": "event-42e7e704-c412-464e-877d-142c9853cd8e",
           "atMs": 200,
           "type": "interaction",
           "stream": "semantic",
@@ -1232,7 +1267,7 @@
           }
         },
         {
-          "id": "collector-frame-upload-69548740-d31f-4f1c-96c1-8524075493c0",
+          "id": "collector-frame-upload-cc4c9b89-43bc-42f9-8bbe-d094ed7d7736",
           "atMs": 340,
           "type": "capture_diagnostic",
           "stream": "semantic",
@@ -1241,11 +1276,12 @@
             "component": "collector_frame_upload",
             "result": "dropped",
             "frameCount": 2,
-            "droppedFrameCount": 2
+            "droppedFrameCount": 2,
+            "droppedReferencedFrameCount": 2
           }
         },
         {
-          "id": "event-3ace837c-1a10-42b9-bbc3-f059e5bcdeff",
+          "id": "event-69548740-d31f-4f1c-96c1-8524075493c0",
           "atMs": 300,
           "type": "interaction",
           "stream": "semantic",
@@ -1258,7 +1294,7 @@
           }
         },
         {
-          "id": "event-cc4c9b89-43bc-42f9-8bbe-d094ed7d7736",
+          "id": "event-3ccb806e-7213-4a3c-b4af-698729490840",
           "atMs": 400,
           "type": "interaction",
           "stream": "semantic",
@@ -1271,7 +1307,7 @@
           }
         },
         {
-          "id": "collector-frame-upload-43e8df5e-b4f5-446f-abaf-907790420c82",
+          "id": "collector-frame-upload-9ac05aa6-5e4f-4cb3-8678-cae6878bcde7",
           "atMs": 540,
           "type": "capture_diagnostic",
           "stream": "semantic",
@@ -1280,11 +1316,12 @@
             "component": "collector_frame_upload",
             "result": "dropped",
             "frameCount": 4,
-            "droppedFrameCount": 4
+            "droppedFrameCount": 4,
+            "droppedReferencedFrameCount": 4
           }
         },
         {
-          "id": "event-3ccb806e-7213-4a3c-b4af-698729490840",
+          "id": "event-43e8df5e-b4f5-446f-abaf-907790420c82",
           "atMs": 500,
           "type": "interaction",
           "stream": "semantic",
@@ -1297,7 +1334,7 @@
           }
         },
         {
-          "id": "event-9ac05aa6-5e4f-4cb3-8678-cae6878bcde7",
+          "id": "event-d64fb797-f71f-4c85-aeec-cf26e8f4c0fc",
           "atMs": 600,
           "type": "interaction",
           "stream": "semantic",

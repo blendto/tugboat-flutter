@@ -1,6 +1,16 @@
 import Foundation
 import TugboatSessionEngine
 
+/// What the collector sink holds and has lost, with the fields of Dart's
+/// `TugboatSinkHealth`: `pending` events and frames queued, waiting for a
+/// retry, or in a request; `accepted` and `dropped` running totals over every
+/// session.
+struct SinkHealth: Equatable {
+  let pending: Int64
+  let accepted: Int64
+  let dropped: Int64
+}
+
 /// Owns one engine handle (`transport`) and drives it from one serial queue.
 /// `post*` may be called from any thread; every submit, response, and effect
 /// runs on that queue, in post order.
@@ -122,6 +132,34 @@ final class EngineHost {
   /// `http.send`s have started); even after `close`. Any thread.
   func afterPosted(_ work: @escaping () -> Void) {
     queue.async(execute: work)
+  }
+
+  /// Reads the collector sink's health from the engine, on the engine queue,
+  /// after already-posted work: `completion` gets it there, or nil when the
+  /// host is closed or the engine does not answer. Nothing here is sent to the
+  /// collector.
+  func readSinkHealth(_ completion: @escaping (SinkHealth?) -> Void) {
+    guard accepting.current else {
+      completion(nil)
+      return
+    }
+    queue.async {
+      completion(self.active ? self.querySinkHealth() : nil)
+    }
+  }
+
+  private func querySinkHealth() -> SinkHealth? {
+    let response = transport.submit(Data("{\"type\":\"engine.health\",\"input\":{}}".utf8))
+    guard response.status == TB_SESSION_OK,
+      let root = try? JSONSerialization.jsonObject(with: response.json) as? [String: Any],
+      let result = root["result"] as? [String: Any],
+      let health = result["health"] as? [String: Any],
+      let sinks = health["sinks"] as? [String: Any],
+      let pending = (sinks["pending"] as? NSNumber)?.int64Value,
+      let accepted = (sinks["accepted"] as? NSNumber)?.int64Value,
+      let dropped = (sinks["dropped"] as? NSNumber)?.int64Value
+    else { return nil }
+    return SinkHealth(pending: pending, accepted: accepted, dropped: dropped)
   }
 
   /// Submits `engine.dispose`, then cancels timers, closes IO, destroys the

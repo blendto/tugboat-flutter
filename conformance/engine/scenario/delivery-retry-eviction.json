@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "delivery-retry-eviction",
-  "description": "The retry queue holds at most maxPendingBatches batches; a new retry evicts the oldest batch (silently while reportEventLaneGaps is off).",
+  "description": "The retry queue holds at most maxPendingBatches batches; a new retry evicts the oldest batch (silently while reportEventLaneGaps is off). Delivery's own collector_request reports (Dart 0.11.1) are events like any other: they join batches and take request ids, so a step may answer a batch of reports; the step notes name the request each step answers or sends, and the scenario ends with no request in flight.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -95,6 +95,7 @@
         }
       },
       {
+        "note": "http-0 (session_start) answered 202",
         "send": {
           "type": "transport.result",
           "at": {
@@ -119,7 +120,7 @@
         }
       },
       {
-        "note": "batchSize 1: every event triggers a pass",
+        "note": "event e1; sends http-1 (events e1)",
         "send": {
           "type": "event.record",
           "at": {
@@ -175,7 +176,7 @@
         }
       },
       {
-        "note": "retry: [[e1]]",
+        "note": "http-1 (events e1) answered 503",
         "send": {
           "type": "transport.result",
           "at": {
@@ -189,7 +190,25 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-dc06bff3-6af2-48ca-aea3-885683cd585f",
+                "atMs": 110,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-7387aee9-731e-4ed1-ac1e-9893e08e02c8",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "failed",
+                  "statusCode": 503
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -199,6 +218,7 @@
         }
       },
       {
+        "note": "event e2; sends http-2 (events e1)",
         "send": {
           "type": "event.record",
           "at": {
@@ -219,7 +239,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-dc06bff3-6af2-48ca-aea3-885683cd585f",
+                "id": "event-fa86febb-d492-4f1a-bccc-a71ad500f2ba",
                 "atMs": 200,
                 "type": "external_event",
                 "stream": "evidence",
@@ -254,6 +274,7 @@
         }
       },
       {
+        "note": "http-2 (events e1) answered 503; sends http-3 (events report)",
         "send": {
           "type": "transport.result",
           "at": {
@@ -279,10 +300,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-dc06bff3-6af2-48ca-aea3-885683cd585f\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-dc06bff3-6af2-48ca-aea3-885683cd585f\",\"atMs\":110,\"triggeredAt\":\"2026-06-19T00:00:00.110Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":503},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/52be0a4a5b6a91e4"
+                "srv-1/e/5ae04a9875ff19b4"
               ],
               "isSessionEnd": false
             },
@@ -295,7 +316,7 @@
         }
       },
       {
-        "note": "retry: [[e1], [e2]]",
+        "note": "http-3 (events report) answered 503",
         "send": {
           "type": "transport.result",
           "at": {
@@ -319,6 +340,7 @@
         }
       },
       {
+        "note": "event e3; sends http-4 (events report)",
         "send": {
           "type": "event.record",
           "at": {
@@ -339,7 +361,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-fa86febb-d492-4f1a-bccc-a71ad500f2ba",
+                "id": "event-d87049c7-9371-42b0-95ab-e57adb585ff5",
                 "atMs": 300,
                 "type": "external_event",
                 "stream": "evidence",
@@ -358,10 +380,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-bf561655-a2fd-4ebf-8e7e-6f7fb8558ff1\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e1\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-dc06bff3-6af2-48ca-aea3-885683cd585f\",\"atMs\":110,\"triggeredAt\":\"2026-06-19T00:00:00.110Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":503},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/4fc44e1475544852"
+                "srv-1/e/5ae04a9875ff19b4"
               ],
               "isSessionEnd": false
             },
@@ -374,6 +396,7 @@
         }
       },
       {
+        "note": "http-4 (events report) answered 503; sends http-5 (events e3)",
         "send": {
           "type": "transport.result",
           "at": {
@@ -399,10 +422,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-fa86febb-d492-4f1a-bccc-a71ad500f2ba\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e3\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-d87049c7-9371-42b0-95ab-e57adb585ff5\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e3\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/087723af8bec8b4e"
+                "srv-1/e/c72a0b66d39cb40b"
               ],
               "isSessionEnd": false
             },
@@ -415,7 +438,7 @@
         }
       },
       {
-        "note": "[e3] joins the retry queue and evicts [e1]",
+        "note": "http-5 (events e3) answered 503",
         "send": {
           "type": "transport.result",
           "at": {
@@ -439,6 +462,7 @@
         }
       },
       {
+        "note": "flush; sends http-6 (events e2)",
         "send": {
           "type": "transport.flush",
           "at": {
@@ -456,10 +480,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-dc06bff3-6af2-48ca-aea3-885683cd585f\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-fa86febb-d492-4f1a-bccc-a71ad500f2ba\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e2\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/52be0a4a5b6a91e4"
+                "srv-1/e/087723af8bec8b4e"
               ],
               "isSessionEnd": false
             },
@@ -472,7 +496,7 @@
         }
       },
       {
-        "note": "[e2] accepted",
+        "note": "http-6 (events e2) answered 202; sends http-7 (events e3)",
         "send": {
           "type": "transport.result",
           "at": {
@@ -486,7 +510,24 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-83b9ab6a-9be5-4b55-9199-ed326f6b2504",
+                "atMs": 410,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-7387aee9-731e-4ed1-ac1e-9893e08e02c8",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -498,10 +539,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-fa86febb-d492-4f1a-bccc-a71ad500f2ba\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e3\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-d87049c7-9371-42b0-95ab-e57adb585ff5\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e3\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/087723af8bec8b4e"
+                "srv-1/e/c72a0b66d39cb40b"
               ],
               "isSessionEnd": false
             },
@@ -514,7 +555,7 @@
         }
       },
       {
-        "note": "[e3] accepted",
+        "note": "http-7 (events e3) answered 202; sends http-8 (events report)",
         "send": {
           "type": "transport.result",
           "at": {
@@ -533,6 +574,48 @@
             {
               "type": "timer.cancel",
               "timerId": "delivery.answer.http-7"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-8",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-83b9ab6a-9be5-4b55-9199-ed326f6b2504\",\"atMs\":410,\"triggeredAt\":\"2026-06-19T00:00:00.410Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/a9c7216d4a7791cc"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-8",
+              "atMonoUs": 25420000
+            }
+          ]
+        }
+      },
+      {
+        "note": "http-8 (events report) answered 202",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5430000,
+            "wallUs": 1781827200430000
+          },
+          "input": {
+            "requestId": "http-8",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-8"
             }
           ]
         }
@@ -583,7 +666,20 @@
           }
         },
         {
-          "id": "event-dc06bff3-6af2-48ca-aea3-885683cd585f",
+          "id": "collector-request-dc06bff3-6af2-48ca-aea3-885683cd585f",
+          "atMs": 110,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-7387aee9-731e-4ed1-ac1e-9893e08e02c8",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "failed",
+            "statusCode": 503
+          }
+        },
+        {
+          "id": "event-fa86febb-d492-4f1a-bccc-a71ad500f2ba",
           "atMs": 200,
           "type": "external_event",
           "stream": "evidence",
@@ -593,13 +689,25 @@
           }
         },
         {
-          "id": "event-fa86febb-d492-4f1a-bccc-a71ad500f2ba",
+          "id": "event-d87049c7-9371-42b0-95ab-e57adb585ff5",
           "atMs": 300,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-7387aee9-731e-4ed1-ac1e-9893e08e02c8",
           "data": {
             "name": "e3"
+          }
+        },
+        {
+          "id": "collector-request-83b9ab6a-9be5-4b55-9199-ed326f6b2504",
+          "atMs": 410,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-7387aee9-731e-4ed1-ac1e-9893e08e02c8",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "recovered"
           }
         }
       ]

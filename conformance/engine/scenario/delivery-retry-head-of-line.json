@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "delivery-retry-head-of-line",
-  "description": "A batch that gets a retry outcome waits in the retry queue. Each pass retries the head first and stops retrying at the first retry outcome, but still sends fresh events.",
+  "description": "A batch that gets a retry outcome waits in the retry queue. Each pass retries the head first and stops retrying at the first retry outcome, but still sends fresh events. Delivery's own collector_request reports (Dart 0.11.1) are events like any other: they join batches and take request ids, so a request a step answers may be a batch of reports, and step notes describe the state without them.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -200,7 +200,25 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-dd2c4b69-8707-4dd9-aa2c-bd67b0b81d55",
+                "atMs": 120,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-7ba74a33-38a5-4040-bf74-1d3718efded5",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "failed",
+                  "statusCode": 503
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -230,7 +248,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-dd2c4b69-8707-4dd9-aa2c-bd67b0b81d55",
+                "id": "event-119315ee-7dea-4e9d-a767-dd8cc1c15168",
                 "atMs": 200,
                 "type": "external_event",
                 "stream": "evidence",
@@ -306,10 +324,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-dd2c4b69-8707-4dd9-aa2c-bd67b0b81d55\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"b\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-dd2c4b69-8707-4dd9-aa2c-bd67b0b81d55\",\"atMs\":120,\"triggeredAt\":\"2026-06-19T00:00:00.120Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":503},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-119315ee-7dea-4e9d-a767-dd8cc1c15168\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"b\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/00066b77450b0ede"
+                "srv-1/e/61a794edd9ebfa34"
               ],
               "isSessionEnd": false
             },
@@ -336,7 +354,24 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-a027d0e5-4e02-4ca0-8423-9ac987d9d2cb",
+                "atMs": 230,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-7ba74a33-38a5-4040-bf74-1d3718efded5",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -366,7 +401,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-119315ee-7dea-4e9d-a767-dd8cc1c15168",
+                "id": "event-309767b8-2fad-4db2-8e0f-d3024daf0971",
                 "atMs": 300,
                 "type": "external_event",
                 "stream": "evidence",
@@ -441,10 +476,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-119315ee-7dea-4e9d-a767-dd8cc1c15168\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"c\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-a027d0e5-4e02-4ca0-8423-9ac987d9d2cb\",\"atMs\":230,\"triggeredAt\":\"2026-06-19T00:00:00.230Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-309767b8-2fad-4db2-8e0f-d3024daf0971\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"c\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/2b9b7053cb58a94f"
+                "srv-1/e/3dbcc23cfb2a3df3"
               ],
               "isSessionEnd": false
             },
@@ -525,7 +560,20 @@
           }
         },
         {
-          "id": "event-dd2c4b69-8707-4dd9-aa2c-bd67b0b81d55",
+          "id": "collector-request-dd2c4b69-8707-4dd9-aa2c-bd67b0b81d55",
+          "atMs": 120,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-7ba74a33-38a5-4040-bf74-1d3718efded5",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "failed",
+            "statusCode": 503
+          }
+        },
+        {
+          "id": "event-119315ee-7dea-4e9d-a767-dd8cc1c15168",
           "atMs": 200,
           "type": "external_event",
           "stream": "evidence",
@@ -535,7 +583,19 @@
           }
         },
         {
-          "id": "event-119315ee-7dea-4e9d-a767-dd8cc1c15168",
+          "id": "collector-request-a027d0e5-4e02-4ca0-8423-9ac987d9d2cb",
+          "atMs": 230,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-7ba74a33-38a5-4040-bf74-1d3718efded5",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "recovered"
+          }
+        },
+        {
+          "id": "event-309767b8-2fad-4db2-8e0f-d3024daf0971",
           "atMs": 300,
           "type": "external_event",
           "stream": "evidence",

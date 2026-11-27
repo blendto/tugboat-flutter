@@ -8,15 +8,101 @@
 namespace tugboat {
 namespace engine {
 
-FrameUploads FrameLane::push(PendingFrame frame, size_t bound) {
-  pending_.push_back(std::move(frame));
-  return evict_oldest(&pending_, bound);
+void FrameReferences::mark_referenced(const std::string& frame_id) {
+  if (finished_.count(frame_id) == 0) {
+    referenced_.insert(frame_id);
+  }
 }
 
-FrameUploads FrameLane::requeue_front(FrameUploads uploads, size_t bound) {
+void FrameReferences::finish(const std::string& frame_id, size_t cap) {
+  referenced_.erase(frame_id);
+  if (finished_.insert(frame_id).second) {
+    finished_order_.push_back(frame_id);
+  }
+  while (finished_order_.size() > cap) {
+    finished_.erase(finished_order_.front());
+    finished_order_.pop_front();
+  }
+}
+
+void FrameReferences::clear() {
+  referenced_.clear();
+  finished_order_.clear();
+  finished_.clear();
+}
+
+namespace {
+
+// `byteLength` is any non-negative int64; a frame counts for at most the
+// configuration ceiling (config.cpp, 2^40), so the sum over at most
+// `kMaxCount` frames cannot overflow.
+constexpr int64_t kMaxCountedBytes = int64_t{1} << 40;
+
+int64_t counted_bytes(const PendingFrame& frame) {
+  return std::min(frame.bytes, kMaxCountedBytes);
+}
+
+// The frame to evict: the oldest nothing references, never the newest (the
+// event that points at it usually arrives just after); else the oldest.
+size_t eviction_index(const std::deque<PendingFrame>& pending,
+                      const FrameReferences& references) {
+  for (size_t i = 0; i + 1 < pending.size(); ++i) {
+    if (!references.referenced(pending[i].frame_id)) {
+      return i;
+    }
+  }
+  return 0;
+}
+
+}  // namespace
+
+FrameEviction FrameLane::push(PendingFrame frame, const FrameBounds& bounds,
+                              const FrameReferences& references) {
+  pending_.push_back(std::move(frame));
+  return trim(bounds, references);
+}
+
+FrameEviction FrameLane::requeue_front(FrameUploads uploads,
+                                       const FrameBounds& bounds,
+                                       const FrameReferences& references) {
   pending_.insert(pending_.begin(), std::make_move_iterator(uploads.begin()),
                   std::make_move_iterator(uploads.end()));
-  return evict_oldest(&pending_, bound);
+  return trim(bounds, references);
+}
+
+FrameEviction FrameLane::trim(const FrameBounds& bounds,
+                              const FrameReferences& references) {
+  int64_t bytes = 0;
+  for (const PendingFrame& frame : pending_) {
+    bytes += counted_bytes(frame);
+  }
+  FrameEviction evicted;
+  while (!pending_.empty() &&
+         (pending_.size() > bounds.frames || bytes > bounds.bytes)) {
+    const size_t index = eviction_index(pending_, references);
+    PendingFrame frame = std::move(pending_[index]);
+    pending_.erase(pending_.begin() + static_cast<std::ptrdiff_t>(index));
+    bytes -= counted_bytes(frame);
+    if (references.referenced(frame.frame_id)) {
+      ++evicted.referenced;
+    }
+    evicted.frames.push_back(std::move(frame));
+  }
+  return evicted;
+}
+
+FrameUploads FrameLane::take_batch(size_t max) {
+  std::stable_sort(pending_.begin(), pending_.end(),
+                   [](const PendingFrame& a, const PendingFrame& b) {
+                     return a.frame_no < b.frame_no;
+                   });
+  const size_t count = std::min(max, pending_.size());
+  FrameUploads batch(std::make_move_iterator(pending_.begin()),
+                     std::make_move_iterator(pending_.begin() +
+                                             static_cast<std::ptrdiff_t>(count)));
+  pending_.erase(pending_.begin(),
+                 pending_.begin() + static_cast<std::ptrdiff_t>(count));
+  return batch;
 }
 
 FrameUploads FrameLane::take_sorted() {

@@ -66,7 +66,9 @@ struct CollectorConfig {
   int64_t flush_interval_ms = 3000;
   int64_t max_pending_batches = 20;
   int64_t max_pending_events = 60;
-  int64_t max_pending_frames = 20;
+  // Dart 0.11.1: 400 frames and 8 MiB of encoded frames wait for upload.
+  int64_t max_pending_frames = 400;
+  int64_t max_pending_frame_bytes = 8 * 1024 * 1024;
   int64_t frame_chunk = 20;
   int64_t frame_timeout_ms = 15000;
   int64_t json_timeout_ms = 15000;      // change C3

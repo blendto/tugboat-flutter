@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "delivery-status-classification",
-  "description": "Only HTTP 202 is acceptance (C8 kept): 200, 201, 204, and every other 4xx drop the batch for good; 408, 429, 5xx, a transport error, and a timeout queue it for retry.",
+  "description": "Only HTTP 202 is acceptance (C8 kept): 200, 201, 204, and every other 4xx drop the batch for good; 408, 429, 5xx, a transport error, and a timeout queue it for retry. Delivery's own collector_request reports (Dart 0.11.1) are events like any other: they join batches and take request ids, so a step may answer a batch of reports; the step notes name the request each step answers or sends, and the scenario ends with no request in flight.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -93,6 +93,7 @@
         }
       },
       {
+        "note": "http-0 (session_start) answered 202",
         "send": {
           "type": "transport.result",
           "at": {
@@ -120,8 +121,8 @@
         "send": {
           "type": "event.record",
           "at": {
-            "monoUs": 5100000,
-            "wallUs": 1781827200100000
+            "monoUs": 5200000,
+            "wallUs": 1781827200200000
           },
           "input": {
             "eventType": "external_event",
@@ -138,7 +139,7 @@
               "kind": "event",
               "event": {
                 "id": "event-225df849-c279-424c-952b-ef461a060b15",
-                "atMs": 100,
+                "atMs": 200,
                 "type": "external_event",
                 "stream": "evidence",
                 "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -156,8 +157,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 5101000,
-            "wallUs": 1781827200101000
+            "monoUs": 5300000,
+            "wallUs": 1781827200300000
           },
           "input": {}
         },
@@ -170,7 +171,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-225df849-c279-424c-952b-ef461a060b15\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"s200\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-225df849-c279-424c-952b-ef461a060b15\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"s200\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
                 "srv-1/e/28887c40fc88508b"
@@ -180,7 +181,7 @@
             {
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-1",
-              "atMonoUs": 25101000
+              "atMonoUs": 25300000
             }
           ]
         }
@@ -190,8 +191,8 @@
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 5102000,
-            "wallUs": 1781827200102000
+            "monoUs": 5400000,
+            "wallUs": 1781827200400000
           },
           "input": {
             "requestId": "http-1",
@@ -200,7 +201,25 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-6f444bf9-5370-461a-bd93-0fad446f496d",
+                "atMs": 400,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "failed",
+                  "statusCode": 200
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -213,8 +232,8 @@
         "send": {
           "type": "event.record",
           "at": {
-            "monoUs": 5200000,
-            "wallUs": 1781827200200000
+            "monoUs": 5500000,
+            "wallUs": 1781827200500000
           },
           "input": {
             "eventType": "external_event",
@@ -230,8 +249,8 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-6f444bf9-5370-461a-bd93-0fad446f496d",
-                "atMs": 200,
+                "id": "event-7fb9e68b-bad3-47e6-b2e9-c913e57a86df",
+                "atMs": 500,
                 "type": "external_event",
                 "stream": "evidence",
                 "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -249,8 +268,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 5201000,
-            "wallUs": 1781827200201000
+            "monoUs": 5600000,
+            "wallUs": 1781827200600000
           },
           "input": {}
         },
@@ -263,27 +282,28 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-6f444bf9-5370-461a-bd93-0fad446f496d\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"s201\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-6f444bf9-5370-461a-bd93-0fad446f496d\",\"atMs\":400,\"triggeredAt\":\"2026-06-19T00:00:00.400Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":200},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"event-7fb9e68b-bad3-47e6-b2e9-c913e57a86df\",\"atMs\":500,\"triggeredAt\":\"2026-06-19T00:00:00.500Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"s201\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/db5c9bb45777c8b9"
+                "srv-1/e/b8ba4717d2a9dfd4"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-2",
-              "atMonoUs": 25201000
+              "atMonoUs": 25600000
             }
           ]
         }
       },
       {
+        "note": "201: dropped",
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 5202000,
-            "wallUs": 1781827200202000
+            "monoUs": 5700000,
+            "wallUs": 1781827200700000
           },
           "input": {
             "requestId": "http-2",
@@ -305,8 +325,8 @@
         "send": {
           "type": "event.record",
           "at": {
-            "monoUs": 5300000,
-            "wallUs": 1781827200300000
+            "monoUs": 5800000,
+            "wallUs": 1781827200800000
           },
           "input": {
             "eventType": "external_event",
@@ -322,8 +342,8 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-7fb9e68b-bad3-47e6-b2e9-c913e57a86df",
-                "atMs": 300,
+                "id": "event-099c231a-d979-495c-8400-71d27a84297b",
+                "atMs": 800,
                 "type": "external_event",
                 "stream": "evidence",
                 "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -341,8 +361,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 5301000,
-            "wallUs": 1781827200301000
+            "monoUs": 5900000,
+            "wallUs": 1781827200900000
           },
           "input": {}
         },
@@ -355,27 +375,28 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-7fb9e68b-bad3-47e6-b2e9-c913e57a86df\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"s204\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-099c231a-d979-495c-8400-71d27a84297b\",\"atMs\":800,\"triggeredAt\":\"2026-06-19T00:00:00.800Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"s204\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/b4af9fab614ae048"
+                "srv-1/e/ef4bd339a40e2145"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-3",
-              "atMonoUs": 25301000
+              "atMonoUs": 25900000
             }
           ]
         }
       },
       {
+        "note": "204: dropped",
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 5302000,
-            "wallUs": 1781827200302000
+            "monoUs": 6000000,
+            "wallUs": 1781827201000000
           },
           "input": {
             "requestId": "http-3",
@@ -397,8 +418,8 @@
         "send": {
           "type": "event.record",
           "at": {
-            "monoUs": 5400000,
-            "wallUs": 1781827200400000
+            "monoUs": 6100000,
+            "wallUs": 1781827201100000
           },
           "input": {
             "eventType": "external_event",
@@ -414,8 +435,8 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-099c231a-d979-495c-8400-71d27a84297b",
-                "atMs": 400,
+                "id": "event-f022e18c-6dda-4a7b-bd18-2afa23ec73d2",
+                "atMs": 1100,
                 "type": "external_event",
                 "stream": "evidence",
                 "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -433,8 +454,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 5401000,
-            "wallUs": 1781827200401000
+            "monoUs": 6200000,
+            "wallUs": 1781827201200000
           },
           "input": {}
         },
@@ -447,17 +468,17 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-099c231a-d979-495c-8400-71d27a84297b\",\"atMs\":400,\"triggeredAt\":\"2026-06-19T00:00:00.400Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"s400\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-f022e18c-6dda-4a7b-bd18-2afa23ec73d2\",\"atMs\":1100,\"triggeredAt\":\"2026-06-19T00:00:01.100Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"s400\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/ef4bd339a40e2145"
+                "srv-1/e/b145a0d4113a9d94"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-4",
-              "atMonoUs": 25401000
+              "atMonoUs": 26200000
             }
           ]
         }
@@ -467,8 +488,8 @@
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 5402000,
-            "wallUs": 1781827200402000
+            "monoUs": 6300000,
+            "wallUs": 1781827201300000
           },
           "input": {
             "requestId": "http-4",
@@ -490,8 +511,8 @@
         "send": {
           "type": "event.record",
           "at": {
-            "monoUs": 5500000,
-            "wallUs": 1781827200500000
+            "monoUs": 6400000,
+            "wallUs": 1781827201400000
           },
           "input": {
             "eventType": "external_event",
@@ -507,8 +528,8 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-f022e18c-6dda-4a7b-bd18-2afa23ec73d2",
-                "atMs": 500,
+                "id": "event-0a80afec-704f-4be4-907e-0652ffa2cc4a",
+                "atMs": 1400,
                 "type": "external_event",
                 "stream": "evidence",
                 "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -526,8 +547,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 5501000,
-            "wallUs": 1781827200501000
+            "monoUs": 6500000,
+            "wallUs": 1781827201500000
           },
           "input": {}
         },
@@ -540,27 +561,28 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-f022e18c-6dda-4a7b-bd18-2afa23ec73d2\",\"atMs\":500,\"triggeredAt\":\"2026-06-19T00:00:00.500Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"s404\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-0a80afec-704f-4be4-907e-0652ffa2cc4a\",\"atMs\":1400,\"triggeredAt\":\"2026-06-19T00:00:01.400Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"s404\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/b145a0d4113a9d94"
+                "srv-1/e/a79d7f3e34c5001c"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-5",
-              "atMonoUs": 25501000
+              "atMonoUs": 26500000
             }
           ]
         }
       },
       {
+        "note": "404: dropped",
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 5502000,
-            "wallUs": 1781827200502000
+            "monoUs": 6600000,
+            "wallUs": 1781827201600000
           },
           "input": {
             "requestId": "http-5",
@@ -582,8 +604,8 @@
         "send": {
           "type": "event.record",
           "at": {
-            "monoUs": 5600000,
-            "wallUs": 1781827200600000
+            "monoUs": 6700000,
+            "wallUs": 1781827201700000
           },
           "input": {
             "eventType": "external_event",
@@ -599,8 +621,8 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0a80afec-704f-4be4-907e-0652ffa2cc4a",
-                "atMs": 600,
+                "id": "event-a5caddd6-3af0-4f74-bd5f-0f661c8adde4",
+                "atMs": 1700,
                 "type": "external_event",
                 "stream": "evidence",
                 "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -618,8 +640,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 5601000,
-            "wallUs": 1781827200601000
+            "monoUs": 6800000,
+            "wallUs": 1781827201800000
           },
           "input": {}
         },
@@ -632,27 +654,28 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-0a80afec-704f-4be4-907e-0652ffa2cc4a\",\"atMs\":600,\"triggeredAt\":\"2026-06-19T00:00:00.600Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"s413\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-a5caddd6-3af0-4f74-bd5f-0f661c8adde4\",\"atMs\":1700,\"triggeredAt\":\"2026-06-19T00:00:01.700Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"s413\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/a79d7f3e34c5001c"
+                "srv-1/e/1ada4c2539b60eb5"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-6",
-              "atMonoUs": 25601000
+              "atMonoUs": 26800000
             }
           ]
         }
       },
       {
+        "note": "413: dropped",
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 5602000,
-            "wallUs": 1781827200602000
+            "monoUs": 6900000,
+            "wallUs": 1781827201900000
           },
           "input": {
             "requestId": "http-6",
@@ -674,8 +697,8 @@
         "send": {
           "type": "event.record",
           "at": {
-            "monoUs": 5700000,
-            "wallUs": 1781827200700000
+            "monoUs": 7000000,
+            "wallUs": 1781827202000000
           },
           "input": {
             "eventType": "external_event",
@@ -691,8 +714,8 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-a5caddd6-3af0-4f74-bd5f-0f661c8adde4",
-                "atMs": 700,
+                "id": "event-47446cfc-9250-41d3-b975-09cb725498e3",
+                "atMs": 2000,
                 "type": "external_event",
                 "stream": "evidence",
                 "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -710,8 +733,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 5701000,
-            "wallUs": 1781827200701000
+            "monoUs": 7100000,
+            "wallUs": 1781827202100000
           },
           "input": {}
         },
@@ -724,17 +747,17 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-a5caddd6-3af0-4f74-bd5f-0f661c8adde4\",\"atMs\":700,\"triggeredAt\":\"2026-06-19T00:00:00.700Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r408\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-47446cfc-9250-41d3-b975-09cb725498e3\",\"atMs\":2000,\"triggeredAt\":\"2026-06-19T00:00:02.000Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r408\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/1ada4c2539b60eb5"
+                "srv-1/e/0f963b9fd5157adf"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-7",
-              "atMonoUs": 25701000
+              "atMonoUs": 27100000
             }
           ]
         }
@@ -744,8 +767,8 @@
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 5702000,
-            "wallUs": 1781827200702000
+            "monoUs": 7200000,
+            "wallUs": 1781827202200000
           },
           "input": {
             "requestId": "http-7",
@@ -768,8 +791,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 5703000,
-            "wallUs": 1781827200703000
+            "monoUs": 7300000,
+            "wallUs": 1781827202300000
           },
           "input": {}
         },
@@ -782,17 +805,17 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-a5caddd6-3af0-4f74-bd5f-0f661c8adde4\",\"atMs\":700,\"triggeredAt\":\"2026-06-19T00:00:00.700Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r408\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-47446cfc-9250-41d3-b975-09cb725498e3\",\"atMs\":2000,\"triggeredAt\":\"2026-06-19T00:00:02.000Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r408\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/1ada4c2539b60eb5"
+                "srv-1/e/0f963b9fd5157adf"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-8",
-              "atMonoUs": 25703000
+              "atMonoUs": 27300000
             }
           ]
         }
@@ -802,11 +825,70 @@
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 5704000,
-            "wallUs": 1781827200704000
+            "monoUs": 7400000,
+            "wallUs": 1781827202400000
           },
           "input": {
             "requestId": "http-8",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-1b43f341-7a0f-46bc-979f-2c2dfd5846b7",
+                "atMs": 2400,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-8"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-9",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-1b43f341-7a0f-46bc-979f-2c2dfd5846b7\",\"atMs\":2400,\"triggeredAt\":\"2026-06-19T00:00:02.400Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/fa7ada4445fb9aaa"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-9",
+              "atMonoUs": 27400000
+            }
+          ]
+        }
+      },
+      {
+        "note": "delivered",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 7500000,
+            "wallUs": 1781827202500000
+          },
+          "input": {
+            "requestId": "http-9",
             "outcome": "http",
             "status": 202
           }
@@ -816,7 +898,7 @@
           "effects": [
             {
               "type": "timer.cancel",
-              "timerId": "delivery.answer.http-8"
+              "timerId": "delivery.answer.http-9"
             }
           ]
         }
@@ -825,8 +907,8 @@
         "send": {
           "type": "event.record",
           "at": {
-            "monoUs": 5800000,
-            "wallUs": 1781827200800000
+            "monoUs": 7600000,
+            "wallUs": 1781827202600000
           },
           "input": {
             "eventType": "external_event",
@@ -842,8 +924,8 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-47446cfc-9250-41d3-b975-09cb725498e3",
-                "atMs": 800,
+                "id": "event-77c25eb1-fb63-4fe8-891a-00054d174603",
+                "atMs": 2600,
                 "type": "external_event",
                 "stream": "evidence",
                 "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -861,65 +943,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 5801000,
-            "wallUs": 1781827200801000
-          },
-          "input": {}
-        },
-        "expect": {
-          "records": [],
-          "effects": [
-            {
-              "type": "http.send",
-              "requestId": "http-9",
-              "lane": "events",
-              "path": "/v1/events/batch",
-              "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-47446cfc-9250-41d3-b975-09cb725498e3\",\"atMs\":800,\"triggeredAt\":\"2026-06-19T00:00:00.800Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r429\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
-              "sessionId": "srv-1",
-              "deliveryKeys": [
-                "srv-1/e/0f963b9fd5157adf"
-              ],
-              "isSessionEnd": false
-            },
-            {
-              "type": "timer.schedule",
-              "timerId": "delivery.answer.http-9",
-              "atMonoUs": 25801000
-            }
-          ]
-        }
-      },
-      {
-        "send": {
-          "type": "transport.result",
-          "at": {
-            "monoUs": 5802000,
-            "wallUs": 1781827200802000
-          },
-          "input": {
-            "requestId": "http-9",
-            "outcome": "http",
-            "status": 429
-          }
-        },
-        "expect": {
-          "records": [],
-          "effects": [
-            {
-              "type": "timer.cancel",
-              "timerId": "delivery.answer.http-9"
-            }
-          ]
-        }
-      },
-      {
-        "note": "the next pass retries it",
-        "send": {
-          "type": "transport.flush",
-          "at": {
-            "monoUs": 5803000,
-            "wallUs": 1781827200803000
+            "monoUs": 7700000,
+            "wallUs": 1781827202700000
           },
           "input": {}
         },
@@ -932,37 +957,55 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-47446cfc-9250-41d3-b975-09cb725498e3\",\"atMs\":800,\"triggeredAt\":\"2026-06-19T00:00:00.800Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r429\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-77c25eb1-fb63-4fe8-891a-00054d174603\",\"atMs\":2600,\"triggeredAt\":\"2026-06-19T00:00:02.600Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r429\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/0f963b9fd5157adf"
+                "srv-1/e/3b7e89931c5d7695"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-10",
-              "atMonoUs": 25803000
+              "atMonoUs": 27700000
             }
           ]
         }
       },
       {
-        "note": "accepted",
+        "note": "429: queued for retry",
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 5804000,
-            "wallUs": 1781827200804000
+            "monoUs": 7800000,
+            "wallUs": 1781827202800000
           },
           "input": {
             "requestId": "http-10",
             "outcome": "http",
-            "status": 202
+            "status": 429
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-3de8a578-a404-4131-8ec9-2592a1e6fc8d",
+                "atMs": 2800,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "failed",
+                  "statusCode": 429
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -972,47 +1015,12 @@
         }
       },
       {
-        "send": {
-          "type": "event.record",
-          "at": {
-            "monoUs": 5900000,
-            "wallUs": 1781827200900000
-          },
-          "input": {
-            "eventType": "external_event",
-            "stream": "evidence",
-            "attachActionContext": false,
-            "data": {
-              "name": "r500"
-            }
-          }
-        },
-        "expect": {
-          "records": [
-            {
-              "kind": "event",
-              "event": {
-                "id": "event-1b43f341-7a0f-46bc-979f-2c2dfd5846b7",
-                "atMs": 900,
-                "type": "external_event",
-                "stream": "evidence",
-                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
-                "data": {
-                  "name": "r500"
-                }
-              },
-              "userId": "user-configured"
-            }
-          ],
-          "effects": []
-        }
-      },
-      {
+        "note": "the next pass retries it",
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 5901000,
-            "wallUs": 1781827200901000
+            "monoUs": 7900000,
+            "wallUs": 1781827202900000
           },
           "input": {}
         },
@@ -1025,74 +1033,17 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-1b43f341-7a0f-46bc-979f-2c2dfd5846b7\",\"atMs\":900,\"triggeredAt\":\"2026-06-19T00:00:00.900Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r500\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-77c25eb1-fb63-4fe8-891a-00054d174603\",\"atMs\":2600,\"triggeredAt\":\"2026-06-19T00:00:02.600Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r429\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/2e70dcd98ebcdeff"
+                "srv-1/e/3b7e89931c5d7695"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
               "timerId": "delivery.answer.http-11",
-              "atMonoUs": 25901000
-            }
-          ]
-        }
-      },
-      {
-        "send": {
-          "type": "transport.result",
-          "at": {
-            "monoUs": 5902000,
-            "wallUs": 1781827200902000
-          },
-          "input": {
-            "requestId": "http-11",
-            "outcome": "http",
-            "status": 500
-          }
-        },
-        "expect": {
-          "records": [],
-          "effects": [
-            {
-              "type": "timer.cancel",
-              "timerId": "delivery.answer.http-11"
-            }
-          ]
-        }
-      },
-      {
-        "note": "the next pass retries it",
-        "send": {
-          "type": "transport.flush",
-          "at": {
-            "monoUs": 5903000,
-            "wallUs": 1781827200903000
-          },
-          "input": {}
-        },
-        "expect": {
-          "records": [],
-          "effects": [
-            {
-              "type": "http.send",
-              "requestId": "http-12",
-              "lane": "events",
-              "path": "/v1/events/batch",
-              "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-1b43f341-7a0f-46bc-979f-2c2dfd5846b7\",\"atMs\":900,\"triggeredAt\":\"2026-06-19T00:00:00.900Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r500\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
-              "sessionId": "srv-1",
-              "deliveryKeys": [
-                "srv-1/e/2e70dcd98ebcdeff"
-              ],
-              "isSessionEnd": false
-            },
-            {
-              "type": "timer.schedule",
-              "timerId": "delivery.answer.http-12",
-              "atMonoUs": 25903000
+              "atMonoUs": 27900000
             }
           ]
         }
@@ -1102,8 +1053,67 @@
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 5904000,
-            "wallUs": 1781827200904000
+            "monoUs": 8000000,
+            "wallUs": 1781827203000000
+          },
+          "input": {
+            "requestId": "http-11",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-70bbe9c0-4b49-4d2a-adae-082ee468b589",
+                "atMs": 3000,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-11"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-12",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-3de8a578-a404-4131-8ec9-2592a1e6fc8d\",\"atMs\":2800,\"triggeredAt\":\"2026-06-19T00:00:02.800Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":429},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-70bbe9c0-4b49-4d2a-adae-082ee468b589\",\"atMs\":3000,\"triggeredAt\":\"2026-06-19T00:00:03.000Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/a4f8af8e90dfa184"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-12",
+              "atMonoUs": 28000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "delivered",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 8100000,
+            "wallUs": 1781827203100000
           },
           "input": {
             "requestId": "http-12",
@@ -1125,8 +1135,236 @@
         "send": {
           "type": "event.record",
           "at": {
-            "monoUs": 6000000,
-            "wallUs": 1781827201000000
+            "monoUs": 8200000,
+            "wallUs": 1781827203200000
+          },
+          "input": {
+            "eventType": "external_event",
+            "stream": "evidence",
+            "attachActionContext": false,
+            "data": {
+              "name": "r500"
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-bf741f99-5a99-46dd-ba89-981cff84729b",
+                "atMs": 3200,
+                "type": "external_event",
+                "stream": "evidence",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "name": "r500"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 8300000,
+            "wallUs": 1781827203300000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-13",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-bf741f99-5a99-46dd-ba89-981cff84729b\",\"atMs\":3200,\"triggeredAt\":\"2026-06-19T00:00:03.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r500\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/11df6cbd75b49383"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-13",
+              "atMonoUs": 28300000
+            }
+          ]
+        }
+      },
+      {
+        "note": "500: queued for retry",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 8400000,
+            "wallUs": 1781827203400000
+          },
+          "input": {
+            "requestId": "http-13",
+            "outcome": "http",
+            "status": 500
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-5a97ad92-511c-465d-9686-cb7f351cc001",
+                "atMs": 3400,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "failed",
+                  "statusCode": 500
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-13"
+            }
+          ]
+        }
+      },
+      {
+        "note": "the next pass retries it",
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 8500000,
+            "wallUs": 1781827203500000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-14",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"event-bf741f99-5a99-46dd-ba89-981cff84729b\",\"atMs\":3200,\"triggeredAt\":\"2026-06-19T00:00:03.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r500\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/11df6cbd75b49383"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-14",
+              "atMonoUs": 28500000
+            }
+          ]
+        }
+      },
+      {
+        "note": "accepted",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 8600000,
+            "wallUs": 1781827203600000
+          },
+          "input": {
+            "requestId": "http-14",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-e350c0b9-08df-4ffb-ba9e-acfa66997985",
+                "atMs": 3600,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-14"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-15",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-5a97ad92-511c-465d-9686-cb7f351cc001\",\"atMs\":3400,\"triggeredAt\":\"2026-06-19T00:00:03.400Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":500},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-e350c0b9-08df-4ffb-ba9e-acfa66997985\",\"atMs\":3600,\"triggeredAt\":\"2026-06-19T00:00:03.600Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/0f5f07e47611aa28"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-15",
+              "atMonoUs": 28600000
+            }
+          ]
+        }
+      },
+      {
+        "note": "delivered",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 8700000,
+            "wallUs": 1781827203700000
+          },
+          "input": {
+            "requestId": "http-15",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-15"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "event.record",
+          "at": {
+            "monoUs": 8800000,
+            "wallUs": 1781827203800000
           },
           "input": {
             "eventType": "external_event",
@@ -1142,8 +1380,8 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-77c25eb1-fb63-4fe8-891a-00054d174603",
-                "atMs": 1000,
+                "id": "event-2777de7d-dd84-45ac-a9f1-4f817083c500",
+                "atMs": 3800,
                 "type": "external_event",
                 "stream": "evidence",
                 "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1161,8 +1399,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 6001000,
-            "wallUs": 1781827201001000
+            "monoUs": 8900000,
+            "wallUs": 1781827203900000
           },
           "input": {}
         },
@@ -1171,44 +1409,63 @@
           "effects": [
             {
               "type": "http.send",
-              "requestId": "http-13",
+              "requestId": "http-16",
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-77c25eb1-fb63-4fe8-891a-00054d174603\",\"atMs\":1000,\"triggeredAt\":\"2026-06-19T00:00:01.000Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r503\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-2777de7d-dd84-45ac-a9f1-4f817083c500\",\"atMs\":3800,\"triggeredAt\":\"2026-06-19T00:00:03.800Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r503\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/3b7e89931c5d7695"
+                "srv-1/e/30ea62d9fddc893f"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
-              "timerId": "delivery.answer.http-13",
-              "atMonoUs": 26001000
+              "timerId": "delivery.answer.http-16",
+              "atMonoUs": 28900000
             }
           ]
         }
       },
       {
+        "note": "503: queued for retry",
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 6002000,
-            "wallUs": 1781827201002000
+            "monoUs": 9000000,
+            "wallUs": 1781827204000000
           },
           "input": {
-            "requestId": "http-13",
+            "requestId": "http-16",
             "outcome": "http",
             "status": 503
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-85da57e4-5d0d-4926-9163-85e296b47ee9",
+                "atMs": 4000,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "failed",
+                  "statusCode": 503
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
-              "timerId": "delivery.answer.http-13"
+              "timerId": "delivery.answer.http-16"
             }
           ]
         }
@@ -1218,8 +1475,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 6003000,
-            "wallUs": 1781827201003000
+            "monoUs": 9100000,
+            "wallUs": 1781827204100000
           },
           "input": {}
         },
@@ -1228,21 +1485,21 @@
           "effects": [
             {
               "type": "http.send",
-              "requestId": "http-14",
+              "requestId": "http-17",
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-77c25eb1-fb63-4fe8-891a-00054d174603\",\"atMs\":1000,\"triggeredAt\":\"2026-06-19T00:00:01.000Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r503\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-2777de7d-dd84-45ac-a9f1-4f817083c500\",\"atMs\":3800,\"triggeredAt\":\"2026-06-19T00:00:03.800Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"r503\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/3b7e89931c5d7695"
+                "srv-1/e/30ea62d9fddc893f"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
-              "timerId": "delivery.answer.http-14",
-              "atMonoUs": 26003000
+              "timerId": "delivery.answer.http-17",
+              "atMonoUs": 29100000
             }
           ]
         }
@@ -1252,11 +1509,70 @@
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 6004000,
-            "wallUs": 1781827201004000
+            "monoUs": 9200000,
+            "wallUs": 1781827204200000
           },
           "input": {
-            "requestId": "http-14",
+            "requestId": "http-17",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-eb2bcc2d-b567-4584-a6fd-f6cff177a49e",
+                "atMs": 4200,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-17"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-18",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-85da57e4-5d0d-4926-9163-85e296b47ee9\",\"atMs\":4000,\"triggeredAt\":\"2026-06-19T00:00:04.000Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":503},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-eb2bcc2d-b567-4584-a6fd-f6cff177a49e\",\"atMs\":4200,\"triggeredAt\":\"2026-06-19T00:00:04.200Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/4bc78d00b25360d0"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-18",
+              "atMonoUs": 29200000
+            }
+          ]
+        }
+      },
+      {
+        "note": "delivered",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 9300000,
+            "wallUs": 1781827204300000
+          },
+          "input": {
+            "requestId": "http-18",
             "outcome": "http",
             "status": 202
           }
@@ -1266,7 +1582,7 @@
           "effects": [
             {
               "type": "timer.cancel",
-              "timerId": "delivery.answer.http-14"
+              "timerId": "delivery.answer.http-18"
             }
           ]
         }
@@ -1275,8 +1591,8 @@
         "send": {
           "type": "event.record",
           "at": {
-            "monoUs": 6100000,
-            "wallUs": 1781827201100000
+            "monoUs": 9400000,
+            "wallUs": 1781827204400000
           },
           "input": {
             "eventType": "external_event",
@@ -1292,8 +1608,8 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3de8a578-a404-4131-8ec9-2592a1e6fc8d",
-                "atMs": 1100,
+                "id": "event-67bdbc3f-8768-43dd-9e99-261c5db4ac3f",
+                "atMs": 4400,
                 "type": "external_event",
                 "stream": "evidence",
                 "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1311,8 +1627,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 6101000,
-            "wallUs": 1781827201101000
+            "monoUs": 9500000,
+            "wallUs": 1781827204500000
           },
           "input": {}
         },
@@ -1321,21 +1637,21 @@
           "effects": [
             {
               "type": "http.send",
-              "requestId": "http-15",
+              "requestId": "http-19",
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-3de8a578-a404-4131-8ec9-2592a1e6fc8d\",\"atMs\":1100,\"triggeredAt\":\"2026-06-19T00:00:01.100Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"rerror\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-67bdbc3f-8768-43dd-9e99-261c5db4ac3f\",\"atMs\":4400,\"triggeredAt\":\"2026-06-19T00:00:04.400Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"rerror\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/0e08cc2c181886fa"
+                "srv-1/e/388b7081c4cdd290"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
-              "timerId": "delivery.answer.http-15",
-              "atMonoUs": 26101000
+              "timerId": "delivery.answer.http-19",
+              "atMonoUs": 29500000
             }
           ]
         }
@@ -1345,20 +1661,38 @@
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 6102000,
-            "wallUs": 1781827201102000
+            "monoUs": 9600000,
+            "wallUs": 1781827204600000
           },
           "input": {
-            "requestId": "http-15",
+            "requestId": "http-19",
             "outcome": "error"
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-5c51f56a-44e0-44f0-85a4-6b587a601359",
+                "atMs": 4600,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "failed",
+                  "error": "transport"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
-              "timerId": "delivery.answer.http-15"
+              "timerId": "delivery.answer.http-19"
             }
           ]
         }
@@ -1368,8 +1702,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 6103000,
-            "wallUs": 1781827201103000
+            "monoUs": 9700000,
+            "wallUs": 1781827204700000
           },
           "input": {}
         },
@@ -1378,21 +1712,21 @@
           "effects": [
             {
               "type": "http.send",
-              "requestId": "http-16",
+              "requestId": "http-20",
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-3de8a578-a404-4131-8ec9-2592a1e6fc8d\",\"atMs\":1100,\"triggeredAt\":\"2026-06-19T00:00:01.100Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"rerror\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-67bdbc3f-8768-43dd-9e99-261c5db4ac3f\",\"atMs\":4400,\"triggeredAt\":\"2026-06-19T00:00:04.400Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"rerror\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/0e08cc2c181886fa"
+                "srv-1/e/388b7081c4cdd290"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
-              "timerId": "delivery.answer.http-16",
-              "atMonoUs": 26103000
+              "timerId": "delivery.answer.http-20",
+              "atMonoUs": 29700000
             }
           ]
         }
@@ -1402,11 +1736,70 @@
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 6104000,
-            "wallUs": 1781827201104000
+            "monoUs": 9800000,
+            "wallUs": 1781827204800000
           },
           "input": {
-            "requestId": "http-16",
+            "requestId": "http-20",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-1b81841e-093d-4854-9434-4859c0753a6d",
+                "atMs": 4800,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-20"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-21",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-5c51f56a-44e0-44f0-85a4-6b587a601359\",\"atMs\":4600,\"triggeredAt\":\"2026-06-19T00:00:04.600Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"error\":\"transport\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-1b81841e-093d-4854-9434-4859c0753a6d\",\"atMs\":4800,\"triggeredAt\":\"2026-06-19T00:00:04.800Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/4076e8007fb1ae6e"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-21",
+              "atMonoUs": 29800000
+            }
+          ]
+        }
+      },
+      {
+        "note": "delivered",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 9900000,
+            "wallUs": 1781827204900000
+          },
+          "input": {
+            "requestId": "http-21",
             "outcome": "http",
             "status": 202
           }
@@ -1416,7 +1809,7 @@
           "effects": [
             {
               "type": "timer.cancel",
-              "timerId": "delivery.answer.http-16"
+              "timerId": "delivery.answer.http-21"
             }
           ]
         }
@@ -1425,8 +1818,8 @@
         "send": {
           "type": "event.record",
           "at": {
-            "monoUs": 6200000,
-            "wallUs": 1781827201200000
+            "monoUs": 10000000,
+            "wallUs": 1781827205000000
           },
           "input": {
             "eventType": "external_event",
@@ -1442,8 +1835,8 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-70bbe9c0-4b49-4d2a-adae-082ee468b589",
-                "atMs": 1200,
+                "id": "event-9c67df12-fcec-4fb7-a9fb-d7ba524c6a40",
+                "atMs": 5000,
                 "type": "external_event",
                 "stream": "evidence",
                 "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1461,8 +1854,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 6201000,
-            "wallUs": 1781827201201000
+            "monoUs": 10100000,
+            "wallUs": 1781827205100000
           },
           "input": {}
         },
@@ -1471,21 +1864,21 @@
           "effects": [
             {
               "type": "http.send",
-              "requestId": "http-17",
+              "requestId": "http-22",
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-70bbe9c0-4b49-4d2a-adae-082ee468b589\",\"atMs\":1200,\"triggeredAt\":\"2026-06-19T00:00:01.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"rtimeout\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-9c67df12-fcec-4fb7-a9fb-d7ba524c6a40\",\"atMs\":5000,\"triggeredAt\":\"2026-06-19T00:00:05.000Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"rtimeout\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/1f6e4c49607214f0"
+                "srv-1/e/46ace7f8c3f97694"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
-              "timerId": "delivery.answer.http-17",
-              "atMonoUs": 26201000
+              "timerId": "delivery.answer.http-22",
+              "atMonoUs": 30100000
             }
           ]
         }
@@ -1495,20 +1888,38 @@
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 6202000,
-            "wallUs": 1781827201202000
+            "monoUs": 10200000,
+            "wallUs": 1781827205200000
           },
           "input": {
-            "requestId": "http-17",
+            "requestId": "http-22",
             "outcome": "timeout"
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-057b9ae6-5b23-45fb-ac6a-8bbc49b06664",
+                "atMs": 5200,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "failed",
+                  "error": "timeout"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
-              "timerId": "delivery.answer.http-17"
+              "timerId": "delivery.answer.http-22"
             }
           ]
         }
@@ -1518,8 +1929,8 @@
         "send": {
           "type": "transport.flush",
           "at": {
-            "monoUs": 6203000,
-            "wallUs": 1781827201203000
+            "monoUs": 10300000,
+            "wallUs": 1781827205300000
           },
           "input": {}
         },
@@ -1528,21 +1939,21 @@
           "effects": [
             {
               "type": "http.send",
-              "requestId": "http-18",
+              "requestId": "http-23",
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-70bbe9c0-4b49-4d2a-adae-082ee468b589\",\"atMs\":1200,\"triggeredAt\":\"2026-06-19T00:00:01.200Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"rtimeout\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-9c67df12-fcec-4fb7-a9fb-d7ba524c6a40\",\"atMs\":5000,\"triggeredAt\":\"2026-06-19T00:00:05.000Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"rtimeout\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/1f6e4c49607214f0"
+                "srv-1/e/46ace7f8c3f97694"
               ],
               "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
-              "timerId": "delivery.answer.http-18",
-              "atMonoUs": 26203000
+              "timerId": "delivery.answer.http-23",
+              "atMonoUs": 30300000
             }
           ]
         }
@@ -1552,11 +1963,70 @@
         "send": {
           "type": "transport.result",
           "at": {
-            "monoUs": 6204000,
-            "wallUs": 1781827201204000
+            "monoUs": 10400000,
+            "wallUs": 1781827205400000
           },
           "input": {
-            "requestId": "http-18",
+            "requestId": "http-23",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-6708984e-9440-4461-91d8-2189420d2bdc",
+                "atMs": 5400,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-23"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-24",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-057b9ae6-5b23-45fb-ac6a-8bbc49b06664\",\"atMs\":5200,\"triggeredAt\":\"2026-06-19T00:00:05.200Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"error\":\"timeout\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-6708984e-9440-4461-91d8-2189420d2bdc\",\"atMs\":5400,\"triggeredAt\":\"2026-06-19T00:00:05.400Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/0695728b8e054e29"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-24",
+              "atMonoUs": 30400000
+            }
+          ]
+        }
+      },
+      {
+        "note": "delivered",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 10500000,
+            "wallUs": 1781827205500000
+          },
+          "input": {
+            "requestId": "http-24",
             "outcome": "http",
             "status": 202
           }
@@ -1566,7 +2036,7 @@
           "effects": [
             {
               "type": "timer.cancel",
-              "timerId": "delivery.answer.http-18"
+              "timerId": "delivery.answer.http-24"
             }
           ]
         }
@@ -1608,7 +2078,7 @@
         },
         {
           "id": "event-225df849-c279-424c-952b-ef461a060b15",
-          "atMs": 100,
+          "atMs": 200,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1617,8 +2087,21 @@
           }
         },
         {
-          "id": "event-6f444bf9-5370-461a-bd93-0fad446f496d",
-          "atMs": 200,
+          "id": "collector-request-6f444bf9-5370-461a-bd93-0fad446f496d",
+          "atMs": 400,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "failed",
+            "statusCode": 200
+          }
+        },
+        {
+          "id": "event-7fb9e68b-bad3-47e6-b2e9-c913e57a86df",
+          "atMs": 500,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1627,8 +2110,8 @@
           }
         },
         {
-          "id": "event-7fb9e68b-bad3-47e6-b2e9-c913e57a86df",
-          "atMs": 300,
+          "id": "event-099c231a-d979-495c-8400-71d27a84297b",
+          "atMs": 800,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1637,8 +2120,8 @@
           }
         },
         {
-          "id": "event-099c231a-d979-495c-8400-71d27a84297b",
-          "atMs": 400,
+          "id": "event-f022e18c-6dda-4a7b-bd18-2afa23ec73d2",
+          "atMs": 1100,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1647,8 +2130,8 @@
           }
         },
         {
-          "id": "event-f022e18c-6dda-4a7b-bd18-2afa23ec73d2",
-          "atMs": 500,
+          "id": "event-0a80afec-704f-4be4-907e-0652ffa2cc4a",
+          "atMs": 1400,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1657,8 +2140,8 @@
           }
         },
         {
-          "id": "event-0a80afec-704f-4be4-907e-0652ffa2cc4a",
-          "atMs": 600,
+          "id": "event-a5caddd6-3af0-4f74-bd5f-0f661c8adde4",
+          "atMs": 1700,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1667,8 +2150,8 @@
           }
         },
         {
-          "id": "event-a5caddd6-3af0-4f74-bd5f-0f661c8adde4",
-          "atMs": 700,
+          "id": "event-47446cfc-9250-41d3-b975-09cb725498e3",
+          "atMs": 2000,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1677,8 +2160,20 @@
           }
         },
         {
-          "id": "event-47446cfc-9250-41d3-b975-09cb725498e3",
-          "atMs": 800,
+          "id": "collector-request-1b43f341-7a0f-46bc-979f-2c2dfd5846b7",
+          "atMs": 2400,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "recovered"
+          }
+        },
+        {
+          "id": "event-77c25eb1-fb63-4fe8-891a-00054d174603",
+          "atMs": 2600,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1687,8 +2182,33 @@
           }
         },
         {
-          "id": "event-1b43f341-7a0f-46bc-979f-2c2dfd5846b7",
-          "atMs": 900,
+          "id": "collector-request-3de8a578-a404-4131-8ec9-2592a1e6fc8d",
+          "atMs": 2800,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "failed",
+            "statusCode": 429
+          }
+        },
+        {
+          "id": "collector-request-70bbe9c0-4b49-4d2a-adae-082ee468b589",
+          "atMs": 3000,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "recovered"
+          }
+        },
+        {
+          "id": "event-bf741f99-5a99-46dd-ba89-981cff84729b",
+          "atMs": 3200,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1697,8 +2217,33 @@
           }
         },
         {
-          "id": "event-77c25eb1-fb63-4fe8-891a-00054d174603",
-          "atMs": 1000,
+          "id": "collector-request-5a97ad92-511c-465d-9686-cb7f351cc001",
+          "atMs": 3400,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "failed",
+            "statusCode": 500
+          }
+        },
+        {
+          "id": "collector-request-e350c0b9-08df-4ffb-ba9e-acfa66997985",
+          "atMs": 3600,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "recovered"
+          }
+        },
+        {
+          "id": "event-2777de7d-dd84-45ac-a9f1-4f817083c500",
+          "atMs": 3800,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1707,8 +2252,33 @@
           }
         },
         {
-          "id": "event-3de8a578-a404-4131-8ec9-2592a1e6fc8d",
-          "atMs": 1100,
+          "id": "collector-request-85da57e4-5d0d-4926-9163-85e296b47ee9",
+          "atMs": 4000,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "failed",
+            "statusCode": 503
+          }
+        },
+        {
+          "id": "collector-request-eb2bcc2d-b567-4584-a6fd-f6cff177a49e",
+          "atMs": 4200,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "recovered"
+          }
+        },
+        {
+          "id": "event-67bdbc3f-8768-43dd-9e99-261c5db4ac3f",
+          "atMs": 4400,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
@@ -1717,13 +2287,63 @@
           }
         },
         {
-          "id": "event-70bbe9c0-4b49-4d2a-adae-082ee468b589",
-          "atMs": 1200,
+          "id": "collector-request-5c51f56a-44e0-44f0-85a4-6b587a601359",
+          "atMs": 4600,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "failed",
+            "error": "transport"
+          }
+        },
+        {
+          "id": "collector-request-1b81841e-093d-4854-9434-4859c0753a6d",
+          "atMs": 4800,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "recovered"
+          }
+        },
+        {
+          "id": "event-9c67df12-fcec-4fb7-a9fb-d7ba524c6a40",
+          "atMs": 5000,
           "type": "external_event",
           "stream": "evidence",
           "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
           "data": {
             "name": "rtimeout"
+          }
+        },
+        {
+          "id": "collector-request-057b9ae6-5b23-45fb-ac6a-8bbc49b06664",
+          "atMs": 5200,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "failed",
+            "error": "timeout"
+          }
+        },
+        {
+          "id": "collector-request-6708984e-9440-4461-91d8-2189420d2bdc",
+          "atMs": 5400,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a0ef62c6-794b-4a68-84dc-a6711e6a22e2",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "recovered"
           }
         }
       ]

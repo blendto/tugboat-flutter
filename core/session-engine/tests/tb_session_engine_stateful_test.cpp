@@ -625,6 +625,26 @@ void test_seed_vectors() {
   CHECK(count >= 4);
 }
 
+// `engine.health`: `accepted` counts every event the session records from the
+// first `session_start` on (Dart's hub counts all of them), and a session
+// that replaces the live one adds its `session_end` and `session_start`.
+void test_engine_health_counts() {
+  tb_session_engine* engine = make_engine();
+  const std::string health = "{\"type\":\"engine.health\",\"input\":{}}";
+  CHECK(contains(submit(engine, health).json,
+                 "\"sinks\":{\"pending\":0,\"accepted\":0,\"dropped\":0}"));
+  const std::string configured =
+      std::string("{\"type\":\"engine.configure\",\"input\":{\"host\":") +
+      kHost +
+      ",\"configuredUserId\":null},\"collector\":{\"enabled\":true}}}";
+  CHECK(submit(engine, configured).status == TB_SESSION_OK);
+  CHECK(submit(engine, start_message(0)).status == TB_SESSION_OK);
+  CHECK(contains(submit(engine, health).json, "\"accepted\":1,"));
+  CHECK(submit(engine, start_message(100)).status == TB_SESSION_OK);
+  CHECK(contains(submit(engine, health).json, "\"accepted\":3,"));
+  tb_session_engine_destroy(engine);
+}
+
 // `engine.config` echoes the effective configuration: the defaults on a
 // fresh handle, then what `engine.configure` set (absent fields default).
 void test_engine_config_query() {
@@ -743,6 +763,7 @@ int main() {
   test_capture_id_vectors();
   test_seed_vectors();
   test_engine_config_query();
+  test_engine_health_counts();
   test_configure_in_batch();
   test_periodic_flush_catch_up();
   return unit::finish("stateful engine");

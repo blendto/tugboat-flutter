@@ -1,0 +1,198 @@
+{
+  "fixtureFormat": 1,
+  "kind": "delivery.rules",
+  "name": "frame-lane-stalls-do-not-block-events",
+  "description": "A failing frame upload does not stall events: the failure report goes out in the same pass. A frame arriving while frames retry starts no pass, and every pass starts with the frames step.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "collector": {
+      "batchSize": 2
+    },
+    "steps": [
+      {
+        "note": "the initial frame is uploaded",
+        "do": {
+          "initialFrame": {
+            "bytes": 48000
+          }
+        }
+      },
+      {
+        "note": "it times out: frames retry, and the failure report goes out",
+        "do": {
+          "answer": {
+            "outcome": "timeout"
+          }
+        }
+      },
+      {
+        "note": "events queue behind the report in flight",
+        "do": {
+          "event": "e1"
+        }
+      },
+      {
+        "note": "queued",
+        "do": {
+          "event": "e2"
+        }
+      },
+      {
+        "note": "the report is delivered: the next pass retries the frame first",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      },
+      {
+        "note": "a frame arrives: no pass starts while frames retry",
+        "do": {
+          "frame": {
+            "bytes": 48000
+          }
+        }
+      },
+      {
+        "note": "flush: a request is already in flight",
+        "do": {
+          "flush": true
+        }
+      },
+      {
+        "note": "the frame is delivered: events go out",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      },
+      {
+        "note": "the events are delivered: the new frame follows",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "steps": [
+      {
+        "sent": [
+          {
+            "lane": "frames",
+            "frames": [
+              1
+            ]
+          }
+        ],
+        "health": {
+          "pending": 1,
+          "accepted": 2,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "diag:collector_frame_upload:failed"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 2,
+          "accepted": 2,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 3,
+          "accepted": 3,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 4,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "frames",
+            "frames": [
+              1
+            ]
+          }
+        ],
+        "health": {
+          "pending": 3,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 5,
+          "accepted": 6,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 5,
+          "accepted": 6,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e1",
+              "e2"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 5,
+          "accepted": 6,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "frames",
+            "frames": [
+              2
+            ]
+          }
+        ],
+        "health": {
+          "pending": 3,
+          "accepted": 6,
+          "dropped": 0
+        }
+      }
+    ]
+  }
+}

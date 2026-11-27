@@ -1,0 +1,485 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "delivery-lifecycle-rejected-not-held",
+  "description": "A lifecycle post other than session_start that the collector rejects for good (4xx other than 408 and 429) leaves the lane instead of being retried: at the head it would hold every later post, session_end included. session_start stays until accepted, since events and frames wait for the collector session id it returns (Dart 0.11.1).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {"$preset": "default-host", "configuredUserId": "user-configured"},
+      "collector": {
+        "enabled": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "idSeed": "ffe4e2815ed17118519df60c41b5266a51dff0f0ab36abed602338d6156bf5c1"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-46cdc8e5-fa9d-4c17-82db-c3b409e829ad",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-583e6021-1ba8-421a-ae27-df4e8f189d1c"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 8000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-0",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-583e6021-1ba8-421a-ae27-df4e8f189d1c\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-583e6021-1ba8-421a-ae27-df4e8f189d1c",
+              "deliveryKeys": [
+                "session-583e6021-1ba8-421a-ae27-df4e8f189d1c/l/session_start/2026-06-19T00:00:00.000Z"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-0",
+              "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "http-0 (session_start) answered 202",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5010000,
+            "wallUs": 1781827200010000
+          },
+          "input": {
+            "requestId": "http-0",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":\"srv-1\"}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-0"
+            }
+          ]
+        }
+      },
+      {
+        "note": "the identity change is debounced",
+        "send": {
+          "type": "identity.set",
+          "at": {
+            "monoUs": 6000000,
+            "wallUs": 1781827201000000
+          },
+          "input": {
+            "userId": "user-2"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.identity",
+              "atMonoUs": 9000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "timer delivery.identity; sends http-1 (user_changed)",
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 9000000,
+            "wallUs": 1781827204000000
+          },
+          "input": {
+            "timerId": "delivery.identity"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-1",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"user_changed\",\"atMs\":1000,\"triggeredAt\":\"2026-06-19T00:00:01.000Z\",\"userId\":\"user-2\"}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/l/user_changed/2026-06-19T00:00:01.000Z"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-1",
+              "atMonoUs": 29000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "http-1 (user_changed) answered 400; sends http-2 (events report)",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 9100000,
+            "wallUs": 1781827204100000
+          },
+          "input": {
+            "requestId": "http-1",
+            "outcome": "http",
+            "status": 400
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-f866fb57-d334-40b3-b5bb-afc6045de5a5",
+                "atMs": 4100,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-583e6021-1ba8-421a-ae27-df4e8f189d1c",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "failed",
+                  "statusCode": 400
+                }
+              },
+              "userId": "user-2"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-f866fb57-d334-40b3-b5bb-afc6045de5a5\",\"atMs\":4100,\"triggeredAt\":\"2026-06-19T00:00:04.100Z\",\"userId\":\"user-2\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"failed\",\"statusCode\":400},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/457c293a616da162"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 29100000
+            }
+          ]
+        }
+      },
+      {
+        "note": "flush: nothing to send",
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 9200000,
+            "wallUs": 1781827204200000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "note": "session_end is next in line",
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 9300000,
+            "wallUs": 1781827204300000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-efb4ace7-4713-4d01-8341-e7cdb52a9def",
+                "atMs": 4300,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-583e6021-1ba8-421a-ae27-df4e8f189d1c"
+              },
+              "userId": "user-2"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.endDrain",
+              "atMonoUs": 14300000
+            }
+          ]
+        }
+      },
+      {
+        "note": "http-2 (events report) answered 202; sends http-3 (session_end)",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 9400000,
+            "wallUs": 1781827204400000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.endDrain"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-3",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"session_end\",\"atMs\":4300,\"triggeredAt\":\"2026-06-19T00:00:04.300Z\",\"userId\":\"user-2\"}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/l/session_end/2026-06-19T00:00:04.300Z"
+              ],
+              "isSessionEnd": true
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-3",
+              "atMonoUs": 29400000
+            }
+          ]
+        }
+      },
+      {
+        "note": "http-3 (session_end) answered 202; sends http-4 (events report)",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 9410000,
+            "wallUs": 1781827204410000
+          },
+          "input": {
+            "requestId": "http-3",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-96b20226-611e-4912-b142-3bfa8cc2112e",
+                "atMs": 4410,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-583e6021-1ba8-421a-ae27-df4e8f189d1c",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-2"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-3"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-4",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-96b20226-611e-4912-b142-3bfa8cc2112e\",\"atMs\":4410,\"triggeredAt\":\"2026-06-19T00:00:04.410Z\",\"userId\":\"user-2\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/bccce8057141e99b"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-4",
+              "atMonoUs": 29410000
+            }
+          ]
+        }
+      },
+      {
+        "note": "http-4 (events report) answered 202",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 9420000,
+            "wallUs": 1781827204420000
+          },
+          "input": {
+            "requestId": "http-4",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-4"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.flush"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-583e6021-1ba8-421a-ae27-df4e8f189d1c",
+        "captureSessionId": "session-583e6021-1ba8-421a-ae27-df4e8f189d1c",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-46cdc8e5-fa9d-4c17-82db-c3b409e829ad",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-583e6021-1ba8-421a-ae27-df4e8f189d1c"
+        },
+        {
+          "id": "collector-request-f866fb57-d334-40b3-b5bb-afc6045de5a5",
+          "atMs": 4100,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-583e6021-1ba8-421a-ae27-df4e8f189d1c",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/sessions",
+            "result": "failed",
+            "statusCode": 400
+          }
+        },
+        {
+          "id": "event-efb4ace7-4713-4d01-8341-e7cdb52a9def",
+          "atMs": 4300,
+          "type": "session_end",
+          "stream": "semantic",
+          "captureSessionId": "session-583e6021-1ba8-421a-ae27-df4e8f189d1c"
+        }
+      ]
+    }
+  }
+}

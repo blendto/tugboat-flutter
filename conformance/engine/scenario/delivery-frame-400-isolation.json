@@ -353,7 +353,8 @@
                   "result": "failed",
                   "statusCode": 503,
                   "frameCount": 1,
-                  "droppedFrameCount": 0
+                  "droppedFrameCount": 0,
+                  "droppedReferencedFrameCount": 0
                 }
               },
               "userId": "user-configured"
@@ -370,7 +371,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-63b582cb-402a-4212-a657-a2b9acb20fcd\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"afterFrame\":\"frame-3\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-frame-upload-b05aced3-968e-4211-921e-5f9ef498e90f\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_frame_upload\",\"result\":\"failed\",\"statusCode\":503,\"frameCount\":1,\"droppedFrameCount\":0},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-63b582cb-402a-4212-a657-a2b9acb20fcd\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"afterFrame\":\"frame-3\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-frame-upload-b05aced3-968e-4211-921e-5f9ef498e90f\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_frame_upload\",\"result\":\"failed\",\"statusCode\":503,\"frameCount\":1,\"droppedFrameCount\":0,\"droppedReferencedFrameCount\":0},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
                 "srv-1/e/f124e0a84e51f79c"
@@ -1256,7 +1257,8 @@
                   "component": "collector_frame_upload",
                   "result": "recovered",
                   "frameCount": 0,
-                  "droppedFrameCount": 0
+                  "droppedFrameCount": 0,
+                  "droppedReferencedFrameCount": 0
                 }
               },
               "userId": "user-configured"
@@ -1273,7 +1275,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"collector-frame-upload-c30b9e00-f3d1-4bf7-b58f-e4efa966f6db\",\"atMs\":710,\"triggeredAt\":\"2026-06-19T00:00:00.710Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_frame_upload\",\"result\":\"recovered\",\"frameCount\":0,\"droppedFrameCount\":0},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"collector-frame-upload-c30b9e00-f3d1-4bf7-b58f-e4efa966f6db\",\"atMs\":710,\"triggeredAt\":\"2026-06-19T00:00:00.710Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_frame_upload\",\"result\":\"recovered\",\"frameCount\":0,\"droppedFrameCount\":0,\"droppedReferencedFrameCount\":0},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
                 "srv-1/e/68ebc2b6c8cd5d21"
@@ -1418,7 +1420,8 @@
             "result": "failed",
             "statusCode": 503,
             "frameCount": 1,
-            "droppedFrameCount": 0
+            "droppedFrameCount": 0,
+            "droppedReferencedFrameCount": 0
           }
         },
         {
@@ -1470,7 +1473,8 @@
             "component": "collector_frame_upload",
             "result": "recovered",
             "frameCount": 0,
-            "droppedFrameCount": 0
+            "droppedFrameCount": 0,
+            "droppedReferencedFrameCount": 0
           }
         }
       ]

@@ -27,6 +27,13 @@ void queue_event(DeliveryContext& ctx, const EventRecord& record) {
   if (d.phase == DeliveryPhase::kOff || is_lifecycle_type(record.event.type)) {
     return;
   }
+  // Eviction keeps the frames an event points at (Dart `recordEvent`).
+  for (const OptString* frame : {&record.event.before_frame,
+                                 &record.event.after_frame}) {
+    if (*frame) {
+      d.frame_references.mark_referenced(**frame);
+    }
+  }
   int64_t triggered_at_us = 0;
   if (!dart_add_ms_to_us(ctx.session().header().started_at_wall_us,
                          record.event.at_ms, &triggered_at_us)) {
@@ -38,6 +45,7 @@ void queue_event(DeliveryContext& ctx, const EventRecord& record) {
   const size_t evicted = d.events.push(
       collector_event_json(record.event, *d.host, stamp, triggered_at_us),
       bound(ctx.config().max_pending_events));
+  d.dropped_total += static_cast<int64_t>(evicted);
   report_event_drop(ctx, EventDropReason::kEvicted, evicted, std::nullopt);
 }
 
@@ -46,6 +54,11 @@ void record_gap(DeliveryContext& ctx, std::optional<GapReport> report) {
     return;
   }
   EngineState* state = ctx.state;
+  struct GapScope {
+    explicit GapScope(DeliveryState& d) : d(d) { d.recording_gap = true; }
+    ~GapScope() { d.recording_gap = false; }
+    DeliveryState& d;
+  } scope(ctx.delivery());
   // Dart's gap records: `collector-…-<UUIDv4>` ids on the semantic stream.
   Diagnostic gap;
   gap.data = std::move(report->data);
@@ -82,28 +95,47 @@ void release_uploads(DeliveryContext& ctx, const FrameUploads& uploads,
   for (size_t i = begin; i < end; ++i) {
     ctx.state->frame_retention.release(uploads[i].frame_id,
                                        FrameOwner::kDelivery, ctx.out);
+    finish_frame(ctx, uploads[i].frame_id);
   }
 }
 
-void evicted_frames(DeliveryContext& ctx, const FrameUploads& evicted) {
+void finish_frame(DeliveryContext& ctx, const std::string& frame_id) {
+  ctx.delivery().frame_references.finish(
+      frame_id, bound(ctx.config().max_pending_frames));
+}
+
+FrameBounds frame_bounds(const DeliveryContext& ctx) {
+  return FrameBounds{bound(ctx.config().max_pending_frames),
+                     ctx.config().max_pending_frame_bytes};
+}
+
+void evicted_frames(DeliveryContext& ctx, const FrameEviction& evicted) {
   if (evicted.empty()) {
     return;
   }
-  release_uploads(ctx, evicted, 0, evicted.size());
+  release_uploads(ctx, evicted.frames, 0, evicted.frames.size());
+  const auto count = static_cast<int64_t>(evicted.frames.size());
+  ctx.delivery().dropped_total += count;
   record_gap(ctx, ctx.delivery().frame_gaps.evicted(
-                      static_cast<int64_t>(evicted.size())));
+                      count, static_cast<int64_t>(evicted.referenced)));
 }
 
 void delivery_event_recorded(const EventRecord& record, const At& at,
                              EngineState* state, Output* out) {
   DeliveryState& d = state->delivery;
+  // Dart counts every event the hub accepts, `session_start` of a first
+  // session included, which is recorded before delivery turns on.
+  if (state->config.collector.enabled && !d.recording_gap) {
+    ++d.accepted_total;
+  }
   if (d.phase == DeliveryPhase::kOff) {
     return;
   }
   DeliveryContext ctx{state, at, out};
   queue_event(ctx, record);
-  // The `batchSize`-th pending event triggers a pass.
-  if (d.events.pending() >= bound(d.config.batch_size)) {
+  // The `batchSize`-th pending event triggers a pass, but delivery's own
+  // reports never do (Dart `_recordDiagnostic` does not flush).
+  if (!d.recording_gap && d.events.pending() >= bound(d.config.batch_size)) {
     request_pass(ctx);
   }
 }
@@ -116,10 +148,11 @@ void delivery_frame_accepted(const Frame& frame, const std::string& handle,
   }
   DeliveryContext ctx{state, state->applying.at.value_or(At()), out};
   state->frame_retention.retain(frame.id, handle, FrameOwner::kDelivery);
+  ++d.accepted_total;
   evicted_frames(ctx, d.frames.push(
                           PendingFrame{frame.number, frame.id, handle,
-                                       frame_json(frame)},
-                          bound(ctx.config().max_pending_frames)));
+                                       frame_json(frame), frame.byte_length},
+                          frame_bounds(ctx), d.frame_references));
   // While frames are retrying, the periodic timer paces them.
   if (!d.frames_need_retry) {
     request_pass(ctx);

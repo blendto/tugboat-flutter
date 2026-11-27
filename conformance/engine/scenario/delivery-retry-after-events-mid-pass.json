@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "delivery-retry-after-events-mid-pass",
-  "description": "An events batch answered 429 with Retry-After in the middle of a pass stops the events lane for that pass: the answered batch becomes the only retry batch, and the later fresh events stay pending (unsent, so maxPendingBatches evicts nothing). When the lane timer fires, the retry batch goes first, then the fresh events in batchSize batches.",
+  "description": "An events batch answered 429 with Retry-After in the middle of a pass stops the events lane for that pass: the answered batch becomes a retry batch, and the pass parks the fresh events it had not sent into retry batches behind it (Dart 0.11.1), so nothing outside the retry queue waits and maxPendingBatches (3 here) evicts nothing. When the lane timer fires, the retry batches go out in order, in batchSize batches. Delivery's own collector_request reports (Dart 0.11.1) are events like any other: they join batches and take request ids, so a request a step answers may be a batch of reports, and step notes describe the state without them.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -13,7 +13,7 @@
       "collector": {
         "enabled": true,
         "batchSize": 2,
-        "maxPendingBatches": 2
+        "maxPendingBatches": 3
       }
     },
     "steps": [
@@ -352,7 +352,25 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-ef82045c-f486-4f56-85b3-de361144c90f",
+                "atMs": 1100,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-60ce6c75-d8b8-4129-92c2-f403845e94f6",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "failed",
+                  "statusCode": 429
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -429,7 +447,24 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-ebea2910-8c7c-4403-9638-73c6f06e6339",
+                "atMs": 31200,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-60ce6c75-d8b8-4129-92c2-f403845e94f6",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -482,10 +517,10 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-928d7794-581c-480b-bc00-178c80b01c46\",\"atMs\":500,\"triggeredAt\":\"2026-06-19T00:00:00.500Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e5\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-928d7794-581c-480b-bc00-178c80b01c46\",\"atMs\":500,\"triggeredAt\":\"2026-06-19T00:00:00.500Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"e5\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-ef82045c-f486-4f56-85b3-de361144c90f\",\"atMs\":1100,\"triggeredAt\":\"2026-06-19T00:00:01.100Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":429},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/e/fc60bbc5f8d79390"
+                "srv-1/e/d6122dbf1fdbfa3c"
               ],
               "isSessionEnd": false
             },
@@ -516,6 +551,24 @@
             {
               "type": "timer.cancel",
               "timerId": "delivery.answer.http-4"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-5",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-ebea2910-8c7c-4403-9638-73c6f06e6339\",\"atMs\":31200,\"triggeredAt\":\"2026-06-19T00:00:31.200Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/dd63f1d0bdb74ba3"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-5",
+              "atMonoUs": 56400000
             }
           ]
         }
@@ -603,6 +656,31 @@
           "captureSessionId": "session-60ce6c75-d8b8-4129-92c2-f403845e94f6",
           "data": {
             "name": "e5"
+          }
+        },
+        {
+          "id": "collector-request-ef82045c-f486-4f56-85b3-de361144c90f",
+          "atMs": 1100,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-60ce6c75-d8b8-4129-92c2-f403845e94f6",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "failed",
+            "statusCode": 429
+          }
+        },
+        {
+          "id": "collector-request-ebea2910-8c7c-4403-9638-73c6f06e6339",
+          "atMs": 31200,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-60ce6c75-d8b8-4129-92c2-f403845e94f6",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "recovered"
           }
         }
       ]

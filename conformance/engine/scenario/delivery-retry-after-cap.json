@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "delivery-retry-after-cap",
-  "description": "Parsed Retry-After delay is capped by collector.maxRetryAfterMs.",
+  "description": "Parsed Retry-After delay is capped by collector.maxRetryAfterMs. Delivery's own collector_request reports (Dart 0.11.1) are events like any other: they join batches and take request ids, so a request a step answers may be a batch of reports, and step notes describe the state without them.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -129,7 +129,25 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-815f40d3-335b-457d-96c5-d5b6260319d2",
+                "atMs": 2000,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-1f09269b-0fb0-4853-8add-b5a373f8fa02",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "failed",
+                  "statusCode": 503
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -191,6 +209,87 @@
             }
           ]
         }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 12010000,
+            "wallUs": 1781827207010000
+          },
+          "input": {
+            "requestId": "http-1",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-ee86ffac-6b46-4d9f-a3c9-7d1ecf3cf8e5",
+                "atMs": 7010,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-1f09269b-0fb0-4853-8add-b5a373f8fa02",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-815f40d3-335b-457d-96c5-d5b6260319d2\",\"atMs\":2000,\"triggeredAt\":\"2026-06-19T00:00:02.000Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"failed\",\"statusCode\":503},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"session-1f09269b-0fb0-4853-8add-b5a373f8fa02\"},{\"id\":\"collector-request-ee86ffac-6b46-4d9f-a3c9-7d1ecf3cf8e5\",\"atMs\":7010,\"triggeredAt\":\"2026-06-19T00:00:07.010Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"session-1f09269b-0fb0-4853-8add-b5a373f8fa02\"}]}",
+              "sessionId": "session-1f09269b-0fb0-4853-8add-b5a373f8fa02",
+              "deliveryKeys": [
+                "session-1f09269b-0fb0-4853-8add-b5a373f8fa02/e/5e37cdcfc693dd03"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 32010000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 12020000,
+            "wallUs": 1781827207020000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
+            }
+          ]
+        }
       }
     ]
   },
@@ -226,6 +325,31 @@
           "type": "session_start",
           "stream": "semantic",
           "captureSessionId": "session-1f09269b-0fb0-4853-8add-b5a373f8fa02"
+        },
+        {
+          "id": "collector-request-815f40d3-335b-457d-96c5-d5b6260319d2",
+          "atMs": 2000,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-1f09269b-0fb0-4853-8add-b5a373f8fa02",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/sessions",
+            "result": "failed",
+            "statusCode": 503
+          }
+        },
+        {
+          "id": "collector-request-ee86ffac-6b46-4d9f-a3c9-7d1ecf3cf8e5",
+          "atMs": 7010,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-1f09269b-0fb0-4853-8add-b5a373f8fa02",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/sessions",
+            "result": "recovered"
+          }
         }
       ]
     }

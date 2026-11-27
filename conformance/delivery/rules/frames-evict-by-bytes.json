@@ -1,0 +1,139 @@
+{
+  "fixtureFormat": 1,
+  "kind": "delivery.rules",
+  "name": "frames-evict-by-bytes",
+  "description": "maxPendingFrameBytes bounds the encoded bytes of the frames waiting for upload as maxPendingFrames bounds their count: over either bound the oldest unreferenced frame is evicted.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "collector": {
+      "maxPendingFrameBytes": 250
+    },
+    "steps": [
+      {
+        "note": "an unreferenced 100-byte frame is uploaded",
+        "do": {
+          "initialFrame": {
+            "bytes": 100
+          }
+        }
+      },
+      {
+        "note": "the upload fails: frames retry",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 503
+          }
+        }
+      },
+      {
+        "note": "200 bytes wait",
+        "do": {
+          "frame": {
+            "bytes": 100
+          }
+        }
+      },
+      {
+        "note": "300 bytes: the unreferenced first frame is evicted",
+        "do": {
+          "frame": {
+            "bytes": 100
+          }
+        }
+      },
+      {
+        "note": "flush: a request is already in flight",
+        "do": {
+          "flush": true
+        }
+      },
+      {
+        "note": "the report is delivered: the pass uploads the two frames left",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "steps": [
+      {
+        "sent": [
+          {
+            "lane": "frames",
+            "frames": [
+              1
+            ]
+          }
+        ],
+        "health": {
+          "pending": 1,
+          "accepted": 2,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "diag:collector_frame_upload:failed"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 2,
+          "accepted": 2,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 4,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 6,
+          "accepted": 6,
+          "dropped": 1
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 6,
+          "accepted": 6,
+          "dropped": 1
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "frames",
+            "frames": [
+              2,
+              3
+            ]
+          }
+        ],
+        "health": {
+          "pending": 5,
+          "accepted": 6,
+          "dropped": 1
+        }
+      }
+    ]
+  }
+}

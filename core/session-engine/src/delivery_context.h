@@ -73,8 +73,14 @@ void report_event_drop(DeliveryContext& ctx, EventDropReason reason,
 // Drops delivery's reference to `uploads[begin, end)`.
 void release_uploads(DeliveryContext& ctx, const FrameUploads& uploads,
                      size_t begin, size_t end);
-// Frames evicted from the pending queue: released and reported.
-void evicted_frames(DeliveryContext& ctx, const FrameUploads& evicted);
+// A frame left the queue (uploaded, rejected, or evicted): it no longer needs
+// eviction protection. (`release_uploads` does this too.)
+void finish_frame(DeliveryContext& ctx, const std::string& frame_id);
+// The pending frame bounds: `maxPendingFrames` and `maxPendingFrameBytes`.
+FrameBounds frame_bounds(const DeliveryContext& ctx);
+// Frames evicted from the pending queue: released, counted as dropped, and
+// reported.
+void evicted_frames(DeliveryContext& ctx, const FrameEviction& evicted);
 
 }  // namespace engine
 }  // namespace tugboat

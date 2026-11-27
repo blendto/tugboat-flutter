@@ -23,7 +23,8 @@ enum ConformanceKind {
   sessionLifecycle('collector.sessionLifecycle', 'collector/session_lifecycle'),
   engineScenario('engine.scenario', 'engine/scenario'),
   externalEvent('evidence.externalEvent', 'evidence/external_event'),
-  networkCall('evidence.networkCall', 'evidence/network_call');
+  networkCall('evidence.networkCall', 'evidence/network_call'),
+  deliveryRules('delivery.rules', 'delivery/rules');
 
   const ConformanceKind(this.wireName, this.directory);
 
@@ -342,6 +343,10 @@ Map<String, Object?> evaluateFixture(ConformanceFixture fixture) {
       return evaluateNetworkCallFixture(input);
     case ConformanceKind.engineScenario:
       throw ArgumentError('scenarios run step by step (engine_scenario.dart)');
+    case ConformanceKind.deliveryRules:
+      throw ArgumentError(
+        'delivery rules run asynchronously (delivery_rules_fixture.dart)',
+      );
   }
 }
 

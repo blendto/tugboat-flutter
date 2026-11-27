@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "delivery-retry-after-ending-cap",
-  "description": "While ending, lifecycle Retry-After waits cap at maxEndingRetryAfterMs: session.end clamps an earlier 60 s wait to 10 s, and a 429 with Retry-After 60 received while ending waits 10 s. When the lifecycle lane timer fires, the whole lifecycle lane drains: session_start, then the session_end queued behind it.",
+  "description": "While ending, lifecycle Retry-After waits cap at maxEndingRetryAfterMs: session.end clamps an earlier 60 s wait to 10 s, and a 429 with Retry-After 60 received while ending waits 10 s. When the lifecycle lane timer fires, the whole lifecycle lane drains: session_start, then the session_end queued behind it. Delivery's own collector_request reports (Dart 0.11.1) are events like any other: they join batches and take request ids, so a step may answer a batch of reports; the step notes name the request each step answers or sends, and the scenario ends with no request in flight.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -114,6 +114,7 @@
         }
       },
       {
+        "note": "http-0 (session_start) answered 429",
         "send": {
           "type": "transport.result",
           "at": {
@@ -128,7 +129,25 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-14089baa-8f20-4a8d-a6a2-af55d446b61f",
+                "atMs": 2000,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "failed",
+                  "statusCode": 429
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -143,6 +162,7 @@
         }
       },
       {
+        "note": "flush: nothing to send",
         "send": {
           "type": "transport.flush",
           "at": {
@@ -170,7 +190,7 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-14089baa-8f20-4a8d-a6a2-af55d446b61f",
+                "id": "event-21076bc4-40f0-49f8-acbf-7795fdf527a8",
                 "atMs": 5000,
                 "type": "session_end",
                 "stream": "semantic",
@@ -188,11 +208,17 @@
               "type": "timer.schedule",
               "timerId": "delivery.retryAfter.lifecycle",
               "atMonoUs": 20000000
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.endDrain",
+              "atMonoUs": 15000000
             }
           ]
         }
       },
       {
+        "note": "timer delivery.retryAfter.lifecycle; sends http-1 (session_start)",
         "send": {
           "type": "timer.fired",
           "at": {
@@ -228,6 +254,7 @@
         }
       },
       {
+        "note": "http-1 (session_start) answered 429",
         "send": {
           "type": "transport.result",
           "at": {
@@ -257,6 +284,7 @@
         }
       },
       {
+        "note": "timer delivery.retryAfter.lifecycle; sends http-2 (session_start)",
         "send": {
           "type": "timer.fired",
           "at": {
@@ -292,6 +320,7 @@
         }
       },
       {
+        "note": "http-2 (session_start) answered 202; sends http-3 (events report,report)",
         "send": {
           "type": "transport.result",
           "at": {
@@ -306,7 +335,24 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-dd1f41f7-1f41-419d-b3b4-999fdb580cc3",
+                "atMs": 25200,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -315,15 +361,15 @@
             {
               "type": "http.send",
               "requestId": "http-3",
-              "lane": "lifecycle",
-              "path": "/v1/sessions",
+              "lane": "events",
+              "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"session_end\",\"atMs\":5000,\"triggeredAt\":\"2026-06-19T00:00:05.000Z\",\"userId\":\"user-configured\"}",
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-14089baa-8f20-4a8d-a6a2-af55d446b61f\",\"atMs\":2000,\"triggeredAt\":\"2026-06-19T00:00:02.000Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"failed\",\"statusCode\":429},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-dd1f41f7-1f41-419d-b3b4-999fdb580cc3\",\"atMs\":25200,\"triggeredAt\":\"2026-06-19T00:00:25.200Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/l/session_end/2026-06-19T00:00:05.000Z"
+                "srv-1/e/2b4c0e19536c4c46"
               ],
-              "isSessionEnd": true
+              "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
@@ -334,6 +380,7 @@
         }
       },
       {
+        "note": "http-3 (events report,report) answered 202; sends http-4 (session_end)",
         "send": {
           "type": "transport.result",
           "at": {
@@ -352,6 +399,52 @@
             {
               "type": "timer.cancel",
               "timerId": "delivery.answer.http-3"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.endDrain"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-4",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"session_end\",\"atMs\":5000,\"triggeredAt\":\"2026-06-19T00:00:05.000Z\",\"userId\":\"user-configured\"}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/l/session_end/2026-06-19T00:00:05.000Z"
+              ],
+              "isSessionEnd": true
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-4",
+              "atMonoUs": 50300000
+            }
+          ]
+        }
+      },
+      {
+        "note": "http-4 (session_end) answered 202",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 30310000,
+            "wallUs": 1781827225310000
+          },
+          "input": {
+            "requestId": "http-4",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-4"
             },
             {
               "type": "timer.cancel",
@@ -396,7 +489,20 @@
           "captureSessionId": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e"
         },
         {
-          "id": "event-14089baa-8f20-4a8d-a6a2-af55d446b61f",
+          "id": "collector-request-14089baa-8f20-4a8d-a6a2-af55d446b61f",
+          "atMs": 2000,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/sessions",
+            "result": "failed",
+            "statusCode": 429
+          }
+        },
+        {
+          "id": "event-21076bc4-40f0-49f8-acbf-7795fdf527a8",
           "atMs": 5000,
           "type": "session_end",
           "stream": "semantic",

@@ -1,0 +1,325 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "delivery-lifecycle-monotonic-clock",
+  "description": "atMs of every lifecycle post is the monotonic time since the session started, so a wall-clock change (NTP, the user setting the clock) cannot make a post go backwards; only triggeredAt, an absolute timestamp, follows the wall clock (Dart 0.11.2). The wall clock jumps back an hour before the identity change and forward a day before the session ends.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {"$preset": "default-host", "configuredUserId": "user-configured"},
+      "collector": {
+        "enabled": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0,
+            "idSeed": "92656d3932b9e4eb148c731331f114c9baeda5da36bcfff577ba8e5712109fc0"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-d2820c50-b736-4361-b16b-131121dd577d",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-47e86325-31f8-473c-b6af-bf9eb782e5fc"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 8000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-0",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-47e86325-31f8-473c-b6af-bf9eb782e5fc\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-47e86325-31f8-473c-b6af-bf9eb782e5fc",
+              "deliveryKeys": [
+                "session-47e86325-31f8-473c-b6af-bf9eb782e5fc/l/session_start/2026-06-19T00:00:00.000Z"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-0",
+              "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5010000,
+            "wallUs": 1781827200010000
+          },
+          "input": {
+            "requestId": "http-0",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":\"srv-1\"}"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-0"
+            }
+          ]
+        }
+      },
+      {
+        "note": "the wall clock was set back an hour",
+        "send": {
+          "type": "identity.set",
+          "at": {
+            "monoUs": 6000000,
+            "wallUs": 1781823601000000
+          },
+          "input": {
+            "userId": "user-2"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.identity",
+              "atMonoUs": 9000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "user_changed: atMs is monotonic (1000), triggeredAt is the wall time of the change",
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 9000000
+          },
+          "input": {
+            "timerId": "delivery.identity"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-1",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"user_changed\",\"atMs\":1000,\"triggeredAt\":\"2026-06-18T23:00:01.000Z\",\"userId\":\"user-2\"}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/l/user_changed/2026-06-18T23:00:01.000Z"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-1",
+              "atMonoUs": 29000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 9100000,
+            "wallUs": 1781827204100000
+          },
+          "input": {
+            "requestId": "http-1",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            }
+          ]
+        }
+      },
+      {
+        "note": "the wall clock was set forward a day: atMs is still monotonic (4300)",
+        "send": {
+          "type": "session.end",
+          "at": {
+            "monoUs": 9300000,
+            "wallUs": 1781913604300000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2cddf48a-ed4f-459d-b71b-778c9fba07ac",
+                "atMs": 4300,
+                "type": "session_end",
+                "stream": "semantic",
+                "captureSessionId": "session-47e86325-31f8-473c-b6af-bf9eb782e5fc"
+              },
+              "userId": "user-2"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"session_end\",\"atMs\":4300,\"triggeredAt\":\"2026-06-20T00:00:04.300Z\",\"userId\":\"user-2\"}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/l/session_end/2026-06-20T00:00:04.300Z"
+              ],
+              "isSessionEnd": true
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 29300000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 9400000,
+            "wallUs": 1781827204400000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.flush"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-47e86325-31f8-473c-b6af-bf9eb782e5fc",
+        "captureSessionId": "session-47e86325-31f8-473c-b6af-bf9eb782e5fc",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-d2820c50-b736-4361-b16b-131121dd577d",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-47e86325-31f8-473c-b6af-bf9eb782e5fc"
+        },
+        {
+          "id": "event-2cddf48a-ed4f-459d-b71b-778c9fba07ac",
+          "atMs": 4300,
+          "type": "session_end",
+          "stream": "semantic",
+          "captureSessionId": "session-47e86325-31f8-473c-b6af-bf9eb782e5fc"
+        }
+      ]
+    }
+  }
+}

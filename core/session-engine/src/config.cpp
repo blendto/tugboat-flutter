@@ -189,6 +189,8 @@ GroupSpec collector_spec(CollectorConfig* c) {
            count("maxPendingBatches", &c->max_pending_batches),
            count("maxPendingEvents", &c->max_pending_events),
            count("maxPendingFrames", &c->max_pending_frames),
+           IntField{"maxPendingFrameBytes", &c->max_pending_frame_bytes, 1,
+                    1LL << 40},
            count("frameChunk", &c->frame_chunk),
            duration("frameTimeoutMs", &c->frame_timeout_ms),
            duration("jsonTimeoutMs", &c->json_timeout_ms),

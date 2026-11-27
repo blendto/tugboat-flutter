@@ -32,6 +32,13 @@ class EventQueue {
   // Appends a batch to retry later, then evicts the oldest batches beyond
   // `bound`. Returns how many events the evicted batches held.
   size_t push_retry(EventBatch batch, size_t bound);
+  // Moves pending events into retry batches without sending them (Dart
+  // `_parkPendingEvents`), oldest first, until `count` events moved. They
+  // fill the newest retry batch that has room, never the head, so a few
+  // events per pass do not fill the bounded queue with near-empty batches.
+  // Evicts the oldest batches beyond `max_batches`; returns how many events
+  // they held.
+  size_t park(size_t count, size_t batch_size, size_t max_batches);
   bool has_retry() const { return !retry_.empty(); }
   EventBatch& retry_head() { return retry_.front(); }
   size_t retry_head_size() const {

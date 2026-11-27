@@ -60,6 +60,12 @@ void delivery_user_changed(const At& at, EngineState* state, Output* out);
 // The traits bag changed (`traits.set`, identity_module.cpp).
 void delivery_traits_changed(const At& at, EngineState* state, Output* out);
 
+// Events and frames delivery holds now: queued, waiting for a retry, or in a
+// request that has not finished, including one whose session was replaced.
+// With `EngineState::delivery.accepted_total` and `dropped_total` it is the
+// sink health Dart reports (`TugboatSinkHealth`).
+int64_t delivery_pending_count(const DeliveryState& delivery);
+
 // `engine.dispose`: reports unconfirmed work once, then discards delivery
 // and releases every frame it still references.
 void delivery_dispose(const At& at, EngineState* state, Output* out);
