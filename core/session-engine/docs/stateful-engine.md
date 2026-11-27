@@ -676,6 +676,7 @@ navigation {kind: push|pop|replace|remove|session_start, navigatorId,
             parentNavigatorId?,
             route?: {instanceId, name?, type, overlayKind, transitionMs},
             departing?: {instanceId, name?, type?},
+            skippedInstanceIds?: [instanceId, …],
             routes?: [{instanceId, name?, type, overlayKind, transitionMs}, …],
             captureFrame?: bool}
 ```
@@ -728,7 +729,13 @@ a pop or removal reveals; it is absent when none is (Dart's `previousRoute`
 can be null). `departing` names the route leaving or covered; only its id is read (it
 finds the stack entry). `name` and `type` are validated but not read:
 `route_change`'s `from*` fields come from the visible route, as in Dart,
-which has none for a session's first navigation. Every adapter knows its
+which has none for a session's first navigation. `skippedInstanceIds` is
+allowed on `pop` only, with `departing`: the routes between the target and
+`departing`, which leave with it (Flutter `popUntil`, React Navigation
+`popTo`). It is one `pop` for the whole step: the stack loses `departing` and
+every skipped route, `stackRevision` is the remaining length, `fromRoute` is
+the departing (top) route, and a tap that claims the navigation keeps its
+cause. Ids the engine has not seen are ignored. Every adapter knows its
 navigator, so `navigatorId` is required and Dart's unbound-navigator path
 has no counterpart. A navigator first named as a parent is numbered right
 after its child, as Dart's `idForNavigator` does; its own parent is learned

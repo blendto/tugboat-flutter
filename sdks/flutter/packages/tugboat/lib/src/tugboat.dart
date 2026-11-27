@@ -315,6 +315,15 @@ class _TugboatEventHook implements TugboatEventHook {
   }
 }
 
+/// A pop waiting for the end of the synchronous turn, in case more follow.
+class _PendingPop {
+  _PendingPop(this.departing, this.destination);
+
+  final Route<dynamic> departing;
+  final List<Route<dynamic>> skipped = <Route<dynamic>>[];
+  Route<dynamic>? destination;
+}
+
 /// Observes one [Navigator] and reports transitions to the active controller.
 ///
 /// Install the root convenience instance via [TugboatReplay.navigatorObserver].
@@ -381,12 +390,31 @@ class TugboatNavigatorObserver extends NavigatorObserver
     }
   }
 
+  /// The pops of one synchronous turn that chain (each pops the route the
+  /// last one revealed), as `Navigator.popUntil` makes them: reported once, as
+  /// a pop back several screens.
+  _PendingPop? _pendingPop;
+
+  void _flushPendingPop() {
+    final pending = _pendingPop;
+    if (pending == null) return;
+    _pendingPop = null;
+    _emit(
+      'route_pop',
+      pending.destination,
+      departing: pending.departing,
+      skipped: pending.skipped,
+    );
+  }
+
   void _emit(
     String type,
     Route<dynamic>? destination, {
     Route<dynamic>? departing,
+    List<Route<dynamic>> skipped = const [],
   }) {
     if (TugboatReplay.disabled) return;
+    if (type != 'route_pop') _flushPendingPop();
     _syncContext();
     if (type == 'route_push') {
       if (destination != null) _retainPush(destination);
@@ -402,6 +430,7 @@ class TugboatNavigatorObserver extends NavigatorObserver
       destination,
       navigatorState: navigator,
       departingRoute: departing,
+      skippedRoutes: skipped,
     );
   }
 
@@ -412,7 +441,17 @@ class TugboatNavigatorObserver extends NavigatorObserver
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    _emit('route_pop', previousRoute, departing: route);
+    if (TugboatReplay.disabled) return;
+    _retainPop(route);
+    final pending = _pendingPop;
+    if (pending != null && identical(pending.destination, route)) {
+      pending.skipped.add(route);
+      pending.destination = previousRoute;
+      return;
+    }
+    _flushPendingPop();
+    _pendingPop = _PendingPop(route, previousRoute);
+    scheduleMicrotask(_flushPendingPop);
   }
 
   @override
