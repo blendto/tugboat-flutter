@@ -64,8 +64,7 @@ How iOS differs from Android:
 - Tap targets: only a view with a `testID` is a target (Android targets any
   clickable view), so a `Pressable` without one resolves to its nearest named
   ancestor. A named target's anchor carries `actions: ["tap"]` and `enabled` (the
-  view takes touches and is not marked not-enabled), and so does a named scroll
-  view; iOS cannot tell a `Pressable` from a plain view, so every named view
+  view takes touches and is not marked not-enabled); iOS cannot tell a `Pressable` from a plain view, so every named view
   reports `tap`. `<Text
   testID>` and a `testID` on a `TextInput` or scroll view are not used as the tag.
   `captureSystemInput` is ignored on iOS. `accessibilityIdentifier` values are sent

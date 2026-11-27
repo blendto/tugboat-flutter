@@ -87,7 +87,7 @@ extension ViewKind {
     if let textView = view as? UITextView {
       return textView.isEditable
     }
-    if HostViewSeams.name(of: view) != nil {
+    if ViewTree.node(view).kind == .named {
       return view.isUserInteractionEnabled && !view.accessibilityTraits.contains(.notEnabled)
     }
     return nil

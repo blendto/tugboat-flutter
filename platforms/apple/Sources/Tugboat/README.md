@@ -431,7 +431,8 @@ let (data, response) = try await Tugboat.data(for: request, session: .shared, ro
   and cut to whole characters within 4100 bytes
   ([evidence messages](../../../../core/session-engine/docs/evidence-messages.md)
   section 4.5). A JSON body over 64 KiB is therefore `text`, where Dio
-  would record a JSON `serialized_prefix`. An empty body gives none.
+  would record a JSON `serialized_prefix`. An empty body is an empty text body
+  (none for a JSON media type), as `tugboat-okhttp` and Dio.
 - Tasks with a completion handler, `async` `data(for:)` called directly,
   and download tasks still record status, timing, and outcome, but no error
   body: URLSession hands their bytes to the caller, never to the session

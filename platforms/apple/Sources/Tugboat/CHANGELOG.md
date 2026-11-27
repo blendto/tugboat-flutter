@@ -10,7 +10,9 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
 
 - Event shape on iOS, as Flutter and the Android SDK: starting while the app is
   active reports `resumed` once, so a launch records `app_foregrounded` (a start
-  before the app is active gets it from `didBecomeActive`); an HTTP error
+  before the app is active gets it from `didBecomeActive`; like every `resumed`
+  it requests a forced `lifecycle` capture, which a queued `initial` capture
+  absorbs: the sample's launch still uploads an `initial` and a `route` frame); an HTTP error
   response that carried no bytes records an empty text `errorResponseBody` (an
   empty JSON body gives none), as `tugboat-okhttp` and Dio; a named view's
   anchor carries `actions: ["tap"]` and `enabled` (the view takes touches and is

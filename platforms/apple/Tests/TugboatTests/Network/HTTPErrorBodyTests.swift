@@ -30,7 +30,8 @@ final class HTTPErrorBodyTests: XCTestCase {
     XCTAssertEqual((HTTPErrorBody.body(bytes: body, contentType: "text/json") as? JSONTextBody)?.text, "{\"error\":\"x\"}")
     XCTAssertEqual(HTTPErrorBody.body(bytes: body, contentType: "text/plain") as? String, "{\"error\":\"x\"}")
     XCTAssertEqual(HTTPErrorBody.body(bytes: body, contentType: nil) as? String, "{\"error\":\"x\"}")
-    XCTAssertNil(HTTPErrorBody.body(bytes: Data(), contentType: "application/json"), "an empty body gives none")
+    XCTAssertNil(HTTPErrorBody.body(bytes: Data(), contentType: "application/json"), "an empty JSON body gives none")
+    XCTAssertEqual(HTTPErrorBody.body(bytes: Data(), contentType: "text/html") as? String, "", "an empty text body")
   }
 
   func testCompletenessIsDecidedAt65536Bytes() {

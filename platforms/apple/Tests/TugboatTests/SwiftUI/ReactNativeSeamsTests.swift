@@ -96,6 +96,9 @@ final class ReactNativeSeamsTests: XCTestCase {
     }
     XCTAssertEqual(anchors.map(\.enabled), [true, false])
     XCTAssertEqual(anchors.map(\.actions), [["tap"], []])
+    // A view that takes no touches is never hit, but its state still reads as not enabled.
+    views[0].isUserInteractionEnabled = false
+    XCTAssertEqual(ViewKind.isEnabled(views[0]), false)
   }
 
   func testWithoutAProviderAPlainViewIsNoTarget() {

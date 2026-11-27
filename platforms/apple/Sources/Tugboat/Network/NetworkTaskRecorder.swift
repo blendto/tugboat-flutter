@@ -84,15 +84,10 @@ final class NetworkTaskRecorder: @unchecked Sendable {
     let call = TugboatNetworkCall.begin(
       method: NetworkRoute.method(request), route: route, channel: channel, startedBeforeNowUs: durationUs)
     NetworkOutcome.finish(call, response: task.response, error: error) {
-      let contentType = NetworkOutcome.contentType(of: task.response)
-      // A response that carried no bytes at all has an empty text body, as
-      // `tugboat-okhttp` and Dio report it (an empty JSON body gives none:
-      // the engine drops it). Bytes the recorder did not keep (a task
-      // without delegate data) give no body.
-      if errorBody.isEmpty {
-        return task.countOfBytesReceived == 0 && !HTTPErrorBody.isJSON(contentType: contentType) ? "" : nil
-      }
-      return HTTPErrorBody.body(bytes: errorBody, contentType: contentType)
+      // Bytes the recorder did not keep (a task without delegate data) give
+      // no body; a response that carried none gives `HTTPErrorBody`'s empty body.
+      if errorBody.isEmpty && task.countOfBytesReceived != 0 { return nil }
+      return HTTPErrorBody.body(bytes: errorBody, contentType: NetworkOutcome.contentType(of: task.response))
     }
   }
 

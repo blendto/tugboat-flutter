@@ -337,6 +337,17 @@ final class InstrumentedSessionTests: XCTestCase {
     XCTAssertNil(posts.first?.input["errorResponseBody"], "the delegate never sees a completion handler's body")
   }
 
+  func testACompletionHandlerTaskWithATextErrorBodyIsRecordedWithoutABody() throws {
+    NetworkStubProtocol.reset(["/orders/123": .ok(500, "text/plain", "upstream exploded")])
+    let done = expectation(description: "completion handler")
+    session(delegate: nil).dataTask(with: request("/orders/123")) { _, _, _ in done.fulfill() }.resume()
+    wait(for: [done], timeout: 10)
+
+    let posts = self.posts(1)
+    XCTAssertEqual(posts.first?.input["statusCode"] as? Int, 500)
+    XCTAssertNil(posts.first?.input["errorResponseBody"], "bytes the delegate never saw are not an empty body")
+  }
+
   // MARK: - Resolver and admission
 
   func testANilEmptyOrThrowingRouteRecordsNothing() {
