@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "scene-inventory-exploration-metadata",
-  "description": "A native scene.inventory carries the exploration metadata of Flutter 0.11.0: trigger, surface, viewport, scroll, and per element visibleFraction, tag and a derived positional. Each is emitted only when sent, none is part of the de-duplication key, and bad values are rejected. The re-sample is on by default, so each inventory arms the watch (scene.watch).",
+  "description": "A native scene.inventory carries the exploration metadata of Flutter 0.11.0: trigger, surface, viewport, scroll, and per element visibleFraction, tag and a derived positional. Each is emitted only when sent, none is part of the de-duplication key, and bad values are rejected. The re-sample is off by default, so no scene.watch effect.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -33,7 +33,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "5d57e662ffc97958b084bec5c99debcfde316419c77081777c57e49446fbbcd9"
           }
         },
         "expect": {
@@ -41,11 +42,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-d63b443f-f44e-4f83-a53e-526346b2c5f7",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07"
               },
               "userId": null
             }
@@ -144,11 +145,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-4883064f-8047-4bea-abfb-bdae3e527aa6",
                 "atMs": 1000,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "0b889a29362c4fe5",
                   "routeKey": "/home",
@@ -301,11 +302,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-791acda9-262e-48f9-b651-7baf9f086256",
                 "atMs": 1200,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "585cf66cd7e1ac88",
                   "routeKey": "/other",
@@ -365,11 +366,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-4",
+                "id": "event-09b4e96e-e52a-42ac-a319-198bac26d924",
                 "atMs": 1300,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "105fd03c06041e78",
                   "routeKey": "/t-initial",
@@ -430,11 +431,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-5",
+                "id": "event-f4ac7e91-1ae3-44ca-aae2-7fb348b526ee",
                 "atMs": 1301,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "e4526023fc4ad384",
                   "routeKey": "/t-resume",
@@ -495,11 +496,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-6",
+                "id": "event-88660914-010d-470f-a672-5bc72aa00411",
                 "atMs": 1302,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "0808ef7a955deba8",
                   "routeKey": "/t-route",
@@ -560,11 +561,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-7",
+                "id": "event-fbb5319b-818a-4281-82c7-6eb1f86d6dd6",
                 "atMs": 1303,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "d93f0c605a52ddbe",
                   "routeKey": "/t-tap",
@@ -625,11 +626,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-8",
+                "id": "event-3bf4bd0d-6318-4cef-b9cf-6735c18a02a8",
                 "atMs": 1304,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "07efb63e445e0800",
                   "routeKey": "/t-scroll",
@@ -690,11 +691,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-9",
+                "id": "event-6b8b2a14-0206-4dcf-a65f-3bd89037ed6d",
                 "atMs": 1305,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "d90a379745f299f6",
                   "routeKey": "/t-gesture",
@@ -755,11 +756,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-10",
+                "id": "event-c97feafe-2025-4dfd-9ada-b1f1b3e5f869",
                 "atMs": 1306,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "d2b1cde208e56b1c",
                   "routeKey": "/t-settled",
@@ -820,11 +821,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-11",
+                "id": "event-b98615e5-600c-4a2e-a749-9014d5d86fe6",
                 "atMs": 1307,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "8115e999e30a3d0f",
                   "routeKey": "/t-manual",
@@ -963,8 +964,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
+        "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -986,18 +987,18 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-d63b443f-f44e-4f83-a53e-526346b2c5f7",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07"
         },
         {
-          "id": "event-2",
+          "id": "event-4883064f-8047-4bea-abfb-bdae3e527aa6",
           "atMs": 1000,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "0b889a29362c4fe5",
             "routeKey": "/home",
@@ -1062,11 +1063,11 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-791acda9-262e-48f9-b651-7baf9f086256",
           "atMs": 1200,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "585cf66cd7e1ac88",
             "routeKey": "/other",
@@ -1089,11 +1090,11 @@
           }
         },
         {
-          "id": "event-4",
+          "id": "event-09b4e96e-e52a-42ac-a319-198bac26d924",
           "atMs": 1300,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "105fd03c06041e78",
             "routeKey": "/t-initial",
@@ -1117,11 +1118,11 @@
           }
         },
         {
-          "id": "event-5",
+          "id": "event-f4ac7e91-1ae3-44ca-aae2-7fb348b526ee",
           "atMs": 1301,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "e4526023fc4ad384",
             "routeKey": "/t-resume",
@@ -1145,11 +1146,11 @@
           }
         },
         {
-          "id": "event-6",
+          "id": "event-88660914-010d-470f-a672-5bc72aa00411",
           "atMs": 1302,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "0808ef7a955deba8",
             "routeKey": "/t-route",
@@ -1173,11 +1174,11 @@
           }
         },
         {
-          "id": "event-7",
+          "id": "event-fbb5319b-818a-4281-82c7-6eb1f86d6dd6",
           "atMs": 1303,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "d93f0c605a52ddbe",
             "routeKey": "/t-tap",
@@ -1201,11 +1202,11 @@
           }
         },
         {
-          "id": "event-8",
+          "id": "event-3bf4bd0d-6318-4cef-b9cf-6735c18a02a8",
           "atMs": 1304,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "07efb63e445e0800",
             "routeKey": "/t-scroll",
@@ -1229,11 +1230,11 @@
           }
         },
         {
-          "id": "event-9",
+          "id": "event-6b8b2a14-0206-4dcf-a65f-3bd89037ed6d",
           "atMs": 1305,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "d90a379745f299f6",
             "routeKey": "/t-gesture",
@@ -1257,11 +1258,11 @@
           }
         },
         {
-          "id": "event-10",
+          "id": "event-c97feafe-2025-4dfd-9ada-b1f1b3e5f869",
           "atMs": 1306,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "d2b1cde208e56b1c",
             "routeKey": "/t-settled",
@@ -1285,11 +1286,11 @@
           }
         },
         {
-          "id": "event-11",
+          "id": "event-b98615e5-600c-4a2e-a749-9014d5d86fe6",
           "atMs": 1307,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "8115e999e30a3d0f",
             "routeKey": "/t-manual",

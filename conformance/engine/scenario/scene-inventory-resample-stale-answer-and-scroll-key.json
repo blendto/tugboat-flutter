@@ -34,7 +34,8 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0
+            "sessionEpoch": 0,
+            "idSeed": "5d57e662ffc97958b084bec5c99debcfde316419c77081777c57e49446fbbcd9"
           }
         },
         "expect": {
@@ -42,11 +43,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-0",
+                "id": "event-d63b443f-f44e-4f83-a53e-526346b2c5f7",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000"
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07"
               },
               "userId": null
             }
@@ -121,11 +122,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-2",
+                "id": "event-4883064f-8047-4bea-abfb-bdae3e527aa6",
                 "atMs": 1000,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "0b889a29362c4fe5",
                   "routeKey": "/home",
@@ -282,11 +283,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-3",
+                "id": "event-791acda9-262e-48f9-b651-7baf9f086256",
                 "atMs": 1700,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "90bb1cc25ca4a283",
                   "routeKey": "/other",
@@ -444,11 +445,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-5",
+                "id": "event-09b4e96e-e52a-42ac-a319-198bac26d924",
                 "atMs": 2000,
                 "type": "scene_inventory",
                 "stream": "semantic",
-                "captureSessionId": "session-1781827200000000",
+                "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
                 "data": {
                   "inventoryHash": "2e61afd25d3ca76a",
                   "routeKey": "/home",
@@ -572,8 +573,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-1781827200000000",
-        "captureSessionId": "session-1781827200000000",
+        "id": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
+        "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -595,18 +596,18 @@
       "frames": [],
       "events": [
         {
-          "id": "event-0",
+          "id": "event-d63b443f-f44e-4f83-a53e-526346b2c5f7",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000"
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07"
         },
         {
-          "id": "event-2",
+          "id": "event-4883064f-8047-4bea-abfb-bdae3e527aa6",
           "atMs": 1000,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "0b889a29362c4fe5",
             "routeKey": "/home",
@@ -645,11 +646,11 @@
           }
         },
         {
-          "id": "event-3",
+          "id": "event-791acda9-262e-48f9-b651-7baf9f086256",
           "atMs": 1700,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "90bb1cc25ca4a283",
             "routeKey": "/other",
@@ -673,11 +674,11 @@
           }
         },
         {
-          "id": "event-5",
+          "id": "event-09b4e96e-e52a-42ac-a319-198bac26d924",
           "atMs": 2000,
           "type": "scene_inventory",
           "stream": "semantic",
-          "captureSessionId": "session-1781827200000000",
+          "captureSessionId": "session-e1aad3c5-9bb1-4629-a57f-e3c184617d07",
           "data": {
             "inventoryHash": "2e61afd25d3ca76a",
             "routeKey": "/home",
