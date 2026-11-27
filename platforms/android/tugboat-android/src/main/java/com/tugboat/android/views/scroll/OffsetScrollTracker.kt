@@ -12,6 +12,7 @@ import com.tugboat.android.views.facts.FactClock
 import com.tugboat.android.views.facts.ViewsFact
 import com.tugboat.android.views.identity.HitTester
 import com.tugboat.android.views.identity.TargetAnchor
+import com.tugboat.android.views.identity.ViewGeometry
 import com.tugboat.android.views.identity.ViewRules
 import java.util.WeakHashMap
 import kotlin.math.abs
@@ -35,7 +36,12 @@ import kotlin.math.abs
  *   cannot scroll further in the drag's direction, sends `start`,
  *   `overscroll`, `end` once, when the finger lifts. The scrollable is the
  *   nearest one under the touch that scrolls on the drag's axis; a
- *   `RecyclerView` is left to its own tracker.
+ *   `RecyclerView` is left to its own tracker. Known gap: it is not seen
+ *   whether the scrollable took the drag, so a child that consumes drags
+ *   without scrolling (a signature pad, a map, a Compose list) inside a
+ *   scrollable at its edge also reports one. `onScrollChanged` runs at the
+ *   next draw, so a scroll in the same input batch as the lift can be
+ *   missed, and then both a scroll and an overscroll are reported.
  *
  * Main thread only.
  */
@@ -81,26 +87,31 @@ internal class OffsetScrollTracker(
             }
             MotionEvent.ACTION_POINTER_DOWN -> gestureOpen = false
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (gestureOpen && !movedSinceDown) overscroll(event.x - downX, event.y - downY)
+                if (gestureOpen && !movedSinceDown) overscroll(event.x, event.y)
                 gestureOpen = false
             }
         }
     }
 
-    private fun overscroll(dx: Float, dy: Float) {
+    private fun overscroll(upX: Float, upY: Float) {
+        val dx = upX - downX
+        val dy = upY - downY
         val slop = ViewConfiguration.get(root.context).scaledTouchSlop
         if (maxOf(abs(dx), abs(dy)) <= slop) return
         val vertical = abs(dy) >= abs(dx)
         val axis = if (vertical) ScrollAxis.Vertical else ScrollAxis.Horizontal
-        // A finger moving down (or right) pulls the content toward its start.
-        val towardStart = (if (vertical) dy else dx) > 0
-        val direction = if (towardStart) -1 else 1
         var view = HitTester.hit(root, downX, downY)
         while (view != null) {
             if (Scrollables.isScrollable(view) && Scrollables.metrics(view)?.axis == axis) break
             view = view.parent as? View
         }
         if (view == null || isRecycler(view)) return
+        // The drag in the scrollable's own coordinates (a flipped list, as an inverted
+        // FlatList is, reverses it): down or right pulls the content toward its start.
+        val from = ViewGeometry.toDescendant(root, view, downX, downY) ?: return
+        val to = ViewGeometry.toDescendant(root, view, upX, upY) ?: return
+        val towardStart = (if (vertical) to[1] - from[1] else to[0] - from[0]) > 0
+        val direction = if (towardStart) -1 else 1
         val canScroll = if (vertical) view.canScrollVertically(direction) else view.canScrollHorizontally(direction)
         val canScrollBack = if (vertical) view.canScrollVertically(-direction) else view.canScrollHorizontally(-direction)
         // Pushed past an edge of content that scrolls: not content that fits.

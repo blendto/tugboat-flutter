@@ -3,6 +3,7 @@ package com.tugboat.android.views
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.ScrollView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -107,6 +108,52 @@ class ScrollFactsTest {
         touch(tall, 100f, 300f, 100f, 305f) // inside the touch slop
         touch(tall, 500f, 300f, 100f, 300f) // a sideways drag on a vertical list
         assertEquals(emptyList<String>(), phases())
+    }
+
+    @Test
+    fun aFlippedScrollViewReadsTheDragInItsOwnCoordinates() {
+        val (scroll, tracker) = scrollViewTracker(contentHeight = 4_000)
+        scroll.scaleY = -1f // an inverted FlatList
+
+        touch(tracker, 100f, 300f, 100f, 700f) // finger down is "up" for the flipped content: it can scroll
+        assertEquals(emptyList<String>(), phases())
+        touch(tracker, 100f, 700f, 100f, 300f)
+        assertEquals(listOf("start", "overscroll", "end"), phases())
+    }
+
+    @Test
+    fun aHorizontalScrollViewPulledPastItsStartIsAnOverscroll() {
+        val scroll = HorizontalScrollView(context).apply { addView(View(context).apply { minimumWidth = 4_000 }) }
+        val root = FrameLayout(context).apply { addView(scroll) }
+        layOut(root)
+        val tracker = OffsetScrollTracker(root, FactClock(clock), { null }, recorded::emit, { frameRequests++ })
+        tracker.onFrame()
+
+        touch(tracker, 100f, 300f, 400f, 300f)
+
+        assertEquals(listOf("start", "overscroll", "end"), phases())
+        assertEquals("horizontal", recorded.inputs("scroll")[0].getString("axis"))
+    }
+
+    @Test
+    fun aCancelledGestureASecondPointerAndARecyclerAreHandledOnce() {
+        val (_, tracker) = scrollViewTracker(contentHeight = 4_000)
+        tracker.onTouch(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 300f, 0))
+        tracker.onTouch(MotionEvent.obtain(0, 20, MotionEvent.ACTION_POINTER_DOWN, 100f, 300f, 0))
+        tracker.onTouch(MotionEvent.obtain(0, 50, MotionEvent.ACTION_UP, 100f, 700f, 0))
+        assertEquals("a second pointer is not a drag", emptyList<String>(), phases())
+
+        tracker.onTouch(MotionEvent.obtain(0, 100, MotionEvent.ACTION_DOWN, 100f, 300f, 0))
+        tracker.onTouch(MotionEvent.obtain(0, 150, MotionEvent.ACTION_CANCEL, 100f, 700f, 0))
+        assertEquals(listOf("start", "overscroll", "end"), phases())
+
+        val list = recycler(50)
+        val root = list.parent as FrameLayout
+        val recyclerTracker = OffsetScrollTracker(root, FactClock(clock), { null }, recorded::emit, { frameRequests++ })
+        recyclerTracker.onFrame()
+        recorded.facts.clear()
+        touch(recyclerTracker, 100f, 300f, 100f, 700f)
+        assertEquals("a RecyclerView reports through its own tracker", emptyList<String>(), phases())
     }
 
     private fun scrollViewTracker(contentHeight: Int): Pair<ScrollView, OffsetScrollTracker> {

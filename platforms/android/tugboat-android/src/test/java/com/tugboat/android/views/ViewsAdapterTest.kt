@@ -118,6 +118,29 @@ class ViewsAdapterTest {
     }
 
     @Test
+    fun anOverscrollStartsBeforeThePointerLiftSoTheEngineCanLinkThem() {
+        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        val scroll = android.widget.ScrollView(activity).apply {
+            addView(View(activity).apply { minimumHeight = 4_000 })
+        }
+        activity.setContentView(scroll)
+        shadowOf(Looper.getMainLooper()).idle()
+        frames.runFrame()
+        drain()
+
+        val window = activity.window
+        window.callback.dispatchTouchEvent(MotionEvent.obtain(0, 1_000, MotionEvent.ACTION_DOWN, 100f, 100f, 0))
+        window.callback.dispatchTouchEvent(MotionEvent.obtain(0, 1_100, MotionEvent.ACTION_MOVE, 100f, 300f, 0))
+        window.callback.dispatchTouchEvent(MotionEvent.obtain(0, 1_200, MotionEvent.ACTION_UP, 100f, 500f, 0))
+        frames.runFrame()
+
+        val types = sink.batches.flatten().map { it.type }
+        val scrollStart = types.indexOf("scroll")
+        val lift = types.lastIndexOf("input.pointer")
+        assertTrue(types.toString(), scrollStart >= 0 && scrollStart < lift)
+    }
+
+    @Test
     fun aTapInsideAFragmentUsesTheFragmentRouteAndRoot() {
         val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
         val fragment = ButtonFragment()

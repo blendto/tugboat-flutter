@@ -10,7 +10,8 @@ wiring, window capture, and the Android Views adapter.
   a `RecyclerView` and Flutter do: a drag past the touch slop that moved
   nothing, on a scrollable that cannot scroll further in the drag's direction,
   sends `start`, `overscroll`, `end` once, so the scroll event carries
-  `overscrollCount: 1`. Other scroll events are unchanged.
+  `overscrollCount: 1`. Such a drag was published as a `swipe` before and is
+  now a `scroll` (as in Flutter). Other scroll events are unchanged.
 
 - Views anchors match the Flutter adapter: a switch reports role `switch` (not
   only `android.widget.Switch`: React Native's `ReactSwitch` and AndroidX

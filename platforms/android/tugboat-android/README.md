@@ -609,7 +609,10 @@ nor flagged. Below API 29 only the
 focus signal exists: a dialog shown before the activity window first gains
 focus (for example from `onCreate`) is not flagged, and in multi-window mode
 focus taken by another app's window flags frames. Predictive back is not
-observed; overscroll is reported for `RecyclerView` only;
+observed; overscroll is reported for `RecyclerView` and for other scrollables
+(`ScrollView`, `HorizontalScrollView`, `NestedScrollView`, `ListView`) by their
+touches, so a child that consumes a drag without scrolling, inside one at its
+edge, also reports one, and Compose lists report none;
 fragment `hide`/`show` is not reported; `transitionMs` is 0; window-manager
 activity transitions (not view animations) are not detected for the motion
 fallback.
