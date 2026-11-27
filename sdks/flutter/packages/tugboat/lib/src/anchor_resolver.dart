@@ -1327,23 +1327,20 @@ class AnchorResolver {
   }
 
   /// Role, enabled state and actions of the first role at or above
-  /// [inspected] (actions of every role on the way), and the widget type: the
-  /// first role widget, else the first widget that is not capture chrome.
+  /// [inspected]; a text field's inner `Scrollable` yields to the text field.
+  /// Actions are that role's own, as on native Android (empty when disabled);
+  /// a parent's role, such as a scrollable list, adds none. The widget type is
+  /// the nearest widget to the hit that is not capture chrome (a leaf such as
+  /// `RichText` for a labelled button); it is unchanged by this fix.
   ({String? role, bool? enabled, List<String> actions, String? widgetType})
   _describeHit(Element inspected, _TokenMap tokenMap) {
-    String? role;
-    bool? enabled;
-    final actions = <String>{};
+    final roles = <WidgetRole>[];
     String? widgetType;
 
     void inspectElement(Element element) {
       final widget = element.widget;
       final widgetRole = _anchorRoleFor(element, tokenMap);
-      if (widgetRole != null) {
-        role ??= widgetRole.name;
-        enabled ??= widgetRole.enabled;
-        actions.addAll(widgetRole.actions);
-      }
+      if (widgetRole != null && roles.length < 2) roles.add(widgetRole);
       if (tugboatRoleForWidget(widget) != null) {
         widgetType ??= _widgetName(widget);
       } else if (widgetType == null && !tugboatIsCaptureChrome(widget)) {
@@ -1356,10 +1353,18 @@ class AnchorResolver {
       inspectElement(ancestor);
       return true;
     });
+    // A text field's inner Scrollable sits below the TextField itself, so
+    // the text field describes the hit (native ranks textField first too).
+    final described =
+        roles.length == 2 &&
+            roles[0].name == 'scrollable' &&
+            roles[1].name == 'textField'
+        ? roles[1]
+        : roles.firstOrNull;
     return (
-      role: role,
-      enabled: enabled,
-      actions: actions.toList()..sort(),
+      role: described?.name,
+      enabled: described?.enabled,
+      actions: [...?described?.actions]..sort(),
       widgetType: widgetType,
     );
   }
