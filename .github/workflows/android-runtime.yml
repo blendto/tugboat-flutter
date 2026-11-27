@@ -15,6 +15,7 @@ on:
       - "tool/ci/verify-flutter-plugin-runtime.sh"
       - "tool/ci/capture-runtime-override.init.gradle"
       - "sdks/flutter/packages/tugboat/android/**"
+      - "sdks/flutter/packages/tugboat/example/android/**"
       - ".github/workflows/android-runtime.yml"
       - ".github/workflows/publish-android.yml"
   push:
@@ -29,16 +30,18 @@ on:
       - "tool/ci/verify-flutter-plugin-runtime.sh"
       - "tool/ci/capture-runtime-override.init.gradle"
       - "sdks/flutter/packages/tugboat/android/**"
+      - "sdks/flutter/packages/tugboat/example/android/**"
       - ".github/workflows/android-runtime.yml"
       - ".github/workflows/publish-android.yml"
 
 permissions:
   contents: read
 
-# One run per PR: a new push cancels the previous run. Runs on main are never
-# cancelled, so each merge finishes and saves its caches.
+# One run per PR: a new push cancels the previous run. Every push to main
+# gets its own group (by commit), so main runs are never cancelled or
+# superseded, and each merge saves its caches.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -72,10 +75,12 @@ jobs:
       # The Flutter plugin must compile against this runtime as well as the
       # published one it pins, so a runtime change cannot break the plugin
       # unnoticed. Uses the .local-maven AAR built above.
+      # The Flutter version the example's Gradle setup supports (as in the
+      # device suite); newer stable releases require Gradle 9.3+.
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: "3.47.5"
           cache: true
       - name: Flutter plugin against the pinned and the in-repo runtime
         run: bash tool/ci/verify-flutter-plugin-runtime.sh
