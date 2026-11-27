@@ -20,7 +20,8 @@ import ObjectiveC
 ///   is `response` with the status code.
 /// - Error body, for a status of 400 or more: the bytes delegate-based
 ///   data tasks delivered through `didReceive data`, at most 65,537 of them
-///   (section 4.5 of evidence-messages.md). Other tasks have none.
+///   (section 4.5 of evidence-messages.md); an empty text body when the
+///   response carried no bytes. Other tasks have none.
 /// - Not recorded: stream and WebSocket tasks, tasks made by
 ///   `Tugboat.data(for:session:delegate:route:)` (it records them), tasks
 ///   whose route resolver returns nil or empty or throws, and anything
@@ -83,7 +84,15 @@ final class NetworkTaskRecorder: @unchecked Sendable {
     let call = TugboatNetworkCall.begin(
       method: NetworkRoute.method(request), route: route, channel: channel, startedBeforeNowUs: durationUs)
     NetworkOutcome.finish(call, response: task.response, error: error) {
-      HTTPErrorBody.body(bytes: errorBody, contentType: NetworkOutcome.contentType(of: task.response))
+      let contentType = NetworkOutcome.contentType(of: task.response)
+      // A response that carried no bytes at all has an empty text body, as
+      // `tugboat-okhttp` and Dio report it (an empty JSON body gives none:
+      // the engine drops it). Bytes the recorder did not keep (a task
+      // without delegate data) give no body.
+      if errorBody.isEmpty {
+        return task.countOfBytesReceived == 0 && !HTTPErrorBody.isJSON(contentType: contentType) ? "" : nil
+      }
+      return HTTPErrorBody.body(bytes: errorBody, contentType: contentType)
     }
   }
 

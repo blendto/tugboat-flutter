@@ -78,6 +78,26 @@ final class ReactNativeSeamsTests: XCTestCase {
     XCTAssertFalse(anchors[0].canonicalPath.contains("add"), "the name is never in the path")
   }
 
+  func testANamedViewCarriesTapAndEnabledUnlessItTakesNoTouches() throws {
+    TugboatAdapters.setViewNameProvider { $0.accessibilityIdentifier }
+    var views: [UIView] = []
+    let window = makeWindow { root in
+      views.append(box(root, CGRect(x: 20, y: 100, width: 100, height: 50), id: "on"))
+      views.append(box(root, CGRect(x: 20, y: 200, width: 100, height: 50), id: "disabled"))
+    }
+    views[1].accessibilityTraits.insert(.notEnabled)
+    TugboatAdapters.setScreen(name: "Cart", instanceId: "cart-1")
+    var anchors: [TargetAnchor] = []
+    for view in views {
+      guard case let .anchor(anchor) = resolver().tapEvidence(in: window, at: centre(view, in: window)) else {
+        return XCTFail("a named view resolves")
+      }
+      anchors.append(anchor)
+    }
+    XCTAssertEqual(anchors.map(\.enabled), [true, false])
+    XCTAssertEqual(anchors.map(\.actions), [["tap"], []])
+  }
+
   func testWithoutAProviderAPlainViewIsNoTarget() {
     let window = makeWindow { root in
       _ = box(root, CGRect(x: 20, y: 100, width: 100, height: 50), id: "add")
