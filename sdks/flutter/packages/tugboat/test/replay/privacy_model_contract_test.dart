@@ -432,7 +432,12 @@ void main() {
           duration: const Duration(milliseconds: 400),
           crossFadeState: state,
           firstChild: const Text('4242', key: ValueKey('first')),
-          secondChild: const Text('other', key: ValueKey('second')),
+          // Not text: a wider incoming text mask would cover the outgoing one.
+          secondChild: const SizedBox(
+            key: ValueKey('second'),
+            width: 4,
+            height: 4,
+          ),
         );
         final boundaryKey = GlobalKey();
         Widget app(CrossFadeState state) => TugboatCaptureBoundary(
