@@ -1,14 +1,22 @@
+import CryptoKit
 import Foundation
 
 /// The SDK's own installation id (BLE-618), with the rules of Flutter's
 /// `TugboatInstallationIdStore` (0.11.5): a random UUID minted on first
 /// launch and kept in its own file (`tugboat/installation_id` under the app
 /// support directory), so it lasts across launches and app updates and is
-/// new after a reinstall. It is not in the host's user defaults, so a host
+/// replaced when app data is removed. It is not in the host's user defaults, so a host
 /// that clears them on logout keeps the id.
 ///
 /// On iOS the first value is `identifierForVendor`, so installs that already
 /// reported it as `device.id` keep it; a persisted id beats the seed.
+/// `identifierForVendor` survives a reinstall while another app from the same
+/// vendor stays installed, so the id then survives it too (as in Flutter);
+/// otherwise a reinstall mints a new one.
+///
+/// Reading and writing is blocking disk work: the runtime does it on the
+/// engine queue (`EngineHost.postUntimed(type:input:)`), never on the main
+/// thread.
 ///
 /// Persistence failures never reach the host: when the file cannot be read or
 /// written the id is still returned and stays the same for this process. A
@@ -159,6 +167,28 @@ extension TugboatConfig.App {
 
 /// Host entropy for the engine's session and event ids (`session.start.idSeed`).
 enum IdSeed {
+  /// The `captureSessionId` the engine mints for `seed`: `session-` and the UUIDv4 of the first 16 bytes of
+  /// SHA-256(seed bytes || big-endian stream index 0) (core/session-engine session.cpp). Derived here so
+  /// `TUGBOAT_LAUNCH` can print it before the engine queue has answered; `InstallationIdTests` pins it to the
+  /// engine's vector.
+  static func sessionId(_ seedHex: String) -> String {
+    var bytes = [UInt8]()
+    var index = seedHex.startIndex
+    while index < seedHex.endIndex {
+      let next = seedHex.index(index, offsetBy: 2)
+      bytes.append(UInt8(seedHex[index..<next], radix: 16) ?? 0)
+      index = next
+    }
+    bytes += [UInt8](repeating: 0, count: 8)
+    var digest = Array(SHA256.hash(data: Data(bytes)).prefix(16))
+    digest[6] = (digest[6] & 0x0f) | 0x40
+    digest[8] = (digest[8] & 0x3f) | 0x80
+    let hex = digest.map { String(format: "%02x", $0) }.joined()
+    let h = Array(hex)
+    func part(_ a: Int, _ b: Int) -> String { String(h[a..<b]) }
+    return "session-\(part(0, 8))-\(part(8, 12))-\(part(12, 16))-\(part(16, 20))-\(part(20, 32))"
+  }
+
   /// 32 random bytes as 64 lowercase hex characters; never reused for
   /// another session.
   static func generate() -> String {

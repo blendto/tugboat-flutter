@@ -159,9 +159,10 @@ public struct TugboatConfig {
     /// The bundle identifier. Also sent as the `X-App-Id` header.
     public var appId: String
     /// Stable per install. Optional: when blank the SDK mints a random UUID
-    /// on first launch (seeded with `identifierForVendor`) and keeps it in
-    /// its own file under the app support directory. A non-blank id the app
-    /// passes wins over the SDK's.
+    /// on first launch (seeded with `identifierForVendor`, which survives a
+    /// reinstall while another app from the same vendor stays installed) and
+    /// keeps it in its own file under the app support directory. A non-blank
+    /// id the app passes wins over the SDK's.
     public var installationId: String
 
     public init(name: String, version: String, buildNumber: String, appId: String, installationId: String = "") {

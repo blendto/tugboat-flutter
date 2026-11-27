@@ -16,7 +16,9 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   the SDK mints a random UUID on first launch (seeded with
   `identifierForVendor`), keeps it in `tugboat/installation_id` under the
   Application Support directory, and sends it as `appInfo.installationId`,
-  as Flutter 0.11.5. A non-blank host id wins.
+  as Flutter 0.11.5. The file is read or written on the engine queue, before
+  `session.start`, never on the main thread. A non-blank host id wins.
+  `TUGBOAT_LAUNCH` / `TUGBOAT_HEALTH` print the new `session-<UUIDv4>` id.
 - Background flush (contract change: delivery): with `durableOutbox` on,
   entering the background runs `transport.flush` under a `UIApplication`
   background task that ends once the flush's outbox writes land, or at
