@@ -277,7 +277,7 @@ pointer-driven: its inventory is still built at once, and with layout dirty
 it can fail (logged, inventory lost) or read stale boxes in release. Production builds no scroll inventory and
 schedules nothing.
 
-## Fingerprint schema v6
+## Fingerprint schema 7
 
 `tugboatFingerprintSchemaVersion` is currently `7`. Hashes are 16-character
 SHA-256 prefixes derived from sorted identity parts. Schema 7 changes are in

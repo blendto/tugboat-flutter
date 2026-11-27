@@ -20,7 +20,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Compose anchors hash with the shared fingerprint (schema v6): each Compose
+ * Compose anchors hash with the shared fingerprint (schema 7): each Compose
  * anchor's fingerprints are the `IdentityHash` of its own parts, the hash
  * `IdentityHashConformanceTest` checks against every
  * `conformance/fingerprint/identity_parts` vector.
