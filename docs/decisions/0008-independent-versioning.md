@@ -19,7 +19,8 @@ in Phase 8, not as a second copy here.
 
 CI version-bump rules are path-aware (`tool/ci/check-version-policy.sh`).
 Repository-only docs and C++ test/fuzz-only changes skip the Flutter bump.
-The two pub.dev packages publish in lockstep. Their package READMEs and
+The pub.dev adapter packages (`tugboat`, `tugboat_dio`, `tugboat_http`)
+publish in lockstep. Their package READMEs and
 Dartdoc ship with the package and require a new version.
 Public runtime API / C ABI changes bump `capture-runtime`. Adapter source
 changes bump `tugboat` and update

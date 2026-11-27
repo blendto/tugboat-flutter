@@ -18,6 +18,16 @@ platform views, video/map surfaces, and DRM are in
 an Apple runtime 0.1.1 behavior (`docs/releases/compatibility.md`), not a
 general Android `engineSurface` limit.
 
+**`windowComposite`** — Android native capture of one app window's surface
+(`PixelCopy` of a `Window`, API 26+), used by native Android hosts. Not the
+full-screen composition: `SurfaceView` layers and other windows (dialogs,
+popups, the IME) are missing. See `docs/architecture/capture-coverage.md`.
+
+**`secureWindow`** — the window-capture status for a window flagged
+`FLAG_SECURE`. Nothing is copied; hosts emit a `capture_diagnostic` instead
+of a frame. See the Status × fallback × publish table in
+`docs/architecture/native-capture-contracts.md`.
+
 **Fallback** — the rule that a failing native capture falls back to the
 default Dart path (see `docs/architecture/fallback.md` and the
 Status × fallback × publish table in

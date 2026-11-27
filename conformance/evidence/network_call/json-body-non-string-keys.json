@@ -1,0 +1,56 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "json-body-non-string-keys",
+  "description": "A non-string key uses up one of the 128 visits and sets truncated; an empty or long string key is fine in bodies.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 400,
+    "errorResponseBody": {
+      "value": {
+        "map": [
+          {
+            "nonStringKeys": 127
+          },
+          [
+            "",
+            1
+          ],
+          [
+            "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+            2
+          ],
+          [
+            "late",
+            3
+          ]
+        ]
+      }
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 400,
+      "outcome": "response",
+      "durationMs": 150,
+      "errorResponseBody": {
+        "": 1
+      },
+      "errorResponseBodyCapture": {
+        "format": "json",
+        "representation": "native",
+        "truncated": true
+      }
+    }
+  }
+}

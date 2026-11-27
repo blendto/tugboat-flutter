@@ -1,0 +1,148 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "generic-focus-changed",
+  "description": "Any other event type uses the generic envelope: data is nested under payload; relatedEventId appears only inside payload, while explorationRunId and actionId appear both at the top level and inside payload; result and the full targetAnchor (with schemaVersion and fingerprintParts) are kept.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "2.4.0",
+        "buildNumber": "240",
+        "installationId": "inst-0001",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0001",
+        "platform": "android",
+        "manufacturer": "Google",
+        "model": "Pixel 8",
+        "osVersion": "15",
+        "batteryPercent": 81,
+        "storageFreeMb": 20480,
+        "ramMb": 8192,
+        "networkType": "wifi",
+        "screenSize": {
+          "width": 412.0,
+          "height": 915.0
+        },
+        "screenDensity": 2.625,
+        "screenDpi": 420,
+        "screenPixelDensity": 2.625
+      },
+      "ip": {
+        "ip": "203.0.113.7",
+        "city": "Lisbon",
+        "region": "Lisbon",
+        "country": "PT",
+        "timezone": "Europe/Lisbon",
+        "isp": "Example ISP",
+        "org": "Example Org"
+      },
+      "locale": {
+        "language": "en",
+        "country": "US",
+        "timezone": "Europe/Lisbon"
+      },
+      "configuredUserId": "user-configured"
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime",
+      "traitsId": "traits-123"
+    },
+    "event": {
+      "id": "event-110",
+      "atMs": 110000,
+      "type": "focus_changed",
+      "stream": "evidence",
+      "targetAnchor": {
+        "schemaVersion": 6,
+        "widgetType": "TextField",
+        "role": "textField",
+        "fingerprint": "abcdef0123456789",
+        "fingerprintConfidence": "low",
+        "fingerprintParts": {
+          "schemaVersion": "6",
+          "routeKey": "/login"
+        },
+        "canonicalPath": "Scaffold#0/TextField#0",
+        "enabled": true,
+        "actions": [
+          "tap"
+        ]
+      },
+      "afterFrame": "frame-80",
+      "result": "noVisibleChange",
+      "relatedEventId": "event-109",
+      "data": {
+        "focused": true,
+        "inputKind": "text"
+      },
+      "locale": {
+        "language": "pt",
+        "country": "PT",
+        "tag": "pt-PT"
+      },
+      "explorationRunId": "run-7",
+      "actionId": "action-3"
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-110",
+      "atMs": 110000,
+      "triggeredAt": "2026-06-19T00:01:50.000Z",
+      "sessionId": "collector-session-9",
+      "userId": "user-runtime",
+      "eventType": "focus_changed",
+      "stream": "evidence",
+      "enrichmentCandidate": false,
+      "explorationRunId": "run-7",
+      "actionId": "action-3",
+      "locale": {
+        "language": "pt",
+        "country": "PT",
+        "tag": "pt-PT"
+      },
+      "afterFrame": "frame-80",
+      "traitsId": "traits-123",
+      "targetAnchor": {
+        "schemaVersion": 6,
+        "widgetType": "TextField",
+        "role": "textField",
+        "fingerprint": "abcdef0123456789",
+        "fingerprintConfidence": "low",
+        "fingerprintParts": {
+          "schemaVersion": "6",
+          "routeKey": "/login"
+        },
+        "canonicalPath": "Scaffold#0/TextField#0",
+        "enabled": true,
+        "actions": [
+          "tap"
+        ]
+      },
+      "result": "noVisibleChange",
+      "payload": {
+        "focused": true,
+        "inputKind": "text",
+        "relatedEventId": "event-109",
+        "explorationRunId": "run-7",
+        "actionId": "action-3"
+      },
+      "build": {
+        "appId": "com.example.app",
+        "platform": "android",
+        "versionName": "2.4.0",
+        "buildNumber": "240",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.sessionLifecycle",
+  "name": "session-end-clock-before-start",
+  "description": "Edge: triggeredAt earlier than startedAt (wall clock moved back). atMs is negative; nothing clamps it.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "1.0.0",
+        "buildNumber": "1",
+        "installationId": "inst-0002",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0002",
+        "platform": "ios",
+        "screenSize": {
+          "width": 390,
+          "height": 844
+        },
+        "screenDensity": 3,
+        "screenDpi": 460,
+        "screenPixelDensity": 3
+      },
+      "ip": {
+        "ip": "198.51.100.2"
+      },
+      "locale": {},
+      "configuredUserId": null
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": null
+    },
+    "lifecycle": {
+      "eventType": "session_end",
+      "triggeredAtEpochMs": 1781827198500
+    }
+  },
+  "expected": {
+    "record": {
+      "sessionId": "collector-session-9",
+      "eventType": "session_end",
+      "atMs": -1500,
+      "triggeredAt": "2026-06-18T23:59:58.500Z",
+      "userId": null
+    }
+  }
+}

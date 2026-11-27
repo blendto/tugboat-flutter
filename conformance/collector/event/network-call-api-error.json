@@ -1,0 +1,120 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.event",
+  "name": "network-call-api-error",
+  "description": "network_call 404 with a JSON error body. The capture-metadata sidecar is dropped; relatedEventId is not carried; the payload repeats the stream.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "2.4.0",
+        "buildNumber": "240",
+        "installationId": "inst-0001",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0001",
+        "platform": "android",
+        "manufacturer": "Google",
+        "model": "Pixel 8",
+        "osVersion": "15",
+        "batteryPercent": 81,
+        "storageFreeMb": 20480,
+        "ramMb": 8192,
+        "networkType": "wifi",
+        "screenSize": {
+          "width": 412.0,
+          "height": 915.0
+        },
+        "screenDensity": 2.625,
+        "screenDpi": 420,
+        "screenPixelDensity": 2.625
+      },
+      "ip": {
+        "ip": "203.0.113.7",
+        "city": "Lisbon",
+        "region": "Lisbon",
+        "country": "PT",
+        "timezone": "Europe/Lisbon",
+        "isp": "Example ISP",
+        "org": "Example Org"
+      },
+      "locale": {
+        "language": "en",
+        "country": "US",
+        "timezone": "Europe/Lisbon"
+      },
+      "configuredUserId": "user-configured"
+    },
+    "session": {
+      "sessionId": "collector-session-9",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime",
+      "traitsId": "traits-123"
+    },
+    "event": {
+      "id": "event-100",
+      "atMs": 100000,
+      "type": "network_call",
+      "stream": "evidence",
+      "relatedEventId": "event-41",
+      "data": {
+        "method": "POST",
+        "route": "/v1/orders/{id}",
+        "statusCode": 404,
+        "outcome": "response",
+        "durationMs": 182,
+        "attemptCount": 2,
+        "errorResponseBody": {
+          "error": "not_found",
+          "retryable": false
+        },
+        "errorResponseBodyCapture": {
+          "truncated": false,
+          "originalBytes": 41
+        }
+      },
+      "explorationRunId": "run-7",
+      "actionId": "action-3"
+    }
+  },
+  "expected": {
+    "record": {
+      "id": "event-100",
+      "atMs": 100000,
+      "triggeredAt": "2026-06-19T00:01:40.000Z",
+      "sessionId": "collector-session-9",
+      "userId": "user-runtime",
+      "eventType": "network_call",
+      "stream": "evidence",
+      "enrichmentCandidate": false,
+      "explorationRunId": "run-7",
+      "actionId": "action-3",
+      "traitsId": "traits-123",
+      "payload": {
+        "method": "POST",
+        "route": "/v1/orders/{id}",
+        "statusCode": 404,
+        "outcome": "response",
+        "durationMs": 182,
+        "attemptCount": 2,
+        "errorResponseBody": {
+          "error": "not_found",
+          "retryable": false
+        },
+        "stream": "evidence"
+      },
+      "build": {
+        "appId": "com.example.app",
+        "platform": "android",
+        "versionName": "2.4.0",
+        "buildNumber": "240",
+        "fingerprintSchemaVersion": 6
+      }
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "status-400-text-body",
+  "description": "Status 400 keeps a text body (format text, representation native).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 400,
+    "errorResponseBody": {
+      "value": "Bad request"
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 400,
+      "outcome": "response",
+      "durationMs": 150,
+      "errorResponseBody": "Bad request",
+      "errorResponseBodyCapture": {
+        "format": "text",
+        "representation": "native",
+        "truncated": false
+      }
+    }
+  }
+}

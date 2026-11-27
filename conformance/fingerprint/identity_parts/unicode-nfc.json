@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.identityParts",
+  "name": "unicode-nfc",
+  "description": "Precomposed U+00E9 in a value. Values are UTF-8 encoded as-is; compare with unicode-nfd.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "parts": [
+      [
+        "routeKey",
+        "/caf\u00e9"
+      ],
+      [
+        "path",
+        "Scaffold#0"
+      ]
+    ]
+  },
+  "expected": {
+    "canonicalString": "path=Scaffold#0|routeKey=/caf\u00e9",
+    "fingerprint": "bc33826ef6a07384"
+  }
+}

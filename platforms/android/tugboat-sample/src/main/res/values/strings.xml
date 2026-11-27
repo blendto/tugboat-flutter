@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tugboat Sample</string>
+    <string name="primary_action">Tap me</string>
+    <string name="tap_count">Tapped %1$d times</string>
+    <string name="swipe_area">Swipe here</string>
+    <string name="note_hint">Type a note</string>
+    <string name="open_details">Open details</string>
+    <string name="show_dialog">Show dialog</string>
+    <string name="stop_tugboat">Stop Tugboat</string>
+    <string name="tugboat_stopped">Tugboat stopped</string>
+    <string name="dialog_title">A dialog</string>
+    <string name="dialog_message">A framework dialog: not in the captured frame, and its taps are not recorded (known gap).</string>
+    <string name="ok">OK</string>
+    <string name="details_title">Details</string>
+    <string name="details_body">The second screen. Press back to return.</string>
+    <string name="back">Back</string>
+    <string name="row">Row %1$d</string>
+    <string name="open_compose">Compose</string>
+    <string name="open_compose_semantics">Compose (semantics)</string>
+    <string name="compose_whole_host_title">Compose, whole-host masking</string>
+    <string name="compose_semantics_title">Compose, semantics masking</string>
+    <string name="compose_row_title">Compose row %1$s</string>
+    <string name="compose_image_description">Gallery placeholder</string>
+    <string name="open_fragments">Fragments</string>
+    <string name="show_views_fragment">Views fragment</string>
+    <string name="show_compose_fragment">Compose fragment</string>
+    <string name="fragment_title">A fragment screen</string>
+    <string name="fragment_action">Fragment action</string>
+    <string name="compose_fragment_action">Compose fragment action</string>
+    <string name="open_dialogs">Dialogs</string>
+    <string name="open_appcompat_dialog">AppCompat dialog</string>
+    <string name="open_dialog_fragment">DialogFragment</string>
+    <string name="open_compose_dialog">Compose dialog</string>
+    <string name="open_bottom_sheet">Bottom sheet</string>
+    <string name="appcompat_dialog_title">An AppCompat dialog</string>
+    <string name="appcompat_dialog_message">A ComponentDialog: its taps are recorded on API 29+.</string>
+    <string name="dialog_fragment_title">A dialog fragment</string>
+    <string name="dialog_fragment_message">Its taps are recorded on every API level.</string>
+</resources>

@@ -1,0 +1,90 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.externalEvent",
+  "name": "cycles-dropped",
+  "description": "A ref (an ancestor collection, a cycle) is dropped like Dart's seen check; its collection stays. A map containing itself is also how a host writes a value that is the parameters map itself.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "name": "cycle",
+    "policy": {
+      "mode": "allow_all"
+    },
+    "parameters": {
+      "map": [
+        [
+          "self",
+          [
+            1,
+            {
+              "ref": 1
+            }
+          ]
+        ],
+        [
+          "deep",
+          {
+            "map": [
+              [
+                "a",
+                [
+                  {
+                    "ref": 2
+                  },
+                  "x"
+                ]
+              ]
+            ]
+          }
+        ],
+        [
+          "params",
+          {
+            "map": [
+              [
+                "params",
+                {
+                  "ref": 1
+                }
+              ],
+              [
+                "v",
+                1
+              ]
+            ]
+          }
+        ]
+      ]
+    }
+  },
+  "expected": {
+    "data": {
+      "name": "cycle",
+      "parameterKeys": [
+        "self",
+        "deep",
+        "params"
+      ],
+      "parameters": {
+        "self": [
+          1
+        ],
+        "deep": {
+          "a": [
+            "x"
+          ]
+        },
+        "params": {
+          "v": 1
+        }
+      },
+      "capture": {
+        "values": "allow_all",
+        "truncated": true,
+        "droppedCount": 3
+      }
+    }
+  }
+}

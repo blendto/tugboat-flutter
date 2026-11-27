@@ -1,0 +1,25 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "duration-clamped-to-a-day",
+  "description": "Durations are clamped to 86400000 ms.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 0,
+    "endMonoUs": 90000000000,
+    "outcome": "response"
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "outcome": "response",
+      "durationMs": 86400000
+    }
+  }
+}

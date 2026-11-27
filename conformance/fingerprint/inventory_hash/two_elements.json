@@ -1,0 +1,19 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.inventoryHash",
+  "name": "two_elements",
+  "description": "inventoryHash sorts element fingerprints and joins them with | before labelHash, matching TugboatSceneInventory.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "fingerprints": [
+      "bbbbbbbbbbbbbbbb",
+      "aaaaaaaaaaaaaaaa"
+    ]
+  },
+  "expected": {
+    "hash": "0b889a29362c4fe5"
+  }
+}

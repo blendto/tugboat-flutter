@@ -1,0 +1,78 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.sessionLifecycle",
+  "name": "session-start-minimal",
+  "description": "session_start with only required host fields, no active locale, no traits bag, and a cached traitsId. An explicit runtime userId wins over the configured one. Integral screen metrics are emitted as doubles.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "1.0.0",
+        "buildNumber": "1",
+        "installationId": "inst-0002",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0002",
+        "platform": "ios",
+        "screenSize": {
+          "width": 390,
+          "height": 844
+        },
+        "screenDensity": 3,
+        "screenDpi": 460,
+        "screenPixelDensity": 3
+      },
+      "ip": {
+        "ip": "198.51.100.2"
+      },
+      "locale": {},
+      "configuredUserId": null
+    },
+    "session": {
+      "sessionId": "local-session-2",
+      "startedAtEpochMs": 1781827200000,
+      "userId": "user-runtime",
+      "traitsId": "traits-123"
+    },
+    "lifecycle": {
+      "eventType": "session_start",
+      "triggeredAtEpochMs": 1781827200000
+    }
+  },
+  "expected": {
+    "record": {
+      "sessionId": "local-session-2",
+      "eventType": "session_start",
+      "atMs": 0,
+      "triggeredAt": "2026-06-19T00:00:00.000Z",
+      "userId": "user-runtime",
+      "appInfo": {
+        "version": "1.0.0",
+        "buildNumber": "1",
+        "appId": "com.example.app",
+        "packageName": "com.example.app"
+      },
+      "device": {
+        "id": "device-0002",
+        "platform": "ios",
+        "screenSize": {
+          "width": 390.0,
+          "height": 844.0
+        },
+        "screenDensity": 3.0,
+        "screenDpi": 460,
+        "screenPixelDensity": 3.0
+      },
+      "ipInfo": {
+        "ip": "198.51.100.2"
+      },
+      "locale": {},
+      "traitsId": "traits-123"
+    }
+  }
+}

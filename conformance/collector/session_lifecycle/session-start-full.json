@@ -1,0 +1,129 @@
+{
+  "fixtureFormat": 1,
+  "kind": "collector.sessionLifecycle",
+  "name": "session-start-full",
+  "description": "session_start with every host field, a traits bag, and an active locale. userId is null so the configured startup user is used. appInfo drops name and installationId; the active locale replaces language/country/script/tag but keeps the configured timezone; traits wins over traitsId.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "host": {
+      "app": {
+        "name": "Example App",
+        "version": "2.4.0",
+        "buildNumber": "240",
+        "installationId": "inst-0001",
+        "appId": "com.example.app"
+      },
+      "device": {
+        "id": "device-0001",
+        "platform": "android",
+        "manufacturer": "Google",
+        "model": "Pixel 8",
+        "osVersion": "15",
+        "batteryPercent": 81,
+        "storageFreeMb": 20480,
+        "ramMb": 8192,
+        "networkType": "wifi",
+        "screenSize": {
+          "width": 412.0,
+          "height": 915.0
+        },
+        "screenDensity": 2.625,
+        "screenDpi": 420,
+        "screenPixelDensity": 2.625
+      },
+      "ip": {
+        "ip": "203.0.113.7",
+        "city": "Lisbon",
+        "region": "Lisbon",
+        "country": "PT",
+        "timezone": "Europe/Lisbon",
+        "isp": "Example ISP",
+        "org": "Example Org"
+      },
+      "locale": {
+        "language": "en",
+        "country": "US",
+        "timezone": "Europe/Lisbon"
+      },
+      "configuredUserId": "user-configured"
+    },
+    "session": {
+      "sessionId": "local-session-1",
+      "startedAtEpochMs": 1781827200000,
+      "userId": null,
+      "traitsId": "traits-old",
+      "traits": {
+        "plan": "pro",
+        "seats": 3,
+        "beta": true
+      }
+    },
+    "lifecycle": {
+      "eventType": "session_start",
+      "triggeredAtEpochMs": 1781827200007,
+      "activeLocale": {
+        "language": "pt",
+        "country": "PT",
+        "script": "Latn",
+        "tag": "pt-Latn-PT"
+      }
+    }
+  },
+  "expected": {
+    "record": {
+      "sessionId": "local-session-1",
+      "eventType": "session_start",
+      "atMs": 7,
+      "triggeredAt": "2026-06-19T00:00:00.007Z",
+      "userId": "user-configured",
+      "appInfo": {
+        "version": "2.4.0",
+        "buildNumber": "240",
+        "appId": "com.example.app",
+        "packageName": "com.example.app"
+      },
+      "device": {
+        "id": "device-0001",
+        "platform": "android",
+        "manufacturer": "Google",
+        "model": "Pixel 8",
+        "osVersion": "15",
+        "batteryPercent": 81,
+        "storageFreeMb": 20480,
+        "ramMb": 8192,
+        "networkType": "wifi",
+        "screenSize": {
+          "width": 412.0,
+          "height": 915.0
+        },
+        "screenDensity": 2.625,
+        "screenDpi": 420,
+        "screenPixelDensity": 2.625
+      },
+      "ipInfo": {
+        "ip": "203.0.113.7",
+        "city": "Lisbon",
+        "region": "Lisbon",
+        "country": "PT",
+        "timezone": "Europe/Lisbon",
+        "isp": "Example ISP",
+        "org": "Example Org"
+      },
+      "locale": {
+        "timezone": "Europe/Lisbon",
+        "language": "pt",
+        "country": "PT",
+        "script": "Latn",
+        "tag": "pt-Latn-PT"
+      },
+      "traits": {
+        "plan": "pro",
+        "seats": 3,
+        "beta": true
+      }
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "json-body-cycle-unrolled",
+  "description": "Dart has no cycle check for bodies: a self-containing list is followed until the depth limit.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 400,
+    "errorResponseBody": {
+      "value": {
+        "map": [
+          [
+            "self",
+            [
+              "a",
+              {
+                "ref": 1
+              }
+            ]
+          ]
+        ]
+      }
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 400,
+      "outcome": "response",
+      "durationMs": 150,
+      "errorResponseBody": {
+        "self": [
+          "a",
+          [
+            "a",
+            [
+              "a",
+              [
+                "a",
+                [
+                  "a"
+                ]
+              ]
+            ]
+          ]
+        ]
+      },
+      "errorResponseBodyCapture": {
+        "format": "json",
+        "representation": "native",
+        "truncated": true
+      }
+    }
+  }
+}

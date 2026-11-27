@@ -143,7 +143,13 @@ metadata, not identity. Key installs on `appInfo.installationId`.
 
 `fromPlatform` uses `package_info_plus`, `device_info_plus`, `battery_plus`,
 `disk_space_plus`, and `connectivity_plus` to populate app, device, viewport,
-platform locale, and time-zone fields. The active Flutter app locale overrides
+platform locale, and time-zone fields. `device.model` is the exact hardware
+identifier: on iOS the `utsname` machine string such as `iPhone17,1` (on the
+simulator, the simulated device's `SIMULATOR_MODEL_IDENTIFIER`), and on
+Android `Build.MODEL` such as `24044RN32L`, with `Build.MANUFACTURER` in
+`device.manufacturer`. iOS SDKs before 0.12.5 sent the family name `iPhone` or
+`iPad` instead. Mapping identifiers to marketing names is left to consumers.
+The active Flutter app locale overrides
 the platform locale in `session_start` when the capture root can observe it.
 On `session_start`, the `device` bag may also
 include optional runtime facts when observable:
@@ -304,6 +310,43 @@ vocabulary described in
 The observed frame, when present, is the envelope's `afterFrame`. Deploy
 collector acceptance for these event types before enabling either capability
 in production: a non-retryable rejection drops the whole batch.
+
+### Network calls and external events
+
+`network_call` and `external_event` use the generic envelope with
+`stream: evidence`. They never carry an action ID or target anchor. Every SDK
+sends the same `payload` shape and applies the same limits and parameter
+policies before anything leaves the device. Flutter does this in Dart. The
+native SDKs do it in the shared session engine, held to the same conformance
+fixtures (`conformance/evidence/`). So the collector treats the two kinds of
+SDK the same. Query strings, headers, request bodies, and transport error text
+are never captured. An error body is captured only for HTTP status 400 or
+more, and it is bounded to 4 KiB.
+
+| | Coded events (`external_event`) | Manual network calls (`network_call`) | Automatic network capture |
+| --- | --- | --- | --- |
+| Flutter | `TugboatReplay.eventHook(source:, parameterPolicy:).record(name, parameters:)` | `TugboatReplay.beginNetworkCall(method:, route:)` then `.complete(...)` / `.fail(...)` | `tugboat_dio` interceptor |
+| Android | `Tugboat.eventHook(source, parameterPolicy).record(name, parameters)` | `Tugboat.beginNetworkCall(method, route)` then `.complete(...)` / `.fail(NetworkFailure...)` | `tugboat-okhttp`: `TugboatOkHttpInterceptor(routeResolver)`, added first with `addInterceptor` |
+| Apple | `Tugboat.eventHook(source:parameterPolicy:).record(_:parameters:)` | `Tugboat.beginNetworkCall(method:route:)` then `.complete(...)` / `.fail(...)` | `Tugboat.instrumentedSession(configuration:delegate:delegateQueue:routeResolver:)`; `Tugboat.data(for:session:delegate:route:)` for `async` calls; optional `TugboatAlamofire` `TugboatAlamofireMonitor` |
+
+The route always comes from the host, as a bounded absolute path, never a URL.
+An empty route records nothing. On Apple, `URLSession.shared` and other
+sessions are covered only when the app routes calls through an instrumented
+session or the `data(for:)` helper. The SDK does not swizzle `URLSession`.
+
+Differences between the SDKs that the collector may see:
+
+- **`atMs` of `network_call`.** Native SDKs stamp the call's start. Flutter
+  stamps its finish. `durationMs` is the same in both.
+- **Large JSON error bodies on native adapters.** OkHttp and URLSession peek
+  at most 64 KiB of an error body. A JSON body larger than that is recorded as
+  a 4 KiB text prefix, where `tugboat_dio` records a 4 KiB JSON
+  `serialized_prefix`.
+- **Empty error bodies.** An instrumented URLSession records no body for an
+  empty error response, where `tugboat_dio` records an empty text body.
+- **`attemptCount`.** `tugboat_dio` and `TugboatAlamofire` report it when
+  retries are observable. The OkHttp interceptor and instrumented URLSession
+  sessions never report it: retries happen below them.
 
 For schema-v2 interactions, `afterFrame` is a temporal visual observation. It
 does not assert that the interaction caused that frame, route, or UI state.

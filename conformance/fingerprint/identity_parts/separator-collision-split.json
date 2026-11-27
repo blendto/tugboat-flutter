@@ -1,0 +1,26 @@
+{
+  "fixtureFormat": 1,
+  "kind": "fingerprint.identityParts",
+  "name": "separator-collision-split",
+  "description": "Two parts a=1 and b=2. Compare with separator-collision-joined: separators are not escaped, so both hash to the same fingerprint.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "parts": [
+      [
+        "a",
+        "1"
+      ],
+      [
+        "b",
+        "2"
+      ]
+    ]
+  },
+  "expected": {
+    "canonicalString": "a=1|b=2",
+    "fingerprint": "95a180ca2b5d1603"
+  }
+}

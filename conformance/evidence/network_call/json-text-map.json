@@ -1,0 +1,43 @@
+{
+  "fixtureFormat": 1,
+  "kind": "evidence.networkCall",
+  "name": "json-text-map",
+  "description": "jsonText is decoded as Dart's jsonDecode would: objects are maps in source order, 1.0 is a double.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "method": "GET",
+    "route": "/v1/orders/123",
+    "startMonoUs": 2000000,
+    "endMonoUs": 2150500,
+    "outcome": "response",
+    "statusCode": 409,
+    "errorResponseBody": {
+      "jsonText": "{\"error\":\"conflict\",\"v\":1.0,\"n\":[1,2e2]}"
+    }
+  },
+  "expected": {
+    "data": {
+      "method": "GET",
+      "route": "/v1/orders/123",
+      "statusCode": 409,
+      "outcome": "response",
+      "durationMs": 150,
+      "errorResponseBody": {
+        "error": "conflict",
+        "v": 1.0,
+        "n": [
+          1,
+          200.0
+        ]
+      },
+      "errorResponseBodyCapture": {
+        "format": "json",
+        "representation": "native",
+        "truncated": false
+      }
+    }
+  }
+}

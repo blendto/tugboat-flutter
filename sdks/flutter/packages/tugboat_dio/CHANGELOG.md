@@ -1,3 +1,26 @@
+## 0.12.7
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.7 (sink failures stay inside the
+  SDK). The Dio adapter has no runtime behavior change; its `tugboat` floor is now `^0.12.7`.
+
+## 0.12.6
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.6 (dot-notation markers and an
+  opt-in accessibility identifier on tags). The Dio adapter has no runtime
+  behavior change; its `tugboat` floor is now `^0.12.6`.
+
+## 0.12.5
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.5 (iOS `device.model` is the
+  hardware identifier). The Dio adapter has no runtime behavior change; its
+  `tugboat` floor is now `^0.12.5`.
+
 ## 0.12.4
 
 ### Changed
