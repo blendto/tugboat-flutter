@@ -1,10 +1,10 @@
 # React Native adapter
 
-`@tugboat/react-native` 0.0.3: Android only, unpublished. A thin TurboModule over
-`tugboat-android`. React Native draws real Android Views, so the Views adapter
-records frames, masks, taps and scrolls as in a native app. JavaScript starts the
-SDK and marks sensitive regions; events are built by the shared C++ engine, never
-in JavaScript. iOS calls are no-ops with one warning. Raw pixels never enter
+`@tugboat/react-native` 0.0.4: Android and iOS, unpublished. A thin TurboModule over
+`tugboat-android` and the Swift host (`platforms/apple`). React Native draws real
+native views, so the host's adapter records frames, masks, taps and scrolls as in
+a native app. JavaScript starts the SDK and marks sensitive regions; events are
+built by the shared C++ engine, never in JavaScript. Raw pixels never enter
 JavaScript. Plan: `internal/docs/plans/2026-11-27-react-native-sdk-0.0.1-plan.md`.
 
 ```ts
@@ -20,7 +20,62 @@ Also `activate`, `deactivate`, `stop`, `setUserId`, `setTraits`. `fetch` and
 `XMLHttpRequest` are recorded through an OkHttp interceptor (path only), which
 replaces an app's own `NetworkingModule.setCustomClientBuilder`.
 
-## Build against the in-repo Android SDK
+## iOS: the Swift host as local pods
+
+The module (`ios/`) calls the Swift host through `TugboatRN.swift`. The host is
+unpublished, so the app's Podfile lists it as local pods from the repository root
+(`example/ios/Podfile` does this; the three have no other source yet):
+
+```ruby
+pod 'TugboatSessionEngine', :path => '<repo>'   # core/session-engine (C++)
+pod 'TugboatCaptureRuntime', :path => '<repo>'  # masked screenshots
+pod 'Tugboat', :path => '<repo>'                # platforms/apple/Sources/Tugboat
+```
+
+Local pods rather than SwiftPM: React Native's CocoaPods integration can only add
+a SwiftPM package by URL and version (`spm_dependency`), and a local path cannot
+be a dependency of an autolinked pod. `Tugboat.podspec` and
+`TugboatSessionEngine.podspec` list the same sources as the targets in
+`Package.swift`. The engine is built as C++17 (`-std=c++17`): React Native sets
+C++20 on every pod, which its JSON types do not compile under.
+
+Then `cd example/ios && pod install`, and build `RnExample.xcworkspace`.
+
+How iOS differs from Android:
+- JavaScript names every screen (`setScreen`, `trackNavigation`); no view
+  controller is a route (`trackHostingControllers: false`). The first screen named
+  is the session's initial route (`session_start`, with a frame of its own, as on
+  Android), and an app that never names one reports no routes.
+- A `testID` is the view's `accessibilityIdentifier`. The host treats a view with
+  one as a tap target and a `Named#<ordinal>` path segment (the name never enters
+  the path), and the name is the anchor's `tag`, so `tagFingerprint` is the alias.
+  Android puts the `testID` in the path as `ViewGroup#<testID>`, so fingerprints
+  differ between platforms.
+- React Native's paragraph and image views draw their own pixels and are masked
+  whole (the host's `setViewRoleClassifier`); `UITextField`/`UITextView` inside
+  text inputs are masked as in any app. `<Tugboat.Sensitive>` masks its view and
+  everything under it.
+- Network: `TugboatHTTPRequestHandler` replaces React Native's HTTP handler while
+  `captureNetwork` is on (after `Tugboat.start`), with the same session setup (no
+  custom session configuration or interceptor, which RN lets an app set through
+  `RCTSetCustomNSURLSessionConfigurationProvider`). `captureNetwork: false` leaves
+  the default handler alone. Route is the URL path, percent-encoded, never the
+  query.
+- Tap targets: only a view with a `testID` is a target (Android targets any
+  clickable view), so a `Pressable` without one resolves to its nearest named
+  ancestor, and a named target's anchor carries no `actions` or `enabled`. `<Text
+  testID>` and a `testID` on a `TextInput` or scroll view are not used as the tag.
+  `captureSystemInput` is ignored on iOS. `accessibilityIdentifier` values are sent
+  as the tag (as Android sends `testID`): data-derived ids are sent too.
+- Network: remote `<Image>` downloads also go through React Native's networking and
+  are recorded as `network_call`. The handler also bypasses anything that wraps
+  `RCTHTTPRequestHandler` (certificate pinning by category or swizzle), and copies
+  RN 0.88's handler, so check it on an RN upgrade. It handles requests from `start`
+  on, also while Tugboat is dormant.
+- There is no early install as on Android: the host adopts the key window that
+  already exists when `Tugboat.start` runs, so frames begin at `start`.
+
+## Android: build against the in-repo SDK
 
 The Android library depends on `tugboat-android` and `tugboat-okhttp` from the
 git-ignored `.local-maven`. Publish them first (needs the NDK in `AGENTS.md`):
@@ -31,7 +86,7 @@ cd platforms/android && ./gradlew :capture-runtime:publishAllPublicationsToLocal
   :tugboat-okhttp:publishAllPublicationsToLocalCaptureRepository
 ```
 
-Then build `example/` (see its README). Known gaps in 0.0.3:
+Then build `example/` (see its README). Known gaps in 0.0.4 (Android unless noted):
 - Screens: `Tugboat.trackNavigation(navigationRef)` (React Navigation) or
   `Tugboat.setScreen(name, instanceId?)`. A `testID` is the view's tag and
   fingerprint name. A content provider installs the observation before the first
@@ -43,7 +98,7 @@ Then build `example/` (see its README). Known gaps in 0.0.3:
 - Network: a call whose URL path has percent-encoded characters (spaces,
   non-ASCII) is not recorded. `captureNetwork: false` leaves an app's own
   `setCustomClientBuilder` alone; the default replaces it.
-- `<Tugboat.Sensitive>` is a real view on Android; on iOS it renders its
-  children only (no wrapper view, `style` ignored).
-- If the native module is not linked on Android, calls warn "only Android is
-  supported" (misleading) and `<Tugboat.Sensitive>` fails to render.
+- `<Tugboat.Sensitive>` is a real view on Android and iOS; on other platforms it
+  renders its children only (no wrapper view, `style` ignored).
+- If the native module is not linked, calls warn once ("the native module is not
+  linked") and `<Tugboat.Sensitive>` fails to render.

@@ -27,7 +27,9 @@ struct NavigationChange: Equatable {
   /// A transition always has a destination route; a seed always has a stack.
   enum Payload: Equatable {
     case transition(NavigationKind, route: RouteEntry, departing: RouteEntry?)
-    case sessionStart(routes: [RouteEntry])
+    /// `captureFrame`: ask the engine for a frame of the seeded route, for a seed that
+    /// arrives after the first frame (a host that names its screens late).
+    case sessionStart(routes: [RouteEntry], captureFrame: Bool)
   }
 
   let navigatorId: String
@@ -41,10 +43,18 @@ struct NavigationChange: Equatable {
     self.payload = .transition(kind, route: route, departing: departing)
   }
 
-  init(sessionStart navigatorId: String, parentNavigatorId: String? = nil, routes: [RouteEntry]) {
+  init(sessionStart navigatorId: String, parentNavigatorId: String? = nil, routes: [RouteEntry], captureFrame: Bool = false) {
     self.navigatorId = navigatorId
     self.parentNavigatorId = parentNavigatorId
-    self.payload = .sessionStart(routes: routes)
+    self.payload = .sessionStart(routes: routes, captureFrame: captureFrame)
+  }
+
+  /// A push with no departing route as the session's initial route (a seed
+  /// that asks for its own frame), as Flutter reports its first route; nil
+  /// for any other change.
+  func asInitialRouteSeed() -> NavigationChange? {
+    guard case let .transition(.push, route, departing) = payload, departing == nil else { return nil }
+    return NavigationChange(sessionStart: navigatorId, parentNavigatorId: parentNavigatorId, routes: [route], captureFrame: true)
   }
 
   func fact(at: HostTime) -> AdapterFact {
@@ -57,10 +67,13 @@ struct NavigationChange: Equatable {
       if let departing = departing {
         input.set("departing", NavigationChange.entryJSON(departing))
       }
-    case let .sessionStart(routes):
+    case let .sessionStart(routes, captureFrame):
       input.set("kind", "session_start")
       setNavigator(&input)
       input.set("routes", .array(routes.map { .object(NavigationChange.routeJSON($0, transitionMs: 0)) }))
+      if captureFrame {
+        input.set("captureFrame", true)
+      }
     }
     return AdapterFact(type: FactTypes.navigation, input: input, at: at)
   }

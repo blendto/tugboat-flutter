@@ -70,3 +70,74 @@ private final class TapSink: EvidenceSink {
     sink(type, inputJSON)
   }
 }
+
+/// What a view class draws for itself, for a framework whose text and images
+/// are not `UILabel` and `UIImageView` (React Native's paragraph and image
+/// views): the screenshot masks it whole.
+@_spi(TugboatAdapters)
+public enum TugboatViewRole {
+  case text
+  case image
+}
+
+#if canImport(UIKit)
+import UIKit
+
+/// Seams for the React Native adapter (`@tugboat/react-native`), which draws
+/// plain UIKit views and names its own screens. Nothing here changes an app
+/// that does not call it. Any thread: `setScreen` and `setHostNamesScreens` hop to
+/// the main thread themselves, and the rest keep their state under a lock.
+@_spi(TugboatAdapters)
+extension TugboatAdapters {
+  /// Names the current screen, as `.tugboatScreen` does for a SwiftUI one:
+  /// an `instanceId` not seen before is a push, one already on the stack is
+  /// a pop back to it, and `name` is the route key of every target below.
+  /// Any thread; the work runs on the main thread in call order. Kept while
+  /// no session runs, so the next session's `session_start` starts from it.
+  public static func setScreen(name: String, instanceId: String) {
+    let run = {
+      ScreenTracker.shared.appeared(instanceId: instanceId, name: name)
+    }
+    if Thread.isMainThread {
+      run()
+    } else {
+      DispatchQueue.main.async(execute: run)
+    }
+  }
+
+  /// The app names its own screens with `setScreen` (React Native): the first
+  /// screen named in a session is its initial route (`session_start`, with a
+  /// frame of its own), as in Flutter, not a push. Off by default. Any thread;
+  /// call before `Tugboat.start`.
+  public static func setHostNamesScreens(_ enabled: Bool) {
+    let run = { ScreenTracker.shared.seedsFirstScreen = enabled }
+    if Thread.isMainThread {
+      run()
+    } else {
+      DispatchQueue.main.async(execute: run)
+    }
+  }
+
+  /// A name for a view that is not a UIKit control (a React Native `testID`,
+  /// its `accessibilityIdentifier`): a view with a name is a tap target and a
+  /// path segment (`Named#<ordinal>`), and the name is the anchor's tag, so
+  /// its `tagFingerprint` is the alias. Nil, or a blank name, changes
+  /// nothing; nil clears the provider.
+  public static func setViewNameProvider(_ provider: ((UIView) -> String?)?) {
+    HostViewSeams.setNameProvider(provider)
+  }
+
+  /// The role of a view class that draws its own text or images; nil leaves
+  /// the class as the adapter classifies it. Called once per class, so it
+  /// must not depend on an instance. Nil clears it.
+  public static func setViewRoleClassifier(_ classifier: ((AnyClass) -> TugboatViewRole?)?) {
+    HostViewSeams.setRoleClassifier(classifier)
+  }
+
+  /// Masks `view`'s frame in every screenshot, as `.tugboatSensitive()`
+  /// does, without changing identity. Not undone.
+  public static func markSensitive(_ view: UIView) {
+    HostViewSeams.markSensitive(view)
+  }
+}
+#endif

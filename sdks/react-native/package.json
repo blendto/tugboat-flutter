@@ -1,13 +1,15 @@
 {
   "name": "@tugboat/react-native",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
-  "description": "Tugboat session capture for React Native (Android only, unpublished).",
+  "description": "Tugboat session capture for React Native (Android and iOS, unpublished).",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "files": [
     "src",
-    "android"
+    "android",
+    "ios",
+    "TugboatReactNative.podspec"
   ],
   "peerDependencies": {
     "@react-navigation/native": "*",
@@ -25,6 +27,18 @@
     "jsSrcsDir": "src",
     "android": {
       "javaPackageName": "com.tugboat.reactnative"
+    },
+    "ios": {
+      "modulesConformingToProtocol": {
+        "RCTURLRequestHandler": [
+          "TugboatHTTPRequestHandler"
+        ]
+      },
+      "components": {
+        "TugboatSensitiveView": {
+          "className": "TugboatSensitiveViewComponentView"
+        }
+      }
     }
   }
 }

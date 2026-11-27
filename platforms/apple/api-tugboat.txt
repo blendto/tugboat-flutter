@@ -7,6 +7,15 @@ public enum TugboatAdapters
   public static func tapEvidenceForTesting( _ sink: @escaping (_ type: String, _ inputJSON: String) -> Void ) -> TugboatEvidenceTap
 public final class TugboatEvidenceTap
   public func close()
+public enum TugboatViewRole
+  case text
+  case image
+extension TugboatAdapters
+  public static func setScreen(name: String, instanceId: String)
+  public static func setHostNamesScreens(_ enabled: Bool)
+  public static func setViewNameProvider(_ provider: ((UIView) -> String?)?)
+  public static func setViewRoleClassifier(_ classifier: ((AnyClass) -> TugboatViewRole?)?)
+  public static func markSensitive(_ view: UIView)
 
 ## Evidence/TugboatEventHook.swift
 public final class TugboatEventHook: @unchecked Sendable
