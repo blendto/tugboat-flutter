@@ -14,6 +14,14 @@ final class RnExampleUITests: XCTestCase {
 
   override func setUp() {
     continueAfterFailure = false
+    // A phone asks once for local-network access (the collector on the LAN).
+    addUIInterruptionMonitor(withDescription: "system alert") { alert in
+      for label in ["Allow", "OK"] where alert.buttons[label].exists {
+        alert.buttons[label].tap()
+        return true
+      }
+      return false
+    }
   }
 
   func testFullFlow() {
