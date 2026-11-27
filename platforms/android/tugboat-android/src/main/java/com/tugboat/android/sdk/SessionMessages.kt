@@ -21,8 +21,11 @@ internal object SessionMessages {
         sessionEpoch: Int,
         activationRequestId: String?,
         explorationRunId: String?,
+        /** Host entropy for the engine's session and event ids; fresh for every session. */
+        idSeed: String = IdSeed.generate(),
     ): String =
         JSONObject()
+            .put("idSeed", idSeed)
             .put("viewport", JSONObject().put("width", device.screenWidthDp).put("height", device.screenHeightDp))
             .put("platform", HostMetadata.PLATFORM)
             .put("sessionEpoch", sessionEpoch)

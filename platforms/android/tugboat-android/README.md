@@ -22,7 +22,7 @@ which `tugboat-okhttp` uses, are public but not app API; everything else is
 // Application.onCreate
 Tugboat.start(application, TugboatConfig(
     collector = CollectorConfig(baseUrl, apiKey),
-    app = AppInfo(name, version, buildNumber, appId, installationId),
+    app = AppInfo(name, version, buildNumber, appId), // installationId optional: the SDK mints and keeps its own
     enabled = false,                         // default: dormant until activate
     maskLevel = MaskLevel.AllTextAndMedia,   // default, the only level
     captureFocusChanges = false,             // engine capability focusChanges
@@ -52,7 +52,7 @@ view.tugboatSensitive()                       // always mask it and its subtree;
   `stop`. It **refuses** (logs the missing paths, and does not store the
   config, so a corrected `start` works) when a field the collector requires
   on `session_start` is blank: app version, build number, app id,
-  installation id, name; device id, screen size and densities; the locale;
+  name; device id, screen size and densities; the locale;
   the collector URL and key. The collector URL must also be an absolute
   `http` or `https` URL with a host (as the Apple host requires), so a
   relative or non-HTTP URL is refused at `start` instead of failing every
@@ -273,7 +273,7 @@ resumed-activity tracker sees it; the Flutter host likewise prints at config
 time):
 
 - `TUGBOAT_LAUNCH` with `captureRequested`, the flags, optional
-  `automationRunId`, and `captureSessionId` (`session-<wallUs>` from the
+  `automationRunId`, and `captureSessionId` (`session-<UUIDv4>` from the
   running session's `session.start`; omitted when no session runs, for
   example while dormant).
 - Ten seconds later, `TUGBOAT_HEALTH` with `lifecycle`, the lifecycle state's

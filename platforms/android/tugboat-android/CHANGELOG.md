@@ -5,6 +5,15 @@
 Unpublished. The native Android SDK for Views apps: public facade, engine
 wiring, window capture, and the Android Views adapter.
 
+- Session and event ids, installation id (contract change: identity, BLE-618):
+  session ids are `session-<UUIDv4>` and event ids `event-<UUIDv4>` (were
+  `session-<epoch microseconds>` and `event-<counter>`), as Flutter 0.12.3;
+  the host sends the engine 32 fresh random bytes (`session.start.idSeed`)
+  per session. `AppInfo.installationId` now defaults to `""`: when blank the
+  SDK mints a random UUID on first launch, keeps it in
+  `noBackupFilesDir/tugboat/installation_id` (so Auto Backup never restores it
+  onto another device), and sends it as `appInfo.installationId`, as Flutter
+  0.11.5. A non-blank host id wins.
 - Frame backend name (contract change: `frameMetadata` values):
   `requestedBackend` and `resolvedBackend` are `androidPixelCopy`, no
   longer `nativeCpuExperimental`. Needs a collector that accepts the native

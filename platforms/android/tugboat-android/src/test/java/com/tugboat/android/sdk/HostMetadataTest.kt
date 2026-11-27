@@ -67,6 +67,11 @@ class HostMetadataTest {
     }
 
     @Test
+    fun blankInstallationIdIsNotMissingBecauseTheSdkMintsOne() {
+        assertTrue(HostMetadata(app.copy(installationId = ""), device).missingFields().isEmpty())
+    }
+
+    @Test
     fun blankOrZeroFieldsAreReportedByPath() {
         val missing = HostMetadata(
             app.copy(version = "", buildNumber = " "),
@@ -120,7 +125,7 @@ class HostMetadataTest {
             ),
         )
 
-        assertEquals(setOf("viewport", "platform", "sessionEpoch", "locale"), start.keySet())
+        assertEquals(setOf("viewport", "platform", "sessionEpoch", "locale", "idSeed"), start.keySet())
         assertEquals(914.3, start.getJSONObject("viewport").getDouble("height"), 0.0)
         assertEquals("android", start.getString("platform"))
         assertEquals(2, start.getInt("sessionEpoch"))

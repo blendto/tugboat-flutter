@@ -79,8 +79,13 @@ data class AppInfo(
     val buildNumber: String,
     /** The application id (package name). Also sent as the `X-App-Id` header. */
     val appId: String,
-    /** Stable per install; the app owns it (for example a UUID kept in its preferences). */
-    val installationId: String,
+    /**
+     * Stable per install. Optional: when blank the SDK mints a random UUID on
+     * first launch and keeps it in its own file (`noBackupFilesDir`), so it
+     * lasts across launches and updates and is new after a reinstall. A
+     * non-blank id the app passes wins over the SDK's.
+     */
+    val installationId: String = "",
 )
 
 /** What screenshots mask before they are encoded. */

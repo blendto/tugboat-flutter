@@ -121,7 +121,8 @@ internal class TugboatRuntime private constructor(
             stopSequence: StopSequence = StopSequence(),
         ): TugboatRuntime? {
             val device = DeviceSnapshot.read(application)
-            val metadata = HostMetadata(config.app, device)
+            // The host's installation id when it gave one, else the SDK's own (BLE-618).
+            val metadata = HostMetadata(InstallationIds.resolve(application, config.app), device)
             val missing = metadata.missingFields() + collectorProblems(config)
             if (missing.isNotEmpty()) {
                 Log.e(TAG, "Tugboat not started: required session_start fields are missing: $missing")
