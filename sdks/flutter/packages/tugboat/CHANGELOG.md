@@ -8,13 +8,14 @@
   - everything under an `ExcludeSemantics` (Flutter adds one itself in
     `Text(semanticsLabel:)`, every `Icon` (icon glyphs render as text, so
     icons, including `IconButton` icons, are now masked blocks at
-    `allTextAndMedia` and `allText`), the outgoing child of
+    `allTextAndMedia` and `allText`, and at `allTextExceptActionable` for a
+    plain `Icon` but not an `IconButton` icon), the outgoing child of
     `AnimatedCrossFade`, the Material and Cupertino date and time pickers and
     `DropdownMenu` labels), including a `TugboatSensitive` mark inside or
     directly above it, text fields, obscured fields and images;
   - the whole screen under an open `showDialog`, `showModalBottomSheet` or
     `PopupMenuButton` menu, including `TugboatSensitive`;
-  - everything under a `TugboatInternal`.
+  - everything under a `TugboatInternal`;
   - the `replacement` of `Visibility(visible: false, replacement: ...)`, which
     is painted but was treated as hidden, including a `TugboatSensitive` in it.
   At the default `allTextAndMedia` level this sent that text and those images

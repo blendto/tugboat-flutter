@@ -139,7 +139,7 @@ void main() {
     );
   }
 
-  group('excluded semantics do not hide pixels', () {
+  group('painted content that looks hidden or excluded is masked', () {
     testWidgets('Text(semanticsLabel:)', (tester) async {
       await expectMasked(
         tester,
@@ -279,6 +279,37 @@ void main() {
       );
       await tester.pumpAndSettle();
     });
+
+    testWidgets(
+      'Visibility(visible: false, replacement:) paints the replacement',
+      (tester) async {
+        await expectMasked(
+          tester,
+          _all,
+          const Visibility(
+            visible: false,
+            replacement: Text('Card 4242 4242', key: _k),
+            child: SizedBox(),
+          ),
+          find.byKey(_k),
+        );
+      },
+    );
+
+    testWidgets('TugboatSensitive in a Visibility replacement is masked', (
+      tester,
+    ) async {
+      await expectMasked(
+        tester,
+        _explicit,
+        const Visibility(
+          visible: false,
+          replacement: TugboatSensitive(child: _panel),
+          child: SizedBox(),
+        ),
+        find.byKey(_panelKey),
+      );
+    });
   });
 
   group('controls that already mask', () {
@@ -351,37 +382,6 @@ void main() {
       );
     });
 
-    testWidgets(
-      'Visibility(visible: false, replacement:) paints the replacement',
-      (tester) async {
-        await expectMasked(
-          tester,
-          _all,
-          const Visibility(
-            visible: false,
-            replacement: Text('Card 4242 4242', key: _k),
-            child: SizedBox(),
-          ),
-          find.byKey(_k),
-        );
-      },
-    );
-
-    testWidgets('TugboatSensitive in a Visibility replacement is masked', (
-      tester,
-    ) async {
-      await expectMasked(
-        tester,
-        _explicit,
-        const Visibility(
-          visible: false,
-          replacement: TugboatSensitive(child: _panel),
-          child: SizedBox(),
-        ),
-        find.byKey(_panelKey),
-      );
-    });
-
     testWidgets('Visibility(maintainState) hidden child stays unmasked', (
       tester,
     ) async {
@@ -400,27 +400,6 @@ void main() {
       );
       final result = await _capture(key, _all);
       expect(result.masks, hasLength(1));
-    });
-
-    testWidgets('a non-finite mask rect fails the capture', (tester) async {
-      final key = await _pumpBody(
-        tester,
-        const _NanImage(key: _k, width: 40, height: 40),
-      );
-      final result = await _capture(key, _all);
-      expect(result.failure, ScreenshotCaptureFailure.maskFailed);
-    });
-
-    testWidgets('an all-zero transform (not painted) is skipped', (
-      tester,
-    ) async {
-      final key = await _pumpBody(
-        tester,
-        const _ZeroImage(key: _k, width: 40, height: 40),
-      );
-      final result = await _capture(key, _all);
-      expect(result.failure, isNot(ScreenshotCaptureFailure.maskFailed));
-      expect(result.masks, isEmpty);
     });
 
     testWidgets('Offstage Text is not painted, so not masked', (tester) async {
@@ -648,6 +627,27 @@ void main() {
         ),
         throwsStateError,
       );
+    });
+
+    testWidgets('a non-finite mask rect fails the capture', (tester) async {
+      final key = await _pumpBody(
+        tester,
+        const _NanImage(key: _k, width: 40, height: 40),
+      );
+      final result = await _capture(key, _all);
+      expect(result.failure, ScreenshotCaptureFailure.maskFailed);
+    });
+
+    testWidgets('an all-zero transform (not painted) is skipped', (
+      tester,
+    ) async {
+      final key = await _pumpBody(
+        tester,
+        const _ZeroImage(key: _k, width: 40, height: 40),
+      );
+      final result = await _capture(key, _all);
+      expect(result.failure, isNot(ScreenshotCaptureFailure.maskFailed));
+      expect(result.masks, isEmpty);
     });
   });
 }
