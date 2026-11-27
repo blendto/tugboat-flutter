@@ -28,3 +28,9 @@ experimental native capture; not a public shipping claim (see
 what must be masked, and what may be published as a native frame. Changing
 capture cadence, activation, or sink behavior requires re-checking this
 contract.
+
+**Privacy model** — the one definition of mask levels, dimensions
+(`text`, `media`, `region`), the add-only `sensitive` override and its
+inheritance, and the fail-closed rule, shared by Flutter, Views, Compose,
+SwiftUI and React Native (see the "Privacy model" section of
+`docs/architecture/native-capture-contracts.md`).
