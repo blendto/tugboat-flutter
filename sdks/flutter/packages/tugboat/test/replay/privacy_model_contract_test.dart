@@ -74,23 +74,29 @@ Future<List<Rect>> _masks(
 
 /// Masks for an app already pumped inside a [TugboatCaptureBoundary] keyed
 /// [boundaryKey] (so overlays, which live in the Navigator, are in the walk).
-/// Returns null when the capture failed before reaching pixels.
-Future<List<Rect>?> _masksOfApp(
+/// `masks` is null when the capture failed before reaching pixels, and then
+/// `failure` says why. [rootKey] is the mask walk's root (default: the
+/// boundary).
+Future<({List<Rect>? masks, ScreenshotCaptureFailure? failure})> _masksOfApp(
   WidgetTester tester,
   GlobalKey boundaryKey,
-  TugboatScreenshotMaskLevel level,
-) async {
+  TugboatScreenshotMaskLevel level, {
+  GlobalKey? rootKey,
+}) async {
   final source = _RecordingPixelSource();
   final capturer = ScreenshotCapturer(
     boundaryKey: boundaryKey,
     maskLevel: level,
-    anchorResolver: AnchorResolver(rootKey: boundaryKey),
+    anchorResolver: AnchorResolver(rootKey: rootKey ?? boundaryKey),
     pixelRatio: 1,
     pixelSource: source,
   );
   addTearDown(capturer.dispose);
-  await capturer.captureAttempt(waitForFrame: false);
-  return source.requests.isEmpty ? null : source.requests.single.maskRects;
+  final attempt = await capturer.captureAttempt(waitForFrame: false);
+  return (
+    masks: source.requests.isEmpty ? null : source.requests.single.maskRects,
+    failure: attempt.failure,
+  );
 }
 
 /// A leaf box whose paint bounds cannot be read, so its mask cannot be placed.
@@ -347,23 +353,161 @@ void main() {
             ),
           ),
         );
-        final masks = await _masksOfApp(
+        final result = await _masksOfApp(
           tester,
           boundaryKey,
           TugboatScreenshotMaskLevel.explicitOnly,
         );
-        // Either the capture fails (no frame) or the whole boundary is masked.
+        // The capture fails with maskFailed (no frame), or the whole boundary
+        // is masked. Any other failure, or a dropped mask, is a leak.
         final boundary = tester.renderObject<RenderBox>(
           find.byType(TugboatCaptureBoundary),
         );
+        final masks = result.masks;
         expect(
-          masks == null || _covers(masks, Offset.zero & boundary.size),
+          masks == null
+              ? result.failure == ScreenshotCaptureFailure.maskFailed
+              : _covers(masks, Offset.zero & boundary.size),
           isTrue,
           reason: 'an unplaceable mask must not be dropped',
         );
       },
       skip: gap, // BLE-679
     );
+
+    testWidgets(
+      'a walk with no root does not return an unmasked frame',
+      (tester) async {
+        final boundaryKey = GlobalKey();
+        await tester.pumpWidget(
+          TugboatCaptureBoundary(
+            key: boundaryKey,
+            child: const Directionality(
+              textDirection: TextDirection.ltr,
+              child: Text('4242'),
+            ),
+          ),
+        );
+        // The walk's root is a key nothing is mounted under.
+        final result = await _masksOfApp(
+          tester,
+          boundaryKey,
+          TugboatScreenshotMaskLevel.allTextAndMedia,
+          rootKey: GlobalKey(),
+        );
+        final boundary = tester.renderObject<RenderBox>(
+          find.byType(TugboatCaptureBoundary),
+        );
+        final masks = result.masks;
+        expect(
+          masks == null
+              ? result.failure == ScreenshotCaptureFailure.maskFailed
+              : _covers(masks, Offset.zero & boundary.size),
+          isTrue,
+        );
+      },
+      skip: gap, // BLE-679
+    );
+
+    testWidgets(
+      'Icon(semanticLabel:) is masked: Flutter adds ExcludeSemantics itself',
+      (tester) async {
+        final masks = await _masks(
+          tester,
+          TugboatScreenshotMaskLevel.allTextAndMedia,
+          const Icon(Icons.lock, semanticLabel: 'lock', key: ValueKey('i')),
+        );
+        expect(
+          _covers(masks, _boundsOf(tester, find.byKey(const ValueKey('i')))),
+          isTrue,
+        );
+      },
+      skip: gap, // BLE-679
+    );
+
+    testWidgets(
+      'the outgoing child of an AnimatedCrossFade is masked',
+      (tester) async {
+        Widget fade(CrossFadeState state) => AnimatedCrossFade(
+          duration: const Duration(milliseconds: 400),
+          crossFadeState: state,
+          firstChild: const Text('4242', key: ValueKey('first')),
+          secondChild: const Text('other', key: ValueKey('second')),
+        );
+        final boundaryKey = GlobalKey();
+        Widget app(CrossFadeState state) => TugboatCaptureBoundary(
+          key: boundaryKey,
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: Align(alignment: Alignment.topLeft, child: fade(state)),
+          ),
+        );
+        await tester.pumpWidget(app(CrossFadeState.showFirst));
+        await tester.pumpWidget(app(CrossFadeState.showSecond));
+        await tester.pump(const Duration(milliseconds: 200));
+        final masks = (await _masksOfApp(
+          tester,
+          boundaryKey,
+          TugboatScreenshotMaskLevel.allTextAndMedia,
+        )).masks;
+        expect(masks, isNotNull);
+        expect(
+          _covers(
+            masks!,
+            _boundsOf(tester, find.byKey(const ValueKey('first'))),
+          ),
+          isTrue,
+          reason: 'the outgoing child is still painted',
+        );
+      },
+      skip: gap, // BLE-679
+    );
+
+    // Guards the overlay rule today: a drawer is an overlay route, and
+    // content behind it must stay masked. Not skipped.
+    testWidgets('content behind an open drawer stays masked', (tester) async {
+      final boundaryKey = GlobalKey();
+      final scaffoldKey = GlobalKey<ScaffoldState>();
+      await tester.pumpWidget(
+        TugboatCaptureBoundary(
+          key: boundaryKey,
+          child: MaterialApp(
+            home: Scaffold(
+              key: scaffoldKey,
+              drawer: const Drawer(child: Text('drawer item')),
+              body: const Column(
+                children: [
+                  Text('Balance 4242.00', key: ValueKey('bgText')),
+                  TugboatSensitive(
+                    child: SizedBox(
+                      key: ValueKey('bgSensitive'),
+                      width: 80,
+                      height: 40,
+                      child: ColoredBox(color: Colors.red),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      scaffoldKey.currentState!.openDrawer();
+      await tester.pumpAndSettle();
+      final masks = (await _masksOfApp(
+        tester,
+        boundaryKey,
+        TugboatScreenshotMaskLevel.allTextAndMedia,
+      )).masks;
+      expect(masks, isNotNull);
+      for (final key in ['bgText', 'bgSensitive']) {
+        expect(
+          _covers(masks!, _boundsOf(tester, find.byKey(ValueKey(key)))),
+          isTrue,
+          reason: '$key behind the drawer',
+        );
+      }
+    });
 
     group('content behind a modal surface is still painted, so masked', () {
       final boundaryKey = GlobalKey();
@@ -396,11 +540,11 @@ void main() {
       );
 
       Future<void> expectBackgroundMasked(WidgetTester tester) async {
-        final masks = await _masksOfApp(
+        final masks = (await _masksOfApp(
           tester,
           boundaryKey,
           TugboatScreenshotMaskLevel.allTextAndMedia,
-        );
+        )).masks;
         expect(masks, isNotNull);
         for (final key in ['bgText', 'bgSensitive']) {
           expect(
