@@ -13,6 +13,14 @@ wiring, window capture, and the Android Views adapter.
   percent-escaped in `canonicalPath` (`%25`, `%23`, `%2F`), so the path stays
   parseable. Names without those characters are unchanged.
 
+- A pop back to a screen several levels down (`Tugboat.setScreen` with an
+  instance id already on the stack, or a `NavController` `popBackStack` to an
+  earlier destination) now removes every screen above it. The engine's `pop`
+  removes one route, so the screens in between leave first as `remove` facts
+  (no `route_change`, as Flutter's `popUntil`), then the top pops: one
+  `route_pop`, `routeStack` the remaining screens. It kept the in-between
+  screens, so later routes stacked on top of them.
+
 - Seams for the React Native SDK (no change for apps that do not use them):
   `Tugboat.setScreen(name, instanceId = name)` names the current screen
   without a `NavController` (a push, or a pop to an instance id already on the

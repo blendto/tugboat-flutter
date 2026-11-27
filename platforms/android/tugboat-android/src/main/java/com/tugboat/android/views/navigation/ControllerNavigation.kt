@@ -18,7 +18,7 @@ internal data class NavEntry(val id: String, val route: String?, val destination
  *
  * Each destination change is the new current entry and the one below it
  * (`previousBackStackEntry`):
- * - current already on the stack: `pop` back to it;
+ * - current already on the stack: `pop` back to it (every entry above leaves);
  * - new, and the entry below is the stack's top: `push`;
  * - new otherwise (the top was popped in the same navigation): `replace`.
  *
@@ -41,12 +41,23 @@ internal class ControllerNavigation(private val report: (NavigationChange) -> Un
         val stack = NavigationProcessState.controllerStack(navigatorId, parentNavigatorId, hostRouteInstanceId)
         val known = entries[key(navigatorId, current.id)]
         val change = when {
-            known != null && known in stack -> stack.popTo(known)
+            known != null && known in stack -> popBackTo(stack, known)
             previous == null || stack.top == null || stack.top?.instanceId == previous.id ->
                 stack.push(entryFor(navigatorId, current, routeKey))
             else -> stack.replace(entryFor(navigatorId, current, routeKey))
         }
         change?.let(report)
+    }
+
+    /**
+     * `pop` back to [known]. The engine's `pop` removes one route, so the
+     * entries between [known] and the top leave first as invisible `remove`s
+     * (as Flutter's `popUntil` reports them), then the top pops.
+     */
+    private fun popBackTo(stack: NavigatorStack, known: RouteEntry): NavigationChange? {
+        val between = stack.above(known).dropLast(1)
+        between.forEach { stack.remove(it)?.let(report) }
+        return stack.popTo(known)
     }
 
     /** Forgets [navigatorId] (its activity finished). */

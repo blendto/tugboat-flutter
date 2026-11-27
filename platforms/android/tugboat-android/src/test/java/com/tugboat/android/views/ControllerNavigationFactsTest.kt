@@ -4,6 +4,7 @@ import android.app.Activity
 import com.tugboat.android.host.FakeClock
 import com.tugboat.android.sdk.NavigationTracking
 import com.tugboat.android.sdk.rowsController
+import com.tugboat.android.views.navigation.NavEntry
 import com.tugboat.android.views.navigation.NavigationObservation
 import org.json.JSONObject
 import org.junit.After
@@ -102,6 +103,28 @@ class ControllerNavigationFactsTest {
         val replace = navigation().single()
         assertEquals("replace", replace.getString("kind"))
         assertEquals("row", replace.getJSONObject("route").getString("name"))
+    }
+
+    @Test
+    fun aScreenNamedAgainSeveralLevelsDownPopsEveryScreenAboveIt() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        navigation()
+        for ((id, name) in listOf("h" to "Tabs/Home", "c" to "Cart", "s" to "Shipping", "p" to "Payment")) {
+            NavigationObservation.onNavDestination(activity, NavEntry(id, name, 0), null)
+        }
+        navigation()
+
+        NavigationObservation.onNavDestination(activity, NavEntry("h", "Tabs/Home", 0), null)
+
+        // Cart and Shipping leave invisibly (no route_change), then Payment pops.
+        val facts = navigation()
+        assertEquals(listOf("remove", "remove", "pop"), facts.map { it.getString("kind") })
+        assertEquals(listOf("Cart", "Shipping", "Payment"), facts.map { it.getJSONObject("departing").getString("name") })
+        assertEquals("Tabs/Home", facts.last().getJSONObject("route").getString("name"))
+
+        // The next screen stacks on Home only.
+        NavigationObservation.onNavDestination(activity, NavEntry("pr", "Tabs/Profile", 0), null)
+        assertEquals("Tabs/Home", navigation().single().getJSONObject("departing").getString("name"))
     }
 
     @Test
