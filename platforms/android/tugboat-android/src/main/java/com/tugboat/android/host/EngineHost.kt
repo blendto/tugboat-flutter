@@ -24,7 +24,8 @@ internal data class SinkHealth(val pending: Long, val accepted: Long, val droppe
  * Failures never reach the caller or crash the thread. A non-`ok` status is
  * logged, the message dropped, and its frame handles released;
  * [maxConsecutiveInternalErrors] `internal_error`s in a row shut the host
- * down for good.
+ * down for good, and then [onDisabled] runs so the owner can stop whatever
+ * feeds or replays for it.
  */
 internal class EngineHost(
     private val transport: EngineTransport,
@@ -34,6 +35,12 @@ internal class EngineHost(
     private val clock: HostClock = SystemHostClock,
     private val maxConsecutiveInternalErrors: Int = DEFAULT_MAX_CONSECUTIVE_INTERNAL_ERRORS,
     private val onShutDown: () -> Unit = {},
+    /**
+     * Runs once, on the engine thread, after the host shut itself down (fatal
+     * engine status, or an input that cannot be built); not after [close].
+     * Whatever it touches must be thread-safe or hop to its own thread.
+     */
+    private val onDisabled: () -> Unit = {},
     /** Performs `capture.request`; it answers through [post] with `capture.result`. */
     captures: CaptureRequestSink,
     /** Runs the settled re-sample watch (`scene.watch`, `scene.sample`). */
@@ -60,17 +67,24 @@ internal class EngineHost(
      * Submits one fact that happened at [at]. [frameHandles] are handles the
      * message passes to the engine; they are released if it is rejected.
      */
-    fun post(type: String, inputJson: String, at: HostTime, frameHandles: List<String> = emptyList()) =
+    fun post(type: String, inputJson: String, at: HostTime, frameHandles: List<String> = emptyList()) {
+        // A closed host builds nothing: no JSON is encoded for a message that cannot be sent.
+        if (!accepting) return release(frameHandles)
         enqueue(EngineMessage(type, inputJson, at, frameHandles))
+    }
 
     /** Submits [messages] as one all-or-nothing `batch`. */
     fun postBatch(messages: List<EngineMessage>) {
         if (messages.isEmpty()) return
+        if (!accepting) return release(messages.flatMap { it.frameHandles })
         enqueue(EngineMessage.batchJson(messages), messages.flatMap { it.frameHandles })
     }
 
     /** Submits a message the engine takes without `at`: `engine.configure`, queries, stateless messages. */
-    fun postUntimed(type: String, inputJson: String) = enqueue(EngineMessage(type, inputJson, at = null))
+    fun postUntimed(type: String, inputJson: String) {
+        if (!accepting) return
+        enqueue(EngineMessage(type, inputJson, at = null))
+    }
 
     /**
      * Like [postUntimed], but [inputJson] runs on the engine thread when the
@@ -90,8 +104,7 @@ internal class EngineHost(
                     // The message cannot be built, so the session could never start: stop for good, as on a
                     // fatal engine status, instead of reporting a running session the engine never had.
                     Log.e(TAG, "disabling the Tugboat engine host for this process: $type input failed")
-                    accepting = false
-                    shutDown()
+                    disable()
                 }
             }
         }
@@ -165,9 +178,16 @@ internal class EngineHost(
         Log.e(TAG, "engine internal_error ($consecutiveInternalErrors in a row): ${response.text()}")
         if (consecutiveInternalErrors >= maxConsecutiveInternalErrors) {
             Log.e(TAG, "disabling the Tugboat engine host for this process")
-            accepting = false
-            shutDown()
+            disable()
         }
+    }
+
+    /** The host stops itself for good (engine thread): shuts down, then tells the owner. */
+    private fun disable() {
+        accepting = false
+        val wasActive = active
+        shutDown()
+        if (wasActive) guarded("disabled callback") { onDisabled() }
     }
 
     private fun release(frameHandles: List<String>) = frameHandles.forEach(frames::release)
@@ -225,6 +245,7 @@ internal class EngineHost(
             http: HttpSender,
             captures: CaptureRequestSink,
             scenes: SceneWatchSink = SceneWatchSink.NONE,
+            onDisabled: () -> Unit = {},
         ): EngineHost {
             val thread = HandlerThread("tugboat-engine", Process.THREAD_PRIORITY_BACKGROUND).apply { start() }
             return EngineHost(
@@ -233,6 +254,7 @@ internal class EngineHost(
                 http = http,
                 frames = frames,
                 onShutDown = { thread.quitSafely() },
+                onDisabled = onDisabled,
                 captures = captures,
                 scenes = scenes,
             )

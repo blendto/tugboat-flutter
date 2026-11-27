@@ -82,11 +82,7 @@ internal class TugboatRuntime private constructor(
         if (stopped) return
         stopped = true
         evidence.close()
-        drainer?.stop()
-        adapter.stop()
-        lifecycle.stop()
-        locale.stop()
-        foreground.stop()
+        detach()
         stopSequence.run(
             watcher = watcher,
             endSession = { host.post(SessionMessages.SESSION_END, SessionMessages.sessionEnd(), clock.now()) },
@@ -95,6 +91,27 @@ internal class TugboatRuntime private constructor(
                 captures.dispose()
             },
         )
+    }
+
+    /**
+     * The engine host shut itself down (main thread). The session has nobody
+     * to report to, so what feeds or replays for it stops now: the drainer
+     * and every observer, which also ends the per-frame fact encoding.
+     * [stop] still disposes what remains and is safe after this.
+     */
+    private fun onHostDisabled() {
+        if (stopped) return
+        Log.w(TAG, "the engine host stopped; detaching the Tugboat observers and the outbox drainer")
+        detach()
+    }
+
+    /** Stops the drainer and detaches every observer; each part ignores a second call. */
+    private fun detach() {
+        drainer?.stop()
+        adapter.stop()
+        lifecycle.stop()
+        locale.stop()
+        foreground.stop()
     }
 
     companion object {
@@ -252,6 +269,8 @@ internal class TugboatRuntime private constructor(
                     }
                 },
             )
+            // Set below, before `assemble` returns; the hook only runs later, on the main thread.
+            var runtime: TugboatRuntime? = null
             val host = EngineHost.start(
                 transport,
                 frames,
@@ -261,6 +280,8 @@ internal class TugboatRuntime private constructor(
                     captures.onCaptureRequest(request)
                 },
                 scenes = adapter,
+                // On the engine thread: the observers and the drainer belong to the main thread's owner.
+                onDisabled = { main.post { runtime?.onHostDisabled() } },
             )
             engineHost.value = host
             // The installation id (the host's when non-blank, else the SDK's own file) is read, or minted
@@ -306,7 +327,7 @@ internal class TugboatRuntime private constructor(
             return TugboatRuntime(
                 host, adapter, lifecycle, localeBridge, foreground, captures, watcher, clock, stopSequence, drainer,
                 IdSeed.sessionId(idSeed), evidence,
-            )
+            ).also { runtime = it }
         }
     }
 }

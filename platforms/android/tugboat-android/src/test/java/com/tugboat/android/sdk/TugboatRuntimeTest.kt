@@ -6,7 +6,10 @@ import com.tugboat.android.AppInfo
 import com.tugboat.android.CollectorConfig
 import com.tugboat.android.Tugboat
 import com.tugboat.android.TugboatConfig
+import com.tugboat.android.engine.EngineStatus
 import com.tugboat.android.host.FakeEngineTransport
+import com.tugboat.android.host.failure
+import com.tugboat.android.outbox.Outboxes
 import com.tugboat.android.views.navigation.NavigationObservation
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -77,6 +80,31 @@ class TugboatRuntimeTest {
 
         assertNull(runtime)
         assertTrue(!opened)
+    }
+
+    /** BLE-664: after the host disables itself nothing feeds or replays for it; `stop` stays safe. */
+    @Test
+    fun aHostThatDisablesItselfStopsTheDrainerAndTheObservers() {
+        val outbox = Outboxes.at(application)
+        val transport = FakeEngineTransport(*Array(3) { failure(EngineStatus.INTERNAL_ERROR) })
+        val runtime = TugboatRuntime.start(
+            application,
+            config.copy(durableOutbox = true),
+            sessionEpoch = 0,
+            openTransport = { transport },
+            stopSequence = StopSequence(maxDrainMs = 10),
+        )!!
+        assertTrue("the drainer listens while the session runs", outbox.hasSessionListeners)
+
+        // configure and session.start are two internal errors; this is the third.
+        runtime.setUserId("user-1")
+        awaitUntil { !runtime.isHostRunning }
+        awaitUntil { !outbox.hasSessionListeners }
+
+        runtime.stop()
+        runtime.stop()
+        awaitUntil { transport.closed }
+        Outboxes.resetForTests()
     }
 
     /** BLE-664: `Tugboat.start` refuses before it stores a config, so the session start does not check it again. */
