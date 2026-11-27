@@ -347,10 +347,33 @@ class EngineHostTest {
         post("late", listOf(handle))
         host.postBatch(listOf(EngineMessage("late", "{}", factAt, listOf(frames.put(byteArrayOf(2))))))
         host.postUntimed("late", "{}")
+        var lazyRan = false
+        host.postUntimedLazily("late") { lazyRan = true; "{}" }
         looper.idle()
 
         assertEquals("frames posted to a closed host are released", 0, frames.size)
         assertEquals("only the dispose reached the engine", 1, transport.submitted.size)
+        assertFalse("a lazy input is never built", lazyRan)
+        // The guards at the top of post*: a closed host spends no work encoding a message it cannot send.
+        assertEquals("nothing was encoded for the closed host", 0, host.encodedForTesting)
+    }
+
+    @Test
+    fun aHostThatDisabledItselfEncodesNothingMore() {
+        repeat(EngineHost.DEFAULT_MAX_CONSECUTIVE_INTERNAL_ERRORS) { transport.enqueue(failure(EngineStatus.INTERNAL_ERROR)) }
+        repeat(EngineHost.DEFAULT_MAX_CONSECUTIVE_INTERNAL_ERRORS) { post("m$it") }
+        looper.idle()
+        assertFalse(host.isRunning)
+        val encoded = host.encodedForTesting
+        val handle = frames.put(byteArrayOf(1))
+
+        post("after", listOf(handle))
+        host.postBatch(listOf(EngineMessage("after", "{}", factAt)))
+        host.postUntimed("after", "{}")
+        looper.idle()
+
+        assertEquals("a disabled host encodes no message", encoded, host.encodedForTesting)
+        assertEquals(0, frames.size)
     }
 
     @Test

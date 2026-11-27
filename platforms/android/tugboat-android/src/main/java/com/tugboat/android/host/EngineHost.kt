@@ -59,6 +59,10 @@ internal class EngineHost(
     private var active = true
     private var consecutiveInternalErrors = 0
 
+    /** JVM tests only: how many messages were encoded to JSON; a host that no longer accepts must not encode any. */
+    internal var encodedForTesting = 0
+        private set
+
     /** False after [close] or after the host disabled itself. */
     val isRunning: Boolean
         get() = accepting
@@ -77,6 +81,7 @@ internal class EngineHost(
     fun postBatch(messages: List<EngineMessage>) {
         if (messages.isEmpty()) return
         if (!accepting) return release(messages.flatMap { it.frameHandles })
+        encodedForTesting++
         enqueue(EngineMessage.batchJson(messages), messages.flatMap { it.frameHandles })
     }
 
@@ -142,7 +147,10 @@ internal class EngineHost(
 
     private fun postNow(type: String, inputJson: String) = post(type, inputJson, clock.now())
 
-    private fun enqueue(message: EngineMessage) = enqueue(message.toJson(), message.frameHandles)
+    private fun enqueue(message: EngineMessage) {
+        encodedForTesting++
+        enqueue(message.toJson(), message.frameHandles)
+    }
 
     private fun enqueue(json: String, frameHandles: List<String>) {
         val queued = accepting && handler.post {

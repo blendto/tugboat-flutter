@@ -96,13 +96,16 @@ internal class TugboatRuntime private constructor(
     /**
      * The engine host shut itself down (main thread). The session has nobody
      * to report to, so what feeds or replays for it stops now: the drainer
-     * and every observer, which also ends the per-frame fact encoding.
-     * [stop] still disposes what remains and is safe after this.
+     * and every observer, which also ends the per-frame fact encoding, and the
+     * pixel runtime, so its idle thread does not linger until [stop]. [stop]
+     * still runs the rest of its sequence and is safe after this (disposing the
+     * capture runtime twice is a no-op).
      */
     private fun onHostDisabled() {
         if (stopped) return
         Log.w(TAG, "the engine host stopped; detaching the Tugboat observers and the outbox drainer")
         detach()
+        captures.dispose()
     }
 
     /** Stops the drainer and detaches every observer; each part ignores a second call. */

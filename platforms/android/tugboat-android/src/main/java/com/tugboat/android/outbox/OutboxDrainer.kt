@@ -74,17 +74,37 @@ internal class OutboxDrainer(
     private val isStopped: Boolean
         get() = synchronized(fence) { stopped }
 
-    /** Schedules a pass in [delayMs], unless one is already due sooner. */
+    /**
+     * Schedules a pass in [delayMs], unless one that has not started yet is due
+     * sooner. The pass running right now never counts: it has already scanned,
+     * so a request made during it (a backoff retry, a session change) needs its
+     * own pass however little of its own trigger delay is left.
+     */
     private fun request(delayMs: Long) = synchronized(this) {
         if (isStopped) return@synchronized
         val current = pending
-        if (current != null && !current.isDone && current.getDelay(TimeUnit.MILLISECONDS) in 0..delayMs) return@synchronized
+        // Nanoseconds: a millisecond truncation would read an overdue pass as due now.
+        if (current != null && !current.isDone && current.getDelay(TimeUnit.NANOSECONDS) <= TimeUnit.MILLISECONDS.toNanos(delayMs)) {
+            return@synchronized
+        }
         current?.cancel(false)
+        val self = AtomicReference<ScheduledFuture<*>?>()
         pending = try {
-            scheduler.schedule({ Outbox.guarded("drain pass", ::pass) }, delayMs, TimeUnit.MILLISECONDS)
+            scheduler.schedule({
+                passStarted(self)
+                Outbox.guarded("drain pass", ::pass)
+            }, delayMs, TimeUnit.MILLISECONDS).also(self::set)
         } catch (_: Throwable) {
             null
         }
+    }
+
+    /**
+     * The pass behind [self] is running now: it is no longer a pass that is waiting to run. [self]
+     * is read under the lock, which [request] holds until it has stored the future in it.
+     */
+    private fun passStarted(self: AtomicReference<ScheduledFuture<*>?>) = synchronized(this) {
+        if (pending === self.get()) pending = null
     }
 
     private fun pass() {

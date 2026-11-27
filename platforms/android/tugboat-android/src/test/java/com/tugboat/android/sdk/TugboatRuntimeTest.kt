@@ -2,6 +2,8 @@ package com.tugboat.android.sdk
 
 import android.app.Application
 import android.os.Looper
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.tugboat.android.AppInfo
 import com.tugboat.android.CollectorConfig
 import com.tugboat.android.Tugboat
@@ -21,11 +23,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowLog
 
 /** The composition root against a fake engine: message order from start to dispose. */
 @RunWith(RobolectricTestRunner::class)
+@Config(application = CallbackCountingApplication::class)
 class TugboatRuntimeTest {
     private val application = RuntimeEnvironment.getApplication() as Application
     @Before
@@ -87,6 +91,11 @@ class TugboatRuntimeTest {
     fun aHostThatDisablesItselfStopsTheDrainerAndTheObservers() {
         val outbox = Outboxes.at(application)
         val transport = FakeEngineTransport(*Array(3) { failure(EngineStatus.INTERNAL_ERROR) })
+        // Navigation observation is process-scoped and stays installed; count only what the session adds.
+        NavigationObservation.ensureInstalled(application)
+        val activityBefore = activityCallbacks()
+        val componentBefore = componentCallbacks()
+        val processBefore = processObservers()
         val runtime = TugboatRuntime.start(
             application,
             config.copy(durableOutbox = true),
@@ -95,11 +104,19 @@ class TugboatRuntimeTest {
             stopSequence = StopSequence(maxDrainMs = 10),
         )!!
         assertTrue("the drainer listens while the session runs", outbox.hasSessionListeners)
+        assertTrue("the Views adapter and the foreground window observe", activityCallbacks() > activityBefore)
+        assertTrue("the locale bridge observes", componentCallbacks() > componentBefore)
+        assertTrue("the lifecycle bridge observes", processObservers() > processBefore)
 
         // configure and session.start are two internal errors; this is the third.
         runtime.setUserId("user-1")
         awaitUntil { !runtime.isHostRunning }
         awaitUntil { !outbox.hasSessionListeners }
+
+        // Each observer, not only the drainer: a live adapter keeps encoding a fact for every frame.
+        assertEquals("adapter and foreground window detached", activityBefore, activityCallbacks())
+        assertEquals("locale bridge detached", componentBefore, componentCallbacks())
+        assertEquals("lifecycle bridge detached", processBefore, processObservers())
 
         runtime.stop()
         runtime.stop()
@@ -195,6 +212,17 @@ class TugboatRuntimeTest {
         Tugboat.stop()
         Thread { Tugboat.setUserId("from another thread") }.apply { start() }.join()
         shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    private fun activityCallbacks() = listSize(Application::class.java.getDeclaredField("mActivityLifecycleCallbacks"), application)
+
+    private fun componentCallbacks() = (application as CallbackCountingApplication).componentCallbackCount()
+
+    private fun processObservers() = (ProcessLifecycleOwner.get().lifecycle as LifecycleRegistry).observerCount
+
+    private fun listSize(field: java.lang.reflect.Field, owner: Any): Int {
+        field.isAccessible = true
+        return (field.get(owner) as? Collection<*>)?.size ?: 0
     }
 
     private fun awaitUntil(condition: () -> Boolean) {
