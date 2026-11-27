@@ -77,7 +77,7 @@
         }
       },
       {
-        "note": "Accepted: frame-2, a whole-frame fallback with reason unverifiedLayerAllowlist.",
+        "note": "Accepted: frame-1, a whole-frame fallback with reason unverifiedLayerAllowlist.",
         "send": {
           "type": "capture.result",
           "at": {

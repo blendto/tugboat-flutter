@@ -80,7 +80,7 @@
         }
       },
       {
-        "note": "Accepted: frame-2 with overlayWindow.",
+        "note": "Accepted: frame-1 with overlayWindow.",
         "send": {
           "type": "capture.result",
           "at": {
@@ -524,7 +524,7 @@
         }
       },
       {
-        "note": "Same pixels with overlayWindow again: exact_content_reused of frame-2, the retained frame with that content and that coverage, though frame-8 has the same content and is newer.",
+        "note": "Same pixels with overlayWindow again: exact_content_reused of frame-1, the retained frame with that content and that coverage, though frame-4 has the same content and is newer.",
         "send": {
           "type": "capture.result",
           "at": {
@@ -657,7 +657,7 @@
         }
       },
       {
-        "note": "Same pixels, no overlay: exact_content_reused of frame-8, the retained frame with that content and that coverage, not a new frame. frame-8 is also the newest frame accepted with that content (step 7 reused frame-2 and accepted nothing), so this step passes with an index keyed by content alone; capture-overlay-window-unchanged-pixels pins reuse past a newer frame with other coverage.",
+        "note": "Same pixels, no overlay: exact_content_reused of frame-4, the retained frame with that content and that coverage, not a new frame. frame-4 is also the newest frame accepted with that content (step 7 reused frame-1 and accepted nothing), so this step passes with an index keyed by content alone; capture-overlay-window-unchanged-pixels pins reuse past a newer frame with other coverage.",
         "send": {
           "type": "capture.result",
           "at": {
