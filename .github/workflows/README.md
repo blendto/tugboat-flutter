@@ -1,16 +1,19 @@
 # CI tiers
 
 **Quick tier: every push.** Runs on every push to a pull request and every
-push to `main`, whatever files changed. Pushes to a branch without a pull
-request run nothing. A new push to a pull request cancels its previous runs;
-runs on `main` are never cancelled.
+push to `main`, for each workflow whose files changed (its `paths` list).
+Pushes to a branch without a pull request run nothing. A new push to a pull
+request cancels its previous runs; runs on `main` are never cancelled.
 
-| Workflow | What it checks |
-|---|---|
-| `flutter-adapter.yml` | Format, analyze, Pigeon outputs, package tests (including the example's checklist and smoke test on the host renderer), pub publish dry-run |
-| `image-core.yml` | C++ image core and session engine with ASan/UBSan, short fuzz runs |
-| `apple-runtime.yml` | `pod lib lint` of TugboatCaptureRuntime |
-| `version-bump-check.yml` | Version policy, API surfaces, pins (pull requests only) |
+| Workflow | Runs when these change | What it checks |
+|---|---|---|
+| `flutter-adapter.yml` | `sdks/flutter/`, `conformance/`, root pubspec, its scripts | Format, analyze, Pigeon outputs, package tests (including the example's checklist and smoke test on the host renderer), pub publish dry-run |
+| `image-core.yml` | `core/`, `conformance/`, its scripts | C++ image core and session engine with ASan/UBSan, short fuzz runs |
+| `apple-runtime.yml` | `TugboatCaptureRuntime.podspec`, `Package.swift`, `platforms/apple/`, `core/image-processing/` | `pod lib lint` of TugboatCaptureRuntime |
+| `version-bump-check.yml` | always (pull requests only) | Version policy, API surfaces, pins |
+
+When a workflow starts reading files outside its list, add them to its
+`paths`, or a change there goes unchecked.
 
 **Device tier: pull requests labelled `device-report`.** Runs on every push
 while the label is on; remove the label to stop. Also available from the

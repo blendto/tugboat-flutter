@@ -1,12 +1,30 @@
 name: Flutter adapter
 
-# Quick tier: runs on every push to a pull request and every push to main,
-# whatever files changed (see .github/workflows/README.md).
+# Quick tier: runs on every push to a pull request and every push to main
+# that changes the files it checks (see README.md in this folder).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "sdks/flutter/**"
+      - "conformance/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "analysis_options.yaml"
+      - "tool/ci/run-flutter-tests.sh"
+      - "tool/ci/verify-native-capture-pigeon.sh"
+      - ".github/workflows/flutter-adapter.yml"
   push:
     branches: [main]
+    paths:
+      - "sdks/flutter/**"
+      - "conformance/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "analysis_options.yaml"
+      - "tool/ci/run-flutter-tests.sh"
+      - "tool/ci/verify-native-capture-pigeon.sh"
+      - ".github/workflows/flutter-adapter.yml"
 
 permissions:
   contents: read
