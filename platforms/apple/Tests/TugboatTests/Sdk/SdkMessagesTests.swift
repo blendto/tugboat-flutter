@@ -15,6 +15,21 @@ final class SdkMessagesTests: XCTestCase {
     XCTAssertEqual(HostMetadata(app: app, device: device).missingFields, [])
   }
 
+  func testBlankInstallationIdIsNotMissingBecauseTheSdkMintsOne() {
+    let blank = TugboatConfig.App(name: "Sample", version: "1.2", buildNumber: "7", appId: "com.example")
+    XCTAssertEqual(blank.installationId, "")
+    XCTAssertEqual(HostMetadata(app: blank, device: device).missingFields, [])
+  }
+
+  func testSessionStartCarriesAFreshIdSeedEachTime() {
+    let host = HostMetadata(app: app, device: device)
+    let first = jsonObject(SessionMessages.sessionStartInput(viewport: (1, 1), host: host, sessionEpoch: 0))
+    let second = jsonObject(SessionMessages.sessionStartInput(viewport: (1, 1), host: host, sessionEpoch: 0))
+    let seed = first["idSeed"] as? String ?? ""
+    XCTAssertNotNil(seed.range(of: "^[0-9a-f]{64}$", options: .regularExpression))
+    XCTAssertNotEqual(seed, second["idSeed"] as? String)
+  }
+
   func testBlankOrInvalidRequiredFieldsAreNamed() {
     let blankApp = TugboatConfig.App(name: " ", version: "", buildNumber: "\n", appId: "id", installationId: "i")
     let badDevice = DeviceSnapshot(
@@ -81,10 +96,12 @@ final class SdkMessagesTests: XCTestCase {
 
   func testSessionStartCarriesTheActiveLocale() {
     let input = SessionMessages.sessionStartInput(
-      viewport: (390, 844), host: HostMetadata(app: app, device: device), sessionEpoch: 2)
+      viewport: (390, 844), host: HostMetadata(app: app, device: device), sessionEpoch: 2,
+      idSeed: String(repeating: "ab", count: 32))
     XCTAssertEqual(
       input,
-      "{\"viewport\":{\"width\":390,\"height\":844},\"platform\":\"ios\",\"sessionEpoch\":2,"
+      "{\"viewport\":{\"width\":390,\"height\":844},\"idSeed\":\"" + String(repeating: "ab", count: 32)
+        + "\",\"platform\":\"ios\",\"sessionEpoch\":2,"
         + "\"locale\":{\"language\":\"pt\",\"country\":\"BR\",\"script\":\"Latn\",\"tag\":\"pt-Latn-BR\"}}")
   }
 

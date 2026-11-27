@@ -16,7 +16,7 @@ version is `TugboatVersion.current` in `TugboatVersion.swift`, sent as
 ```swift
 Tugboat.start(TugboatConfig(
   collector: .init(baseURL: url, apiKey: key),
-  app: .init(name: name, version: version, buildNumber: build, appId: bundleId, installationId: installId),
+  app: .init(name: name, version: version, buildNumber: build, appId: bundleId),  // installationId is optional: the SDK mints and keeps its own
   enabled: true,                        // record from launch; the default (false) stays dormant
   captureFocusChanges: true))           // optional; also captureDiagnostics, trackHostingControllers,
                                         // swiftUIAccessibilityIdentity (off), explorationRunId
@@ -299,8 +299,7 @@ When either scene-inventory or action-context is enabled (`1` / `true` /
 configuration time, `TUGBOAT_LAUNCH` is logged at the first accepted
 `Tugboat.start`, whatever the lifecycle (a dormant launch logs it too), and
 `TUGBOAT_HEALTH` ten seconds later. Each line reads the SDK when it prints:
-`captureSessionId` is the running session's id (`session-<session.start wall
-clock>`) and is left out when no session runs; HEALTH's `lifecycle` is the
+`captureSessionId` is the running session's id (`session-<UUIDv4>`) and is left out when no session runs; HEALTH's `lifecycle` is the
 `TugboatLifecycleState` name and `activationRequestId` the current request,
 when one is set. The launch fields (`captureRequested`, `emitSceneInventory`,
 `acceptActionContext`, `automationRunId`) and the HEALTH fields (every

@@ -104,7 +104,9 @@ final class TugboatRuntime {
   /// `explorationRunId` go on `session.start` when non-blank.
   static func start(config: TugboatConfig, sessionEpoch: Int, activationRequestId: String?) -> TugboatRuntime? {
     let device = DeviceSnapshot.read()
-    let metadata = HostMetadata(app: config.app, device: device)
+    // The host's installation id when it gave one, else the SDK's own (BLE-618).
+    let app = config.app.resolvingInstallationId(vendorId: device.id == "ios-unknown" ? nil : device.id)
+    let metadata = HostMetadata(app: app, device: device)
     let missing = problems(config: config, metadata: metadata)
     guard missing.isEmpty else {
       HostLog.error("Tugboat not started: required session_start fields are missing: \(missing)")

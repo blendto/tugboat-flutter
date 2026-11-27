@@ -8,6 +8,15 @@ entry here must match it.
 Unpublished. The native SwiftUI SDK: public facade, engine wiring, capture,
 the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISample`).
 
+- Session and event ids, installation id (contract change: identity, BLE-618):
+  session ids are `session-<UUIDv4>` and event ids `event-<UUIDv4>` (were
+  `session-<epoch microseconds>` and `event-<counter>`), as Flutter 0.12.3;
+  the host sends the engine 32 fresh random bytes (`session.start.idSeed`)
+  per session. `TugboatConfig.App.installationId` is now optional: when blank
+  the SDK mints a random UUID on first launch (seeded with
+  `identifierForVendor`), keeps it in `tugboat/installation_id` under the
+  Application Support directory, and sends it as `appInfo.installationId`,
+  as Flutter 0.11.5. A non-blank host id wins.
 - Background flush (contract change: delivery): with `durableOutbox` on,
   entering the background runs `transport.flush` under a `UIApplication`
   background task that ends once the flush's outbox writes land, or at

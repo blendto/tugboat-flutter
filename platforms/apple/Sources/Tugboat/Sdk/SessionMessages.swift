@@ -13,16 +13,18 @@ enum SessionMessages {
 
   /// `viewport` is the key window's size in points when known, else the
   /// screen's. `activationRequestId` and `explorationRunId` are sent only
-  /// when non-blank (`normalizedSessionId`).
+  /// when non-blank (`normalizedSessionId`). `idSeed` is host entropy for the
+  /// engine's session and event ids, fresh for every session.
   static func sessionStartInput(
     viewport: (width: Double, height: Double), host: HostMetadata, sessionEpoch: Int,
-    activationRequestId: String? = nil, explorationRunId: String? = nil
+    activationRequestId: String? = nil, explorationRunId: String? = nil, idSeed: String = IdSeed.generate()
   ) -> String {
     var size = JSONObject()
     size.set("width", .double(viewport.width))
     size.set("height", .double(viewport.height))
     var out = JSONObject()
     out.set("viewport", size)
+    out.set("idSeed", idSeed)
     out.set("platform", HostMetadata.platform)
     out.set("sessionEpoch", Int64(sessionEpoch))
     out.set("locale", host.sessionLocaleJSON)
