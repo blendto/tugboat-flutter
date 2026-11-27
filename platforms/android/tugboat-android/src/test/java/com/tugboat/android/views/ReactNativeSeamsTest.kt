@@ -43,6 +43,7 @@ class ReactNativeSeamsTest {
     fun clearSeams() {
         TugboatAdapters.setViewNameProvider(null)
         TugboatAdapters.setFragmentFilter(null)
+        TugboatAdapters.setHostNamesScreens(false)
         NavigationObservation.resetForTests()
     }
 
@@ -104,6 +105,43 @@ class ReactNativeSeamsTest {
         // The instance id defaults to the name.
         Tugboat.setScreen("Settings")
         assertEquals("Settings", navigation().single().getJSONObject("route").getString("instanceId"))
+        adapter.stop()
+    }
+
+    @Test
+    fun whenTheHostNamesScreensTheFirstScreenIsTheOnlyInitialRoute() {
+        TugboatAdapters.setHostNamesScreens(true)
+        TugboatAdapters.install(app)
+        Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        val adapter = startAdapter()
+        // The activity is not a route.
+        assertTrue(navigation().isEmpty())
+
+        Tugboat.setScreen("Tabs/Home", "k1")
+        val home = navigation().single()
+        assertEquals("session_start", home.getString("kind"))
+        assertEquals(1, home.getJSONArray("routes").length())
+        assertEquals("Tabs/Home", home.getJSONArray("routes").getJSONObject(0).getString("name"))
+
+        // Later screens are ordinary pushes.
+        Tugboat.setScreen("Tabs/Catalog", "k2")
+        val catalog = navigation().single()
+        assertEquals("push", catalog.getString("kind"))
+        assertEquals("k1", catalog.getJSONObject("departing").getString("instanceId"))
+        adapter.stop()
+    }
+
+    @Test
+    fun whenTheHostNamesScreensAScreenSetBeforeStartSeedsTheSessionAlone() {
+        TugboatAdapters.setHostNamesScreens(true)
+        TugboatAdapters.install(app)
+        Robolectric.buildActivity(FragmentActivity::class.java).setup()
+        Tugboat.setScreen("Tabs/Home", "k1")
+        val adapter = startAdapter()
+        while (frames.hasPending) frames.runFrame()
+        val seeds = sink.batches.flatten().filter { it.type == "navigation" }.map { JSONObject(it.inputJson) }
+        assertEquals(listOf("session_start"), seeds.map { it.getString("kind") })
+        assertEquals("Tabs/Home", seeds.single().getJSONArray("routes").getJSONObject(0).getString("name"))
         adapter.stop()
     }
 

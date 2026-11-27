@@ -29,7 +29,7 @@ internal class ActivityNavigation(private val report: (NavigationChange) -> Unit
 
     fun entryOf(activity: Activity): RouteEntry? = entries[activity]
 
-    fun navigatorIdOf(activity: Activity): String = "activities:${activity.taskId}"
+    fun navigatorIdOf(activity: Activity): String = "$NAVIGATOR_PREFIX${activity.taskId}"
 
     fun onCreated(activity: Activity) {
         val waiting = parked[parkingKey(activity)] ?: return
@@ -76,4 +76,10 @@ internal class ActivityNavigation(private val report: (NavigationChange) -> Unit
         )
 
     private fun parkingKey(activity: Activity) = "${activity.taskId}|${activity.javaClass.name}"
+
+    companion object {
+        private const val NAVIGATOR_PREFIX = "activities:"
+
+        fun isActivityNavigator(navigatorId: String) = navigatorId.startsWith(NAVIGATOR_PREFIX)
+    }
 }

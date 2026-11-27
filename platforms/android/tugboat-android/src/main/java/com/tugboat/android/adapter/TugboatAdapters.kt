@@ -16,6 +16,9 @@ object TugboatAdapters {
     internal var viewNameProvider: ((View) -> String?)? = null
 
     @Volatile
+    internal var hostNamesScreens: Boolean = false
+
+    @Volatile
     internal var fragmentFilter: ((fragmentClassName: String) -> Boolean)? = null
 
     /**
@@ -55,6 +58,19 @@ object TugboatAdapters {
     @JvmStatic
     fun setFragmentFilter(filter: ((fragmentClassName: String) -> Boolean)?) {
         fragmentFilter = filter
+    }
+
+    /**
+     * The app names its own screens with [Tugboat.setScreen] (React Native):
+     * the resumed activity is not a route, and the first screen named in a
+     * session is its initial route (`session_start`), as in Flutter. An app
+     * that then never names a screen reports no routes. Off by default; an
+     * app that does not call this is unchanged. Set it before the session
+     * starts.
+     */
+    @JvmStatic
+    fun setHostNamesScreens(enabled: Boolean) {
+        hostNamesScreens = enabled
     }
 
     /**
