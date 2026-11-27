@@ -1,6 +1,11 @@
 import 'package:flutter/widgets.dart';
 
-/// Marks SDK-owned UI so capture skips it.
+/// Marks SDK-owned UI so identity capture skips it.
+///
+/// The subtree is left out of target anchors, fingerprints and inventories. It
+/// is not left out of screenshot masking: pixels are masked from what is
+/// painted, so text, media and [TugboatSensitive] marks below a
+/// [TugboatInternal] are still masked.
 class TugboatInternal extends StatelessWidget {
   const TugboatInternal({required this.child, super.key});
 
