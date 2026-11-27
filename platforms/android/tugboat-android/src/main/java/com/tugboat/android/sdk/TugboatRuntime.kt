@@ -105,7 +105,11 @@ internal class TugboatRuntime private constructor(
         if (stopped) return
         Log.w(TAG, "the engine host stopped; detaching the Tugboat observers and the outbox drainer")
         detach()
-        captures.dispose()
+        // The disposal may wait for the capture thread (up to 500 ms): never on the main thread.
+        Thread({ captures.dispose() }, "tugboat-dispose").apply {
+            isDaemon = true
+            start()
+        }
     }
 
     /** Stops the drainer and detaches every observer; each part ignores a second call. */
