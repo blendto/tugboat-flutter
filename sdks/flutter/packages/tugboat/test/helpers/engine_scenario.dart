@@ -41,6 +41,10 @@
 // are still compared; the digits are not.
 //
 // What is not compared:
+// - Delivery's own `capture_diagnostic` records (`collector-…` ids) as hub
+//   records and snapshot events: Dart's sink only enqueues them for the
+//   collector, the engine also publishes them. Their wire bodies are compared
+//   in the `http.send` effects.
 // - Fixtures whose `runners` exclude `dart` (including every `engineOnly`
 //   scenario) are skipped by the caller.
 // - Steps that expect an `error` pin the engine's message validation. Dart's

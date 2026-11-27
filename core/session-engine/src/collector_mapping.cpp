@@ -151,7 +151,9 @@ Value interaction_extra(const Event& event) {
   extra.set("interactionSchema",
             schema != nullptr ? *schema
                               : Value::integer(kInteractionSchemaVersion));
+  // `_interactionCollectorKeys`, in order.
   for (const char* key : {"route", "targetFingerprint", "fingerprintConfidence",
+                          "fingerprintSource", "routeKey", "surface",
                           "targetResolutionFailureReason", "gesture",
                           "payload"}) {
     if (const Value* value = data_value(data, key)) {

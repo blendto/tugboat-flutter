@@ -310,7 +310,7 @@ Fixtures: `scene-inventory-exploration-metadata`,
 | Moments label the next re-sample (`tap`, `gesture`, `scroll`) | pending trigger per visit | | | Programmatic scroll end moment: not ported (needs an adapter fact) |
 | Positional `scroll` inventories sent only when they moved (2% grid) | yes | | | |
 | `resampleSettledInventory` switch | `capabilities.resampleSettledInventory` (on by default, as in Flutter) | Android: sends it with `emitSceneInventory`; no public option yet | | The Dart config flag |
-| Exploration tap fields (`fingerprintSource`, `routeKey`, `surface` on taps), navigating-tap fix, tag lookup end | | | | Flutter-only: tap identity (BLE-670 with schema 7) |
+| Exploration tap fields (`fingerprintSource`, `routeKey`, `surface` on taps), navigating-tap fix, tag lookup end | the collector record keeps the three tap keys when a host sends them (BLE-670; `interaction-tap-exploration-keys`) | none sends them yet | | Flutter-only: computing them (tap identity), the navigating-tap fix, the tag lookup end |
 | Loading detection removed (0.12.0) | nothing to remove | nothing to remove | nothing to remove | `loading`, `placeholder`, `TugboatLoading` never existed natively |
 | Fingerprint schema 7 (BLE-670) | reports `7` (`tb_session_engine_fingerprint_schema_version()`); the hash is unchanged | Kotlin and Swift read the version from the engine for anchors | Alias confidence: a tag or id never raises it; no target anchor is `high` | The canonical-tree rules of schema 7 (overlay ordinals, theme wrappers, roles, disabled controls) and the schema 6 `aliases`: native paths never had a schema 6 |
 | Exploration WebSocket removed | no transport (docs updated) | no transport | | The Dart sink, `explorationCollectorUrl` |

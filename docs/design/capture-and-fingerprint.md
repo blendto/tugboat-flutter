@@ -382,8 +382,10 @@ hash input.
 - **Confidence.** The floor of the route's and the path's. The path is
   `medium` when the target has its own id or sits in a list item, and `low`
   otherwise. An alias (the `tugboatTag` or the id's entry name) does not
-  raise it, as in Flutter: the own id is structural evidence, the alias is
-  only a second name for the target.
+  raise it, as in Flutter. The `medium` for an own id is a Views rule with no
+  Flutter counterpart (Flutter gives `medium` only to an inherited list
+  position): the id is part of the path itself, a structural signal that
+  Flutter's widget tree has no equivalent of.
 - **Obfuscated resource names.** When the SDK's own probe id does not resolve
   to its own entry name, resource ids are dropped from tokens.
 - **Coordinates.** Pointer positions and scroll offsets are logical pixels

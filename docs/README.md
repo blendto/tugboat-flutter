@@ -71,7 +71,7 @@ gates, canaries) are not listed below.
   `TugboatCaptureRuntime` `0.1.0` on CocoaPods trunk;
 - planned first native-default adapter: Flutter `0.9.0` after privacy and performance gates;
 - session JSON schema: `10`;
-- fingerprint schema: `6`;
+- fingerprint schema: `7`;
 - minimum Dart SDK: `3.9.2`;
 - minimum Flutter SDK: `3.35.0`.
 
