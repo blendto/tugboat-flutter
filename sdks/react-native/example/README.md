@@ -55,6 +55,14 @@ xcodebuild test -workspace RnExample.xcworkspace -scheme RnExample -configuratio
   -only-testing:RnExampleUITests/RnExampleUITests/testFullFlow
 ```
 
+`RnExampleTests` is a unit-test bundle hosted in the app (the iOS HTTP handler's
+image-request filter); run it on a simulator:
+
+```sh
+xcodebuild test -workspace RnExample.xcworkspace -scheme RnExample \
+  -destination 'platform=iOS Simulator,name=<simulator>' -only-testing:RnExampleTests
+```
+
 ## Build APKs
 
 ```sh
