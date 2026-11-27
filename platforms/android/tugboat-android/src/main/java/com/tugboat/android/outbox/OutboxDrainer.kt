@@ -106,8 +106,9 @@ internal class OutboxDrainer(
         }
         report.evicted = outbox.evicted.getAndSet(0)
         report.bytesOnDisk = scan.entries.sumOf { it.bytes } - report.freedBytes
-        log(report.line())
+        // Scheduled before the line: the log is the pass's last act, so a reader that waits for it sees the retry.
         retryInMs?.let(::request)
+        log(report.line())
     }
 
     /** Sends [entry] once; null to go on with the pass, else the delay before the next one. */
