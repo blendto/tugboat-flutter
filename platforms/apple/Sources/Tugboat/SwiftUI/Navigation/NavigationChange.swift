@@ -36,16 +36,21 @@ struct NavigationChange: Equatable {
   /// The enclosing navigator of a nested one; nil on a root navigator.
   let parentNavigatorId: String?
   let payload: Payload
+  /// `pop` only: the screens between the revealed route and `departing`, top
+  /// first; they leave with it (one pop back several screens).
+  let skipped: [RouteEntry]
 
-  init(kind: NavigationKind, navigatorId: String, parentNavigatorId: String? = nil, route: RouteEntry, departing: RouteEntry?) {
+  init(kind: NavigationKind, navigatorId: String, parentNavigatorId: String? = nil, route: RouteEntry, departing: RouteEntry?, skipped: [RouteEntry] = []) {
     self.navigatorId = navigatorId
     self.parentNavigatorId = parentNavigatorId
+    self.skipped = skipped
     self.payload = .transition(kind, route: route, departing: departing)
   }
 
   init(sessionStart navigatorId: String, parentNavigatorId: String? = nil, routes: [RouteEntry], captureFrame: Bool = false) {
     self.navigatorId = navigatorId
     self.parentNavigatorId = parentNavigatorId
+    self.skipped = []
     self.payload = .sessionStart(routes: routes, captureFrame: captureFrame)
   }
 
@@ -66,6 +71,9 @@ struct NavigationChange: Equatable {
       input.set("route", NavigationChange.routeJSON(route, transitionMs: departing == nil ? 0 : NavigationChange.transitionMs))
       if let departing = departing {
         input.set("departing", NavigationChange.entryJSON(departing))
+      }
+      if !skipped.isEmpty {
+        input.set("skippedInstanceIds", .array(skipped.map { .string($0.instanceId) }))
       }
     case let .sessionStart(routes, captureFrame):
       input.set("kind", "session_start")

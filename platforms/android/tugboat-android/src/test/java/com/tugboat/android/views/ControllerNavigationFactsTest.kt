@@ -4,6 +4,7 @@ import android.app.Activity
 import com.tugboat.android.host.FakeClock
 import com.tugboat.android.sdk.NavigationTracking
 import com.tugboat.android.sdk.rowsController
+import com.tugboat.android.views.navigation.NavEntry
 import com.tugboat.android.views.navigation.NavigationObservation
 import org.json.JSONObject
 import org.junit.After
@@ -102,6 +103,43 @@ class ControllerNavigationFactsTest {
         val replace = navigation().single()
         assertEquals("replace", replace.getString("kind"))
         assertEquals("row", replace.getJSONObject("route").getString("name"))
+    }
+
+    @Test
+    fun aScreenNamedAgainSeveralLevelsDownIsOnePopThatSkipsTheScreensBetween() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        navigation()
+        for ((id, name) in listOf("h" to "Tabs/Home", "c" to "Cart", "s" to "Shipping", "p" to "Payment")) {
+            NavigationObservation.onNavDestination(activity, NavEntry(id, name, 0), null)
+        }
+        val ids = navigation().associate { it.getJSONObject("route").getString("name") to it.getJSONObject("route").getString("instanceId") }
+
+        NavigationObservation.onNavDestination(activity, NavEntry("h", "Tabs/Home", 0), null)
+
+        val pop = navigation().single()
+        assertEquals("pop", pop.getString("kind"))
+        assertEquals("Tabs/Home", pop.getJSONObject("route").getString("name"))
+        assertEquals(ids["Payment"], pop.getJSONObject("departing").getString("instanceId"))
+        val skipped = pop.getJSONArray("skippedInstanceIds")
+        assertEquals(listOf(ids["Shipping"], ids["Cart"]), List(skipped.length()) { skipped.getString(it) })
+
+        // The next screen stacks on Home only.
+        NavigationObservation.onNavDestination(activity, NavEntry("pr", "Tabs/Profile", 0), null)
+        assertEquals("Tabs/Home", navigation().single().getJSONObject("departing").getString("name"))
+    }
+
+    @Test
+    fun aPopOfOneScreenSkipsNothing() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        navigation()
+        for ((id, name) in listOf("h" to "Home", "c" to "Cart")) {
+            NavigationObservation.onNavDestination(activity, NavEntry(id, name, 0), null)
+        }
+        navigation()
+
+        NavigationObservation.onNavDestination(activity, NavEntry("h", "Home", 0), null)
+
+        assertFalse(navigation().single().has("skippedInstanceIds"))
     }
 
     @Test

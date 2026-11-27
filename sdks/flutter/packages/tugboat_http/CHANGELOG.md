@@ -1,3 +1,10 @@
+## 0.12.10
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.10 (pop back several screens in one
+  step). No `tugboat_http` change; its `tugboat` floor is now `^0.12.10`.
+
 ## 0.12.9
 
 ### Changed

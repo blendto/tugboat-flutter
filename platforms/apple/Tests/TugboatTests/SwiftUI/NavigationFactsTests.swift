@@ -20,6 +20,20 @@ final class NavigationFactsTests: XCTestCase {
     XCTAssertNil(stack.appeared(home), "appearing again on top is no change")
   }
 
+  func testAScreenSeveralLevelsDownIsOnePopThatSkipsTheScreensBetween() throws {
+    let cart = RouteEntry(instanceId: "s-4", name: "Cart", type: "TugboatScreen")
+    var stack = ScreenStack(navigatorId: "nav")
+    for entry in [home, detail, cart, sheet] { _ = stack.appeared(entry) }
+    let change = try XCTUnwrap(stack.appeared(home))
+    XCTAssertEqual(change, NavigationChange(kind: .pop, navigatorId: "nav", route: home, departing: sheet, skipped: [cart, detail]))
+    XCTAssertEqual(stack.entries, [home])
+    let skipped = try XCTUnwrap(change.fact(at: HostTime(monoUs: 1, wallUs: 2)).decodedInput["skippedInstanceIds"] as? [String])
+    XCTAssertEqual(skipped, ["s-4", "s-2"])
+    let next = try XCTUnwrap(stack.appeared(detail))
+    XCTAssertEqual(next.skipped, [])
+    XCTAssertNil(NavigationChange(kind: .pop, navigatorId: "n", route: home, departing: detail).fact(at: HostTime(monoUs: 1, wallUs: 2)).decodedInput["skippedInstanceIds"], "a one-screen pop skips nothing")
+  }
+
   func testTheTopDisappearingPopsToTheScreenBelow() {
     var stack = ScreenStack(navigatorId: "nav")
     _ = stack.appeared(home)

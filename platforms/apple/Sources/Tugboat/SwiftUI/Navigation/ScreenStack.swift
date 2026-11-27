@@ -5,7 +5,8 @@
 /// - A route that appears on top of the stack is a `push` covering the
 ///   previous top.
 /// - A route that appears while already below the top was revealed: a `pop`
-///   to it, and everything above it leaves.
+///   to it, and everything above it leaves. The screens between it and the
+///   top are `skipped` (top first), so the whole step is one `pop`.
 /// - The top route disappearing is a `pop` to the route below, if any.
 /// - A covered route disappearing changes nothing (it may reappear).
 struct ScreenStack {
@@ -29,8 +30,9 @@ struct ScreenStack {
     if let index = entries.firstIndex(where: { $0.instanceId == entry.instanceId }) {
       guard index < entries.count - 1 else { return nil }
       let departing = top
+      let skipped = Array(entries[(index + 1)..<(entries.count - 1)].reversed())
       entries.removeSubrange((index + 1)...)
-      return change(.pop, route: entry, departing: departing)
+      return NavigationChange(kind: .pop, navigatorId: navigatorId, parentNavigatorId: parentNavigatorId, route: entry, departing: departing, skipped: skipped)
     }
     let departing = top
     entries.append(entry)

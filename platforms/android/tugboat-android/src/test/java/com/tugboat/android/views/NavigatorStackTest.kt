@@ -46,6 +46,7 @@ class NavigatorStackTest {
         assertEquals(NavigationKind.Pop, change.kind)
         assertSame(a, change.route)
         assertSame(c, change.departing)
+        assertEquals("the screen between leaves with the top", listOf(b), change.skipped)
         assertSame(a, stack.top)
         assertNull("already on top", stack.popTo(a))
     }

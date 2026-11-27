@@ -29,6 +29,8 @@ internal class NavigationChange(
     val parentNavigatorId: String?,
     val route: RouteEntry,
     val departing: RouteEntry?,
+    /** `pop` only: the screens between [route] and [departing], top first; they leave with it. */
+    val skipped: List<RouteEntry> = emptyList(),
 ) {
     fun toFact(at: HostTime): ViewsFact {
         val input = JSONObject()
@@ -38,6 +40,9 @@ internal class NavigationChange(
         input.put("route", routeWireJson(route))
         departing?.let {
             input.put("departing", JSONObject().put("instanceId", it.instanceId).put("name", it.routeKey).put("type", it.type))
+        }
+        if (skipped.isNotEmpty()) {
+            input.put("skippedInstanceIds", JSONArray().apply { skipped.forEach { put(it.instanceId) } })
         }
         return ViewsFact(FactTypes.NAVIGATION, input, at)
     }

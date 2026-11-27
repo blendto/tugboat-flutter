@@ -67,13 +67,18 @@ internal class NavigatorStack(
         return change(NavigationKind.Replace, entry, departing)
     }
 
-    /** Everything above [entry] leaves; [entry] is visible again. */
+    /**
+     * Everything above [entry] leaves; [entry] is visible again. One `pop`:
+     * the top is `departing`, the screens between it and [entry] are
+     * `skipped` (top first), as a pop back several screens in one step.
+     */
     fun popTo(entry: RouteEntry): NavigationChange? {
         val index = entries.indexOfFirst { it === entry }
         if (index < 0 || index == entries.lastIndex) return null
         val departing = top
+        val skipped = entries.subList(index + 1, entries.lastIndex).asReversed().toList()
         while (entries.lastIndex > index) entries.removeAt(entries.lastIndex)
-        return change(NavigationKind.Pop, entry, departing)
+        return change(NavigationKind.Pop, entry, departing, skipped)
     }
 
     /**
@@ -96,8 +101,12 @@ internal class NavigatorStack(
         while (entries.size > MAX_ENTRIES) entries.removeAt(0)
     }
 
-    private fun change(kind: NavigationKind, route: RouteEntry, departing: RouteEntry?) =
-        NavigationChange(kind, navigatorId, parentNavigatorId, route, departing)
+    private fun change(
+        kind: NavigationKind,
+        route: RouteEntry,
+        departing: RouteEntry?,
+        skipped: List<RouteEntry> = emptyList(),
+    ) = NavigationChange(kind, navigatorId, parentNavigatorId, route, departing, skipped)
 
     private companion object {
         const val MAX_ENTRIES = 64

@@ -1,3 +1,18 @@
+## 0.12.10
+
+### Fixed
+
+- `Navigator.popUntil` (and any chain of pops in one synchronous turn) is now
+  one `route_pop`. It was one `route_pop` per route; the tap that caused it
+  was dropped (no `causeEventId`, `navigationOrigin` `automatic_or_unknown`)
+  and `fromRoute` was the last in-between screen instead of the screen that
+  was on top. Now the event keeps the tap as its cause (claimed when the
+  first pop happens, so `interactionAttribution` stays `same_turn`),
+  `fromRoute` is the top screen, and `routeStack` is the remaining screens.
+  The pop is reported at the end of the turn (a microtask) instead of inside
+  `didPop`; a route change on another navigator in the same turn is reported
+  after it. This changes captured evidence (a contract change).
+
 ## 0.12.9
 
 ### Fixed

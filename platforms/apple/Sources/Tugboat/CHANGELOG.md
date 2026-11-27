@@ -19,6 +19,13 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   anchor carries `actions: ["tap"]` and `enabled` (the view takes touches and is
   not marked not-enabled).
 
+- A pop back to a screen several levels down (a screen that appears while
+  already below the top, as with React Native `popTo`) is one `pop` fact that
+  names the screens in between (`skippedInstanceIds`, engine change
+  BLE-709), as on Android and Flutter. `routeStack` is the remaining screens,
+  `fromRoute` the screen that was on top, and the causing tap is kept. Before,
+  the in-between screens stayed in `routeStack`. A contract change.
+
 - Seams for the React Native SDK (no change for apps that do not use them;
   `@_spi(TugboatAdapters)`, not public API): `TugboatAdapters.setScreen(name:instanceId:)`
   names the current screen without `.tugboatScreen` (a push, or a pop to an

@@ -739,8 +739,17 @@ class _NavigatorSurfaceRegistry {
     return stack.length;
   }
 
-  int pop(String navigatorId, {String? departingInstanceId}) {
+  int pop(
+    String navigatorId, {
+    String? departingInstanceId,
+    List<String> skippedInstanceIds = const [],
+  }) {
     final stack = stackFor(navigatorId);
+    for (final id in skippedInstanceIds) {
+      if (id == departingInstanceId) continue;
+      final index = stack.lastIndexOf(id);
+      if (index >= 0) stack.removeAt(index);
+    }
     if (departingInstanceId != null) {
       final index = stack.lastIndexOf(departingInstanceId);
       if (index >= 0) {
@@ -5044,6 +5053,8 @@ class TugboatReplayController extends ChangeNotifier {
     Route<dynamic>? route, {
     NavigatorState? navigatorState,
     Route<dynamic>? departingRoute,
+    List<Route<dynamic>> skippedRoutes = const [],
+    ({InteractionTransaction? tx})? preClaimedCause,
   }) {
     if (_routeCaptureIsUnavailable) {
       return Future<void>.value();
@@ -5054,6 +5065,8 @@ class TugboatReplayController extends ChangeNotifier {
       destinationRoute: route,
       departingRoute: departingRoute,
       navigatorState: navigatorState,
+      skippedRoutes: skippedRoutes,
+      preClaimedCause: preClaimedCause,
     );
     if (change == null) return Future<void>.value();
 
@@ -5771,6 +5784,8 @@ class TugboatReplayController extends ChangeNotifier {
     Route<dynamic>? destinationRoute,
     Route<dynamic>? departingRoute,
     NavigatorState? navigatorState,
+    List<Route<dynamic>> skippedRoutes = const [],
+    ({InteractionTransaction? tx})? preClaimedCause,
   }) {
     if (_isInvisibleRouteRemoval(transition, transition.routeName)) {
       return null;
@@ -5780,15 +5795,18 @@ class TugboatReplayController extends ChangeNotifier {
       destinationRoute,
       departingRoute,
       navigatorState,
+      skippedRoutes,
     );
     _rememberObservedRoute(transition, destinationRoute, surface);
     _visualObservationGeneration++;
     return _visibleRouteChangeFor(
       transition,
       surface,
-      claimed: _tryClaimInteractionCause(
-        navigatorId: surface.navigatorId ?? _currentNavigatorId,
-      ),
+      claimed: preClaimedCause != null
+          ? preClaimedCause.tx
+          : _tryClaimInteractionCause(
+              navigatorId: surface.navigatorId ?? _currentNavigatorId,
+            ),
     );
   }
 
@@ -5943,6 +5961,7 @@ class TugboatReplayController extends ChangeNotifier {
     Route<dynamic>? destinationRoute,
     Route<dynamic>? departingRoute,
     NavigatorState? navigatorState,
+    List<Route<dynamic>> skippedRoutes,
   ) {
     if (navigatorState == null) {
       return _resolveUnboundRouteSurface(destinationRoute);
@@ -5955,6 +5974,7 @@ class TugboatReplayController extends ChangeNotifier {
       parentNavigatorId,
       destinationRoute,
       departingRoute,
+      skippedRoutes,
     );
   }
 
@@ -5997,6 +6017,7 @@ class TugboatReplayController extends ChangeNotifier {
     String? parentNavigatorId,
     Route<dynamic>? destinationRoute,
     Route<dynamic>? departingRoute,
+    List<Route<dynamic>> skippedRoutes,
   ) => switch (transition.kind) {
     _RouteNavigationKind.push => _pushRouteSurface(
       navigatorId,
@@ -6014,6 +6035,7 @@ class TugboatReplayController extends ChangeNotifier {
       parentNavigatorId,
       destinationRoute,
       departingRoute,
+      skippedRoutes,
     ),
   };
 
@@ -6075,9 +6097,16 @@ class TugboatReplayController extends ChangeNotifier {
     String? parentNavigatorId,
     Route<dynamic>? route,
     Route<dynamic>? departing,
+    List<Route<dynamic>> skipped,
   ) {
     final from = _surfaces.peekRouteId(departing) ?? _currentRouteInstanceId;
-    final revision = _surfaces.pop(navigatorId, departingInstanceId: from);
+    final revision = _surfaces.pop(
+      navigatorId,
+      departingInstanceId: from,
+      skippedInstanceIds: [
+        for (final route in skipped) ?_surfaces.peekRouteId(route),
+      ],
+    );
     final id = route == null
         ? _surfaces.top(navigatorId)
         : _surfaces.idForRoute(route);
@@ -6089,6 +6118,23 @@ class TugboatReplayController extends ChangeNotifier {
       stackRevision: revision,
     );
   }
+
+  /// Claims the tap behind a route change now, for a route change reported
+  /// later in the same turn (see `TugboatNavigatorObserver.didPop`): pass the
+  /// result to [route] as `preClaimedCause`, so the claim is made while the
+  /// pointer is still pending (`same_turn`), whatever the delay.
+  @internal
+  ({InteractionTransaction? tx}) claimRouteCause(
+    NavigatorState? navigatorState,
+  ) => (
+    tx: _routeCaptureIsUnavailable
+        ? null
+        : _tryClaimInteractionCause(
+            navigatorId: navigatorState == null
+                ? _currentNavigatorId
+                : _surfaces.idForNavigator(navigatorState),
+          ),
+  );
 
   /// Observer-time single-use claim. Returns the transaction only when exactly
   /// one unambiguous active pointer is eligible for this navigator/session.

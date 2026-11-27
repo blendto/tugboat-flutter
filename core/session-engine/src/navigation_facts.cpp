@@ -74,6 +74,27 @@ bool decode_departing(const ObjectReader& parent, NavigationFact* out,
   return true;
 }
 
+bool decode_skipped(const ObjectReader& r, NavigationFact* out) {
+  const Value* json = r.get("skippedInstanceIds");
+  if (json == nullptr) return true;
+  if (!json->is_array()) {
+    return r.reject("skippedInstanceIds", "must be an array");
+  }
+  std::set<std::string> seen;
+  for (size_t i = 0; i < json->items().size(); ++i) {
+    const Value& item = json->items()[i];
+    if (!item.is_string() || item.as_string().empty()) {
+      return r.reject("skippedInstanceIds",
+                      "must hold non-empty strings");
+    }
+    if (!seen.insert(item.as_string()).second) {
+      return r.reject("skippedInstanceIds", "must not repeat an id");
+    }
+    out->skipped_instance_ids.push_back(item.as_string());
+  }
+  return true;
+}
+
 bool decode_parent(const ObjectReader& r, NavigationFact* out) {
   if (!r.opt_string("parentNavigatorId", &out->parent_navigator_id)) {
     return false;
@@ -141,12 +162,20 @@ bool decode_navigation_fact(const Value& input, const std::string& path,
   const ObjectReader r(input, path, error);
   const Value* route = nullptr;
   if (!r.check_keys({"kind", "navigatorId", "parentNavigatorId", "route",
-                     "departing", "routes", "captureFrame"}) ||
+                     "departing", "skippedInstanceIds", "routes",
+                     "captureFrame"}) ||
       !read_named(r, "kind", kKinds, &out->kind) ||
       !read_non_empty(r, "navigatorId", &out->navigator_id) ||
       !decode_parent(r, out) || !r.opt_object("route", &route) ||
-      !decode_departing(r, out, error) || !decode_routes(r, out, error)) {
+      !decode_departing(r, out, error) || !decode_skipped(r, out) ||
+      !decode_routes(r, out, error)) {
     return false;
+  }
+  if (out->kind != NavigationKind::kPop && r.get("skippedInstanceIds")) {
+    return r.reject("skippedInstanceIds", "must be absent unless kind is pop");
+  }
+  if (!out->skipped_instance_ids.empty() && !out->departing_instance_id) {
+    return r.reject("skippedInstanceIds", "requires departing");
   }
   std::optional<bool> capture_frame;
   if (!r.opt_bool("captureFrame", &capture_frame)) return false;
@@ -169,10 +198,20 @@ bool decode_navigation_fact(const Value& input, const std::string& path,
   if (!out->routes.empty()) {
     return r.reject("routes", "must be absent unless kind is session_start");
   }
+  for (const std::string& id : out->skipped_instance_ids) {
+    if (id == out->departing_instance_id) {
+      return r.reject("skippedInstanceIds", "must not name departing");
+    }
+  }
   if (route == nullptr) return true;
   FactRoute decoded;
   if (!decode_route(*route, r.child("route"), &decoded, error)) return false;
   out->route = std::move(decoded);
+  for (const std::string& id : out->skipped_instance_ids) {
+    if (id == out->route->instance_id) {
+      return r.reject("skippedInstanceIds", "must not name the route");
+    }
+  }
   return true;
 }
 
