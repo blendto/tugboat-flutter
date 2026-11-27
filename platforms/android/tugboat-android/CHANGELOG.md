@@ -14,6 +14,16 @@ wiring, window capture, and the Android Views adapter.
   example a `testID`), and `setFragmentFilter` (fragments not tracked, by
   class name).
 
+- React Native seam: `TugboatAdapters.setHostNamesScreens(true)` (adapter
+  opt-in) for a host that names its own screens with `Tugboat.setScreen`: the
+  activity is not a route, and the first screen named in a session is its
+  initial route (`session_start`), so the session reports one initial route as
+  Flutter does. Off by default: apps that do not call it are unchanged.
+- Taps carry `routeKey` (the route key the fingerprint was hashed under) as in
+  Flutter. The engine reads it from the anchor's `fingerprintParts`; the Views
+  adapter already sent it. Needs the engine in this tree (`capture-runtime`
+  built from it).
+
 - Host cleanups (BLE-664): when the engine host disables itself (a fatal
   engine status), the outbox drainer and every observer stop, which ends the
   per-frame fact encoding; a closed host takes no post without releasing its
