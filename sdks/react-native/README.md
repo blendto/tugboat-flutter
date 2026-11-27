@@ -31,6 +31,13 @@ cd platforms/android && ./gradlew :capture-runtime:publishAllPublicationsToLocal
   :tugboat-okhttp:publishAllPublicationsToLocalCaptureRepository
 ```
 
-Then build `example/` (see its README). Known gaps in 0.0.1: the SDK starts after
-the activity resumed, so a session begins on the next activity; no screen names
-or `testID` fingerprints yet.
+Then build `example/` (see its README). Known gaps in 0.0.1:
+- The SDK starts after the activity resumed, so a session begins on the next
+  activity; no screen names or `testID` fingerprints yet.
+- Network: a call whose URL path has percent-encoded characters (spaces,
+  non-ASCII) is not recorded. `captureNetwork: false` leaves an app's own
+  `setCustomClientBuilder` alone; the default replaces it.
+- `<Tugboat.Sensitive>` is a real view on Android; on iOS it renders its
+  children only (no wrapper view, `style` ignored).
+- If the native module is not linked on Android, calls warn "only Android is
+  supported" (misleading) and `<Tugboat.Sensitive>` fails to render.
