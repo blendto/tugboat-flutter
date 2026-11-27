@@ -40,8 +40,9 @@ import kotlin.math.abs
  *   `RecyclerView` is left to its own tracker, and one that cannot scroll
  *   (its content fits) is skipped for the one above it. Known gaps: it is
  *   not seen whether the scrollable took the drag, so a child that consumes
- *   drags without scrolling (a signature pad, a map, a Compose list) inside
- *   a scrollable at its edge also reports one; slop and axis use the net
+ *   drags without scrolling (a signature pad, a map, a Compose list, a
+ *   collapsing app bar, a list with scrolling turned off) inside a
+ *   scrollable at its edge also reports one; slop and axis use the net
  *   displacement from down to up, so a pull that returns to its start is
  *   missed; any scroll in the window during the drag suppresses it; and
  *   `onScrollChanged` runs at the next draw, so a scroll in the same input

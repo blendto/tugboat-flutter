@@ -106,6 +106,7 @@ class ScrollFactsTest {
     fun shortContentATapAndAnotherAxisAreNotOverscrolls() {
         val (_, fits) = scrollViewTracker(contentHeight = 100)
         touch(fits, 100f, 300f, 100f, 700f)
+        assertEquals("content that fits", emptyList<String>(), phases())
         val (_, tall) = scrollViewTracker(contentHeight = 4_000)
         touch(tall, 100f, 300f, 100f, 305f) // inside the touch slop
         touch(tall, 500f, 300f, 100f, 300f) // a sideways drag on a vertical list
