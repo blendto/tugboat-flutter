@@ -31,7 +31,7 @@ cd platforms/android && ./gradlew :capture-runtime:publishAllPublicationsToLocal
   :tugboat-okhttp:publishAllPublicationsToLocalCaptureRepository
 ```
 
-Then build `example/` (see its README). Known gaps in 0.0.1:
+Then build `example/` (see its README). Known gaps in 0.0.2:
 - Screens: `Tugboat.trackNavigation(navigationRef)` (React Navigation) or
   `Tugboat.setScreen(name, instanceId?)`. A `testID` is the view's tag and
   fingerprint name. A content provider installs the observation before the first

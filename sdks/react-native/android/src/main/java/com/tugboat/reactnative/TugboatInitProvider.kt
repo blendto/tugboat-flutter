@@ -13,7 +13,7 @@ import com.tugboat.android.adapter.TugboatAdapters
 /**
  * Runs before any activity exists: the SDK then knows the first activity when
  * JavaScript calls `Tugboat.start` later. Does nothing else, and nothing here
- * throws. If `Tugboat.start` never runs, it only observes activity lifecycle.
+ * throws. If `Tugboat.start` never runs, it only observes activities and fragments.
  */
 @OptIn(TugboatAdapterApi::class)
 class TugboatInitProvider : ContentProvider() {

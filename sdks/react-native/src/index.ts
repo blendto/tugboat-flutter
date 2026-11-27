@@ -35,7 +35,7 @@ function call(name: string, run: () => void): void {
     if (Platform.OS !== 'android' || NativeTugboat == null) {
       if (!warned) {
         warned = true;
-        console.warn(`[Tugboat] ${name}: only Android is supported in 0.0.1; ignored.`);
+        console.warn(`[Tugboat] ${name}: only Android is supported; ignored.`);
       }
       return;
     }
@@ -103,14 +103,15 @@ export const Tugboat = {
         if (focused == null) return;
         const id = `${focused.name}\u0000${focused.key}`;
         if (id === last) return;
-        last = id;
         Tugboat.setScreen(focused.name, focused.key);
+        last = id;
       } catch (e) {
         console.warn('[Tugboat] trackNavigation failed', e);
       }
     };
     try {
       const subs = [navigationRef.addListener('state', report), navigationRef.addListener('ready', report)];
+      if (navigationRef.isReady?.()) report(); // called after the container is ready
       return () => subs.forEach((unsubscribe: () => void) => unsubscribe());
     } catch (e) {
       console.warn('[Tugboat] trackNavigation failed', e);
