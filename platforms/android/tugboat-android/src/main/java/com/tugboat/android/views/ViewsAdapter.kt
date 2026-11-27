@@ -32,10 +32,8 @@ import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.android.views.mask.WindowMasks
 import com.tugboat.android.views.navigation.ActivityNavigation
 import com.tugboat.android.views.navigation.NavigationChange
-import com.tugboat.android.views.navigation.NavigationKind
 import com.tugboat.android.views.navigation.NavigationObservation
 import com.tugboat.android.views.navigation.NavigationProcessState
-import com.tugboat.android.views.navigation.SessionStartSnapshot
 import com.tugboat.android.views.overlay.withOverlayWindow
 import org.json.JSONObject
 
@@ -95,9 +93,6 @@ internal class ViewsAdapter(
     @VisibleForTesting
     internal val focusState = FocusState()
     private var started = false
-
-    /** True once this session has posted a navigation fact (main thread). */
-    private var navigationPosted = false
     private var windowCallbacksRegistered = false
 
     /** The window whose draws the re-sample watch reports and whose inventory a sample answers with. Main thread. */
@@ -311,30 +306,17 @@ internal class ViewsAdapter(
 
     private fun reportNavigation(change: NavigationChange) {
         if (!postNavigationFacts) return
-        if (TugboatAdapters.hostNamesScreens) {
-            // The host names its screens: the activity is not a route, and the
-            // first screen of the session is its initial route.
-            if (ActivityNavigation.isActivityNavigator(change.navigatorId)) return
-            if (!navigationPosted && change.kind == NavigationKind.Push && change.departing == null) {
-                navigationPosted = true
-                emit(SessionStartSnapshot(change.navigatorId, change.parentNavigatorId, listOf(change.route)).toFact(clock.now()))
-                return
-            }
-        }
-        navigationPosted = true
+        // The host names its screens: the activity is not a route.
+        if (TugboatAdapters.hostNamesScreens && ActivityNavigation.isActivityNavigator(change.navigatorId)) return
         emit(change.toFact(clock.now()))
     }
 
     private fun emitSessionStartSeeds() {
-        navigationPosted = false
         if (!postNavigationFacts) return
         val now = clock.now()
         NavigationProcessState.sessionStartSnapshots()
             .filterNot { TugboatAdapters.hostNamesScreens && ActivityNavigation.isActivityNavigator(it.navigatorId) }
-            .forEach { snapshot ->
-                navigationPosted = true
-                emit(snapshot.toFact(now))
-            }
+            .forEach { snapshot -> emit(snapshot.toFact(now)) }
     }
 
     private fun onFrame() {

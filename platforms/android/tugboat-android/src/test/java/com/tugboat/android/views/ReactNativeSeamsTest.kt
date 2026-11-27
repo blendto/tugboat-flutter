@@ -16,6 +16,7 @@ import com.tugboat.android.views.navigation.NavigationObservation
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -109,7 +110,7 @@ class ReactNativeSeamsTest {
     }
 
     @Test
-    fun whenTheHostNamesScreensTheFirstScreenIsTheOnlyInitialRoute() {
+    fun whenTheHostNamesScreensTheActivityIsNotARouteAndTheFirstScreenIsTheFirst() {
         TugboatAdapters.setHostNamesScreens(true)
         TugboatAdapters.install(app)
         Robolectric.buildActivity(FragmentActivity::class.java).setup()
@@ -119,11 +120,11 @@ class ReactNativeSeamsTest {
 
         Tugboat.setScreen("Tabs/Home", "k1")
         val home = navigation().single()
-        assertEquals("session_start", home.getString("kind"))
-        assertEquals(1, home.getJSONArray("routes").length())
-        assertEquals("Tabs/Home", home.getJSONArray("routes").getJSONObject(0).getString("name"))
+        assertEquals("push", home.getString("kind"))
+        assertEquals("Tabs/Home", home.getJSONObject("route").getString("name"))
+        assertFalse(home.has("departing"))
 
-        // Later screens are ordinary pushes.
+        // Later screens push over it.
         Tugboat.setScreen("Tabs/Catalog", "k2")
         val catalog = navigation().single()
         assertEquals("push", catalog.getString("kind"))
