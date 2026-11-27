@@ -199,6 +199,16 @@ final class Outbox {
     queue.sync {}
   }
 
+  /// Waits up to `timeout` seconds for every write queued before this call;
+  /// true when they landed (Android's `awaitQueued`). A stuck disk cannot hold
+  /// the caller past the bound; writes still queued land later, on the outbox
+  /// queue. Not on the outbox queue.
+  func waitForWrites(timeout: TimeInterval) -> Bool {
+    let landed = DispatchSemaphore(value: 0)
+    queue.async { landed.signal() }
+    return landed.wait(timeout: .now() + timeout) == .success
+  }
+
   /// Runs `work` on the outbox queue once every write queued before this
   /// call is on disk; never waits. Any thread.
   func afterWrites(_ work: @escaping () -> Void) {

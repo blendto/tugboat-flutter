@@ -3,14 +3,16 @@ import Dispatch
 /// Executes `timer.schedule` / `timer.cancel` with one `DispatchSourceTimer`
 /// per timer id on the engine queue. The engine's `atMonoUs` is in the host
 /// clock's timebase (`ProcessInfo.systemUptime`, see `SystemHostClock`). The
-/// timer is armed for the remaining time from `DispatchTime.now()`, which
-/// runs on the same mach uptime clock. The delay saturates, so no deadline
+/// timer is armed for the remaining time from the injected `HostClock`'s
+/// `now()` to `atMonoUs`, added to `DispatchTime.now()` (the same mach uptime
+/// clock for `SystemHostClock`). The delay saturates, so no deadline
 /// can overflow. The two clocks are read a moment apart, so a timer may fire
 /// a hair early; `EngineHost` stamps a fire no earlier than its `atMonoUs`.
 ///
 /// Confined to `queue`; `onFired` runs there with the timer's deadline.
 final class TimerExecutor {
   private let queue: DispatchQueue
+  private let clock: HostClock
   private let onFired: (_ timerId: String, _ atMonoUs: Int64) -> Void
   private var pending: [String: Armed] = [:]
   private var lastGeneration: UInt64 = 0
@@ -21,8 +23,9 @@ final class TimerExecutor {
     let generation: UInt64
   }
 
-  init(queue: DispatchQueue, onFired: @escaping (_ timerId: String, _ atMonoUs: Int64) -> Void) {
+  init(queue: DispatchQueue, clock: HostClock = SystemHostClock(), onFired: @escaping (_ timerId: String, _ atMonoUs: Int64) -> Void) {
     self.queue = queue
+    self.clock = clock
     self.onFired = onFired
   }
 
@@ -44,7 +47,7 @@ final class TimerExecutor {
       self?.fire(timerId: timerId, generation: generation, atMonoUs: atMonoUs)
     }
     pending[timerId] = Armed(source: timer, generation: generation)
-    let deadline = TimerExecutor.deadline(atMonoUs: atMonoUs, nowMonoUs: SystemHostClock().now().monoUs, now: .now())
+    let deadline = TimerExecutor.deadline(atMonoUs: atMonoUs, nowMonoUs: clock.now().monoUs, now: .now())
     timer.schedule(deadline: deadline, repeating: .never, leeway: .milliseconds(1))
     timer.resume()
   }

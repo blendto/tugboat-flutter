@@ -37,7 +37,7 @@ final class EngineHost {
   private var active = true
   private var consecutiveInternalErrors = 0
 
-  private lazy var timers: TimerExecutor = TimerExecutor(queue: self.queue) { [weak self] timerId, atMonoUs in
+  private lazy var timers: TimerExecutor = TimerExecutor(queue: self.queue, clock: self.clock) { [weak self] timerId, atMonoUs in
     self?.timerFired(timerId: timerId, atMonoUs: atMonoUs)
   }
 

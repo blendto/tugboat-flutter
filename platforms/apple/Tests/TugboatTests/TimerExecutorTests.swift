@@ -153,4 +153,41 @@ final class TimerExecutorTests: XCTestCase {
     XCTAssertEqual(Set(fires.current.map { $0.timerId }), ["negative", "past"])
     XCTAssertEqual(queue.sync { timers.scheduledCount }, 2, "the distant timers stay armed")
   }
+
+  /// A clock whose reading is fixed and unrelated to the system uptime.
+  private struct FixedClock: HostClock {
+    let monoUs: Int64
+    func now() -> HostTime { HostTime(monoUs: monoUs, wallUs: 0) }
+  }
+
+  /// The delay is `atMonoUs` minus the injected clock's `now`, not the system
+  /// uptime: a clock 1000 s ahead of the uptime still fires a timer 100 ms
+  /// after it, where the system clock would make that timer 1000 s away.
+  func testTimersFireByTheInjectedClock() {
+    let fired = expectation(description: "fired")
+    let startedUs = SystemHostClock().now().monoUs
+    let ahead = FixedClock(monoUs: startedUs + 1_000_000_000)
+    let firedAtUs = Locked<Int64>(0)
+    let injected = TimerExecutor(queue: queue, clock: ahead) { _, _ in
+      firedAtUs.withLock { $0 = SystemHostClock().now().monoUs }
+      fired.fulfill()
+    }
+    queue.sync { injected.schedule(timerId: "t", atMonoUs: ahead.monoUs + 100_000) }
+    wait(for: [fired], timeout: 30)
+    XCTAssertGreaterThanOrEqual(firedAtUs.current - startedUs, 90_000, "not before the injected delay")
+    XCTAssertLessThan(firedAtUs.current - startedUs, 30_000_000, "far short of the 1000 s the system clock would give")
+    queue.sync { injected.cancelAll() }
+  }
+
+  /// A deadline already past by the injected clock fires at once, even when
+  /// the system uptime would put it far in the future.
+  func testADeadlinePastByTheInjectedClockFiresAtOnce() {
+    let fired = expectation(description: "fired")
+    let startedUs = SystemHostClock().now().monoUs
+    let late = FixedClock(monoUs: startedUs + 1_000_000_000_000)
+    let injected = TimerExecutor(queue: queue, clock: late) { _, _ in fired.fulfill() }
+    queue.sync { injected.schedule(timerId: "t", atMonoUs: late.monoUs - 1) }
+    wait(for: [fired], timeout: 30)
+    queue.sync { injected.cancelAll() }
+  }
 }
