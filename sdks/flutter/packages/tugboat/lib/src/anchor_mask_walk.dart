@@ -62,9 +62,15 @@ class _MaskWalk {
   /// element's `renderObject` is its first descendant's, which says nothing
   /// about the element itself.
   bool _notPainted(Element element, Widget widget) =>
-      tugboatHidesSubtree(widget) ||
+      _hidesSubtree(widget) ||
       (element is RenderObjectElement &&
           tugboatHidesRenderObject(element.renderObject));
+
+  /// `Visibility(visible: false)` paints its `replacement`; only the
+  /// `maintainState` form keeps the real child unpainted and nothing else.
+  bool _hidesSubtree(Widget widget) => widget is Visibility
+      ? !widget.visible && widget.maintainState
+      : tugboatHidesSubtree(widget);
 
   /// The theater under an [Overlay] keeps entries below an opaque route as
   /// offstage children. Its onstage visit skips exactly those.
@@ -92,10 +98,20 @@ class _MaskWalk {
     if (!_maskedRenderObjects.add(renderObject)) return;
     // Throws when the transform cannot be computed: an element that must be
     // masked and cannot be placed fails the capture.
+    final transform = renderObject.getTransformTo(rootRender);
+    // An all-zero matrix is a kept-alive child that is not painted.
+    if (_isAllZero(transform)) return;
     final rect = MatrixUtils.transformRect(
-      renderObject.getTransformTo(rootRender),
+      transform,
       renderObject.paintBounds,
     ).intersect(rootRender.paintBounds);
+    if (!rect.isFinite) {
+      throw StateError(
+        'Mask rect is not finite for ${renderObject.runtimeType}.',
+      );
+    }
     if (rect.width > 0 && rect.height > 0) masks.add(rect);
   }
+
+  bool _isAllZero(Matrix4 matrix) => matrix.storage.every((v) => v == 0);
 }

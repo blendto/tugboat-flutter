@@ -351,6 +351,78 @@ void main() {
       );
     });
 
+    testWidgets(
+      'Visibility(visible: false, replacement:) paints the replacement',
+      (tester) async {
+        await expectMasked(
+          tester,
+          _all,
+          const Visibility(
+            visible: false,
+            replacement: Text('Card 4242 4242', key: _k),
+            child: SizedBox(),
+          ),
+          find.byKey(_k),
+        );
+      },
+    );
+
+    testWidgets('TugboatSensitive in a Visibility replacement is masked', (
+      tester,
+    ) async {
+      await expectMasked(
+        tester,
+        _explicit,
+        const Visibility(
+          visible: false,
+          replacement: TugboatSensitive(child: _panel),
+          child: SizedBox(),
+        ),
+        find.byKey(_panelKey),
+      );
+    });
+
+    testWidgets('Visibility(maintainState) hidden child stays unmasked', (
+      tester,
+    ) async {
+      final key = await _pumpBody(
+        tester,
+        const Column(
+          children: [
+            Text('visible'),
+            Visibility(
+              visible: false,
+              maintainState: true,
+              child: Text('gone', key: _k),
+            ),
+          ],
+        ),
+      );
+      final result = await _capture(key, _all);
+      expect(result.masks, hasLength(1));
+    });
+
+    testWidgets('a non-finite mask rect fails the capture', (tester) async {
+      final key = await _pumpBody(
+        tester,
+        const _NanImage(key: _k, width: 40, height: 40),
+      );
+      final result = await _capture(key, _all);
+      expect(result.failure, ScreenshotCaptureFailure.maskFailed);
+    });
+
+    testWidgets('an all-zero transform (not painted) is skipped', (
+      tester,
+    ) async {
+      final key = await _pumpBody(
+        tester,
+        const _ZeroImage(key: _k, width: 40, height: 40),
+      );
+      final result = await _capture(key, _all);
+      expect(result.failure, isNot(ScreenshotCaptureFailure.maskFailed));
+      expect(result.masks, isEmpty);
+    });
+
     testWidgets('Offstage Text is not painted, so not masked', (tester) async {
       final key = await _pumpBody(
         tester,
@@ -498,8 +570,9 @@ void main() {
                   alignment: Alignment.bottomLeft,
                   child: TextButton(
                     onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) =>
+                      PageRouteBuilder<void>(
+                        transitionDuration: Duration.zero,
+                        pageBuilder: (_, _, _) =>
                             const Scaffold(body: Text('second page')),
                       ),
                     ),
@@ -511,9 +584,13 @@ void main() {
           ),
         ),
       );
-      final firstBounds = _boundsOf(tester, find.byKey(_k));
       await tester.tap(find.byKey(_k));
       await tester.pumpAndSettle();
+      // The covered page is still mounted (maintainState) but not painted.
+      final firstBounds = _boundsOf(
+        tester,
+        find.byKey(_k, skipOffstage: false),
+      );
       final result = await _capture(key, _all);
       expect(result.failure, isNot(ScreenshotCaptureFailure.maskFailed));
       expect(_touches(result.masks, firstBounds), isFalse);
@@ -594,6 +671,44 @@ class _ThrowingRenderImage extends RenderImage {
   Matrix4 getTransformTo(RenderObject? ancestor) {
     if (ancestor is RenderRepaintBoundary) {
       throw StateError('transform unavailable');
+    }
+    return super.getTransformTo(ancestor);
+  }
+}
+
+class _NanImage extends LeafRenderObjectWidget {
+  const _NanImage({super.key, required this.width, required this.height});
+
+  final double width;
+  final double height;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _NanRenderImage(width: width, height: height, zero: false);
+}
+
+class _ZeroImage extends LeafRenderObjectWidget {
+  const _ZeroImage({super.key, required this.width, required this.height});
+
+  final double width;
+  final double height;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _NanRenderImage(width: width, height: height, zero: true);
+}
+
+class _NanRenderImage extends RenderImage {
+  _NanRenderImage({super.width, super.height, required this.zero});
+
+  final bool zero;
+
+  @override
+  Matrix4 getTransformTo(RenderObject? ancestor) {
+    if (ancestor is RenderRepaintBoundary) {
+      return zero
+          ? Matrix4.zero()
+          : (Matrix4.identity()..setEntry(0, 3, double.nan));
     }
     return super.getTransformTo(ancestor);
   }

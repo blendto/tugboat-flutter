@@ -12,7 +12,6 @@ class _TokenMap {
     required this.hasActionableDescendant,
     required this.hasTokenizedActionableDescendant,
     required this.isSensitive,
-    required this.underActionable,
     required this.structuralRouteSignature,
     required this.renderElements,
     required this.hasBlockingOverlay,
@@ -38,7 +37,6 @@ class _TokenMap {
   final Map<Element, bool> hasActionableDescendant;
   final Map<Element, bool> hasTokenizedActionableDescendant;
   final Map<Element, bool> isSensitive;
-  final Map<Element, bool> underActionable;
   final String structuralRouteSignature;
   final Map<RenderObject, Element> renderElements;
   final bool hasBlockingOverlay;
@@ -128,7 +126,6 @@ class _TokenMapVisitor {
     required this.hasActionableDescendant,
     required this.hasTokenizedActionableDescendant,
     required this.isSensitive,
-    required this.underActionable,
     required this.ordinalCounters,
     required this.renderElements,
     required this.includedElements,
@@ -146,7 +143,6 @@ class _TokenMapVisitor {
   final Map<Element, bool> hasActionableDescendant;
   final Map<Element, bool> hasTokenizedActionableDescendant;
   final Map<Element, bool> isSensitive;
-  final Map<Element, bool> underActionable;
   final Map<Object, int> ordinalCounters;
   final Map<RenderObject, Element> renderElements;
   final Set<Element> includedElements;
@@ -177,7 +173,7 @@ class _TokenMapVisitor {
       }
       return const _VisitAcc();
     }
-    _noteElement(element, widget, renderObject, sensitive, underActionable);
+    _noteElement(element, widget, renderObject, sensitive);
     final candidate = _candidateFor(
       element,
       retainedParent,
@@ -224,11 +220,9 @@ class _TokenMapVisitor {
     Widget widget,
     RenderObject? renderObject,
     bool sensitive,
-    bool actionable,
   ) {
     final elementSensitive = sensitive || widget is TugboatSensitive;
     isSensitive[element] = elementSensitive;
-    underActionable[element] = actionable;
     if (renderObject != null) renderElements[renderObject] = element;
     if (widget is TugboatSubView && subLabel == null) subLabel = widget.label;
   }
@@ -486,7 +480,6 @@ class _TokenMapVisitor {
       hasActionableDescendant.remove(key);
       hasTokenizedActionableDescendant.remove(key);
       isSensitive.remove(key);
-      underActionable.remove(key);
     }
   }
 
@@ -1401,7 +1394,6 @@ class AnchorResolver {
     final hasActionableDescendant = <Element, bool>{};
     final hasTokenizedActionableDescendant = <Element, bool>{};
     final isSensitiveMap = <Element, bool>{};
-    final underActionableMap = <Element, bool>{};
     final ordinalCounters = <Object, int>{};
     final renderElements = <RenderObject, Element>{};
     final includedElements = <Element>{};
@@ -1418,7 +1410,6 @@ class AnchorResolver {
       hasActionableDescendant: hasActionableDescendant,
       hasTokenizedActionableDescendant: hasTokenizedActionableDescendant,
       isSensitive: isSensitiveMap,
-      underActionable: underActionableMap,
       ordinalCounters: ordinalCounters,
       renderElements: renderElements,
       includedElements: includedElements,
@@ -1498,7 +1489,6 @@ class AnchorResolver {
       hasActionableDescendant: hasActionableDescendant,
       hasTokenizedActionableDescendant: hasTokenizedActionableDescendant,
       isSensitive: isSensitiveMap,
-      underActionable: underActionableMap,
       structuralRouteSignature: structuralRouteSignature,
       renderElements: renderElements,
       hasBlockingOverlay: visitor.rootHasBlockingOverlay,
