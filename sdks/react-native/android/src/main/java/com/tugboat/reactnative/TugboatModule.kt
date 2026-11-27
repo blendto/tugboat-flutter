@@ -37,7 +37,7 @@ class TugboatModule(reactContext: ReactApplicationContext) : NativeTugboatSpec(r
                 ),
                 app = appInfo,
                 enabled = config.bool("enabled", false),
-                // Only allTextAndMedia exists; any other string is that level too.
+                // maskLevel is not read: only allTextAndMedia exists, and it is the default.
                 captureFocusChanges = config.bool("captureFocusChanges", false),
                 captureSystemInput = config.bool("captureSystemInput", false),
                 captureDiagnostics = config.bool("captureDiagnostics", false),
@@ -47,6 +47,8 @@ class TugboatModule(reactContext: ReactApplicationContext) : NativeTugboatSpec(r
         if (config.bool("captureNetwork", true)) {
             val hosts = config.getArray("networkAllowHosts")?.toArrayList()?.mapNotNull { it as? String }.orEmpty()
             TugboatNetwork.install(hosts.toSet())
+        } else {
+            TugboatNetwork.uninstall()
         }
     }
 

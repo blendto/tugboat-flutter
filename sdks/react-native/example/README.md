@@ -18,9 +18,12 @@ URL, default `https://httpbin.org`). Every interactive element has a `testID`.
 
 ## Where the SDK plugs in
 
-`src/tugboat.ts` exports a no-op `init()` and a pass-through `Sensitive`
-component. The SDK PR replaces that file. The Payment card fields and the
-profile one-time-code field are already wrapped in `Sensitive`.
+`src/tugboat.ts` starts `@tugboat/react-native` (`file:..`) against the local
+capture collector (`http://localhost:3000`, via `adb reverse tcp:3000 tcp:3000`)
+and exports `Sensitive`. The Payment card fields and the profile one-time-code
+field are wrapped in it. Publish the Android SDK to `.local-maven` first: see
+`../README.md`. Release builds allow cleartext only to `localhost`; debug builds
+also allow `10.0.2.2` (emulator host).
 
 ## Run
 

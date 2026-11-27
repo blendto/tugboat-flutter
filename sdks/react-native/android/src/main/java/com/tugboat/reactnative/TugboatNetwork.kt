@@ -11,7 +11,12 @@ import okhttp3.Request
  * custom client builder, so this replaces an app's own.
  */
 internal object TugboatNetwork {
-    fun install(allowHosts: Set<String>) {
+    /** Removes the interceptor (for `captureNetwork: false`). */
+    fun uninstall() = NetworkingModule.setCustomClientBuilder(null)
+
+    fun install(hosts: Set<String>) {
+        // OkHttp lower-cases hosts.
+        val allowHosts = hosts.map { it.lowercase() }.toSet()
         NetworkingModule.setCustomClientBuilder(
             object : NetworkingModule.CustomClientBuilder {
                 override fun apply(builder: OkHttpClient.Builder) {

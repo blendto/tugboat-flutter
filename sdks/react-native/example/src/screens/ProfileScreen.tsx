@@ -53,7 +53,6 @@ export default function ProfileScreen() {
         <View style={{ flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#0006' }}>
           <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16 }}>
             <Text style={s.h1}>Human verification required</Text>
-            {/* TODO(@tugboat/react-native): the one-time code is sensitive. */}
             <Sensitive>
               <Field testID="profile-verify-code" label="One-time verification code" keyboardType="number-pad" />
             </Sensitive>

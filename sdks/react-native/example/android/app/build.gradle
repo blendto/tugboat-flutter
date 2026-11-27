@@ -112,7 +112,7 @@ android {
     }
 }
 
-// The Tugboat Android SDK, published locally by tool/ci/publish-android-runtime-local.sh.
+// The Tugboat Android SDK, published locally (see sdks/react-native/README.md).
 repositories {
     maven { url = uri("$rootDir/../../../../.local-maven") }
 }

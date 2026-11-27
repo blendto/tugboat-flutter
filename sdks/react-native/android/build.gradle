@@ -1,7 +1,7 @@
 // Autolinked into the app by the React Native Gradle plugin. The Android Gradle
 // plugin, Kotlin and React Native Gradle plugins come from the app's root build.
 // The Tugboat Android SDK comes from the repo's git-ignored `.local-maven`:
-// publish it first with `tool/ci/publish-android-runtime-local.sh` (see README).
+// publish it first with the three Gradle tasks in sdks/react-native/README.md.
 apply plugin: "com.android.library"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
