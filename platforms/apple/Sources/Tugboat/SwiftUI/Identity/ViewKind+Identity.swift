@@ -13,6 +13,7 @@ extension ViewKind {
     case .cell: return "Cell"
     case .scrollView: return "Scrollable"
     case .control: return "Control"
+    case .named: return "Named"
     case .representable, .webView, .renderer: return CanonicalPath.boxToken
     case .internalPlatformView, .label, .image, .sdkOwned, .sensitiveMarker, .other: return nil
     }

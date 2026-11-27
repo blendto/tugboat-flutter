@@ -8,6 +8,17 @@ entry here must match it.
 Unpublished. The native SwiftUI SDK: public facade, engine wiring, capture,
 the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISample`).
 
+- Seams for the React Native SDK (no change for apps that do not use them;
+  `@_spi(TugboatAdapters)`, not public API): `TugboatAdapters.setScreen(name:instanceId:)`
+  names the current screen without `.tugboatScreen` (a push, or a pop to an
+  instance id already on the stack, plus the route key);
+  `setViewNameProvider` gives plain UIKit views a name (a `testID`): a named
+  view is a tap target and a `Named#<ordinal>` path segment, and its name is
+  the anchor's tag and alias; `setViewRoleClassifier` says which view classes
+  draw their own text or images, which the screenshot then masks whole;
+  `markSensitive(_:)` masks a view and its subtree like `.tugboatSensitive()`
+  without changing identity.
+
 - Fingerprint schema 7 and alias confidence (contract change: identity,
   BLE-670): anchors carry `schemaVersion` 7, read from the engine
   (`tb_session_engine_fingerprint_schema_version()`), as Flutter 0.11.0+. The

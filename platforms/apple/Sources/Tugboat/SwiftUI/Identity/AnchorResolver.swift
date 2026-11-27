@@ -113,9 +113,9 @@ final class AnchorResolver {
     let route = RouteKey.resolve(for: view, in: window, screen: screens.visibleTop)
     guard let base = CanonicalPathBuilder.build(root: route.root, target: view) else { return nil }
     let path = leaf.map { base.appending($0.segment) } ?? base
-    let tag = leaf?.tag
     let pathConfidence = AnchorResolver.pathConfidence(path)
     let kind = ViewTree.node(view).kind
+    let tag = leaf?.tag ?? (kind == .named ? HostViewSeams.name(of: view) : nil)
     let structural = IdentityHash.fingerprint([(key: "routeKey", value: route.value), (key: "path", value: path.value)])
     return TargetAnchor(
       widgetType: leaf == nil ? kind.widgetType(of: view) : AnchorResolver.taggedWidgetType,

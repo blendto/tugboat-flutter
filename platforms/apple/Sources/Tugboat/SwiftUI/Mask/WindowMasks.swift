@@ -58,6 +58,12 @@ enum WindowMasks {
   /// still need visiting.
   private static func maskOrWalk(_ node: ViewNode, allowlist: LayerAllowlist?, iOSMajor: Int, into acc: inout MaskAccumulator) -> Bool {
     let view = node.view
+    // A view the host framework marked: masked at its frame, subtree not walked.
+    if HostViewSeams.isSensitive(view) {
+      acc.stats.sensitiveViews += 1
+      acc.add(view: view)
+      return false
+    }
     switch node.kind {
     case .sensitiveMarker:
       acc.stats.sensitiveViews += 1
@@ -87,7 +93,7 @@ enum WindowMasks {
       }
       LayerWalk(classify: allowlist).walk(view, into: &acc)
       return true
-    case .cell, .scrollView, .control, .other, .sdkOwned:
+    case .cell, .scrollView, .control, .named, .other, .sdkOwned:
       LayerWalk(classify: node.insideHosting ? allowlist : nil).walk(view, into: &acc)
       return true
     }

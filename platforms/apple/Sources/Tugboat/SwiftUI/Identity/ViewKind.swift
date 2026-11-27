@@ -38,6 +38,9 @@ enum ViewKind: Equatable {
   /// A `.tugboatSensitive` marker or its host: masked at its frame, in
   /// every mode, and skipped by identity like `sdkOwned`.
   case sensitiveMarker
+  /// A plain view the host framework gave a name (a React Native `testID`,
+  /// `HostViewSeams`): a target and a path segment, the name its alias.
+  case named
   case other
 
   private static let cache = Locked([ObjectIdentifier: ViewKind]())
@@ -52,7 +55,8 @@ enum ViewKind: Equatable {
     case .representable, .internalPlatformView:
       return markerHostKind(view) ?? kind
     case .other:
-      return insideHosting && isAppDefined(cls) ? .representable : .other
+      if insideHosting && isAppDefined(cls) { return .representable }
+      return HostViewSeams.name(of: view) == nil ? .other : .named
     default:
       return kind
     }
@@ -65,6 +69,10 @@ enum ViewKind: Equatable {
       if subview is TagMarkerView { return .sdkOwned }
     }
     return nil
+  }
+
+  static func forgetClassifiedKinds() {
+    cache.withLock { $0.removeAll() }
   }
 
   private static func classKind(_ cls: UIView.Type) -> ViewKind {
@@ -87,6 +95,11 @@ enum ViewKind: Equatable {
     if cls.isSubclass(of: UICollectionViewCell.self) || cls.isSubclass(of: UITableViewCell.self) { return .cell }
     if cls.isSubclass(of: UIScrollView.self) { return .scrollView }
     if cls.isSubclass(of: UIControl.self) { return .control }
+    switch HostViewSeams.role(of: cls) {
+    case .text?: return .label
+    case .image?: return .image
+    case nil: break
+    }
     let name = String(describing: cls)
     if OpaqueRenderers.isRenderer(layerClass: cls.layerClass) || OpaqueRenderers.isRendererViewName(name) {
       return .renderer
