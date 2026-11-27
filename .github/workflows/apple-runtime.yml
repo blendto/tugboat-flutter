@@ -15,6 +15,12 @@ on:
 permissions:
   contents: read
 
+# One run per PR: a new push cancels the previous run. Runs on main are never
+# cancelled, so each merge finishes and saves its caches.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   pod-lib-lint:
     name: pod lib lint

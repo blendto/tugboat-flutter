@@ -6,9 +6,21 @@ name: Android runtime device tests
 # Also runs :tugboat-android:connectedAndroidTest: the real session engine
 # through JNI, including the collector contract test (session_start body,
 # frameMetadata backends).
+# Runs on pushes to main too: Gradle caches are saved only there, and
+# every pull request restores them.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "platforms/android/capture-runtime/**"
+      - "platforms/android/capture-runtime-test/**"
+      - "platforms/android/tugboat-android/**"
+      - "conformance/evidence/**"
+      - "core/image-processing/**"
+      - "core/session-engine/**"
+      - ".github/workflows/android-runtime-device.yml"
+  push:
+    branches: [main]
     paths:
       - "platforms/android/capture-runtime/**"
       - "platforms/android/capture-runtime-test/**"
@@ -23,8 +35,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-runtime-device-${{ github.ref }}
-  cancel-in-progress: true
+  group: android-runtime-device-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   connected:
@@ -47,6 +59,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      # Gradle dependencies and wrapper from the cache; saved by runs on main.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:

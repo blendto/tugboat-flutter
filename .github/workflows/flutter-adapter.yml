@@ -1,11 +1,21 @@
 name: Flutter adapter
 
+# Runs on pushes to main too: caches saved on main are the only ones every
+# pull request can restore.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
 
 permissions:
   contents: read
+
+# One run per PR: a new push cancels the previous run. Runs on main are never
+# cancelled, so each merge finishes and saves its caches.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   pigeon:
