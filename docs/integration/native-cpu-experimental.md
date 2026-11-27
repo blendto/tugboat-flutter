@@ -31,6 +31,47 @@ privacy rules in
 hold for the target app. Physical-device privacy and performance sign-off is
 an internal lab gate.
 
+## When the Android native path runs
+
+On Android the native path copies the Flutter engine's `FlutterSurfaceView`.
+It never copies the app window, so whether it runs depends on how the
+Flutter view renders:
+
+- **Surface render mode** (the default for `FlutterActivity`,
+  `FlutterFragment` and `FlutterView`): the native path runs.
+- **Texture render mode** (`RenderMode.texture`, for example for a
+  transparent Flutter background): there is no `FlutterSurfaceView`, so
+  every request falls back with `unsupportedRenderMode`. After three
+  fallbacks in a row native capture turns off for the rest of the session.
+  Frames are correct, but they cost as much as the default backend.
+- **Hybrid composition platform views** (`initExpensiveAndroidView`, or a
+  plugin option such as `useAndroidViewSurface` or
+  `displayWithHybridComposition`): while one is on screen, Flutter pauses
+  the `FlutterSurfaceView` and draws into a `FlutterImageView` instead. The
+  runtime does not detect this switch and still copies the paused surface.
+  The copy either fails and falls back, or returns the last frame drawn
+  before the switch while the masks describe the current screen. Do not
+  enable the native backend in apps that show hybrid composition platform
+  views. Platform views shown with texture
+  layer hybrid composition (the default for `AndroidView`) do not cause this.
+  On every backend, the default mask level does not mask platform views yet;
+  wrap them in `TugboatSensitive` (see the per-adapter differences in
+  [native-capture-contracts.md](../architecture/native-capture-contracts.md)).
+- **Add-to-app** (a Flutter screen inside a native Android app): the same
+  rules apply to the embedded `FlutterView`. The plugin captures the first
+  `FlutterView` in the current activity.
+
+### Add-to-app and the native SDKs
+
+The native Android and Swift SDKs do not look inside a Flutter view. They
+mask its whole bounds as an opaque surface (a `SurfaceView` or `TextureView`
+on Android, a `CAMetalLayer` on iOS), and taps inside it carry no Flutter
+widget identity. To replay the Flutter screens of an add-to-app host, the
+Flutter module must run the Tugboat Flutter SDK. The Flutter and native
+SDKs then record separate sessions; nothing links them.
+
+## Requirements and status
+
 The Apple plugin requires iOS 15 (same floor as `TugboatCaptureRuntime`).
 Native capture stays opt-in (`nativeCpuExperimental`). Physical device privacy
 and performance rows are still open before making native capture the default.

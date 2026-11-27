@@ -360,7 +360,11 @@ introduced by this section.
 2. **Flutter's `allTextAndMedia` does not classify some content it should
    mask**: `DecorationImage` and `CircleAvatar.backgroundImage`, `Texture`
    (video), `CustomPaint` text, and text with `TextOverflow.visible` that
-   paints outside its box. Wrap them in `TugboatSensitive` until fixed.
+   paints outside its box. Platform views (`AndroidView`, `UiKitView`,
+   `PlatformViewLink`, for example web views and maps) are not classified
+   either: no mask covers their bounds, and a platform view composited as a
+   texture (texture layer hybrid composition, the Android default) can
+   appear in the frame. Wrap them in `TugboatSensitive` until fixed.
    Tracked as BLE-680, "Flutter's default mask level misses profile photos,
    video and painted text". By the rule above these are violations, not
    residuals.
@@ -423,8 +427,21 @@ still required before publication.
 
 Not guaranteed on `engineSurface`: platform views, separate video/map
 surfaces, secure / DRM content, `FlutterTextureView`, hybrid composition.
-Those are unsupported render modes or missing layers, never an unmasked
-substitute.
+
+On Android the runtime looks for `FlutterSurfaceView` and
+`FlutterTextureView` in the view tree. A tree with no `FlutterSurfaceView`,
+or with both, reports `unsupportedRenderMode` and falls back. The Flutter
+plugin only issues `engineSurface` requests; it does not switch to
+`windowComposite` for texture render mode.
+
+Hybrid composition platform views are not detected. While one is shown,
+Flutter pauses the `FlutterSurfaceView` and renders into a
+`FlutterImageView`. The runtime still finds the paused `FlutterSurfaceView`
+and copies it. The copy can fail (`pixelCopyFailed`, so the request falls
+back), or it can return the last frame drawn before the switch, which is
+older than the masks applied to it. Until the runtime detects
+`FlutterImageView`, hosts that show hybrid composition platform views keep
+the default backend. Tracked as BLE-693.
 
 `windowComposite` is one app window's surface: the views drawn into that
 window, `TextureView` included. It is not the full-screen composition.

@@ -614,6 +614,13 @@ fragment `hide`/`show` is not reported; `transitionMs` is 0; window-manager
 activity transitions (not view animations) are not detected for the motion
 fallback.
 
+Embedded Flutter (add-to-app): a `FlutterView` renders into a
+`FlutterSurfaceView` or `FlutterTextureView`, so it is masked fail-closed
+over its whole bounds like any `SurfaceView` / `TextureView`, and taps inside
+it carry no Flutter widget identity. To replay Flutter
+screens, run the Tugboat Flutter SDK in the Flutter module; it records its
+own session, which is not linked to this SDK's session.
+
 ## Toolkit-region seam
 
 Some toolkits draw their whole UI inside one View (Compose's

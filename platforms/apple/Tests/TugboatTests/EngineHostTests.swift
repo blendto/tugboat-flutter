@@ -52,8 +52,9 @@ final class EngineHostTests: XCTestCase {
     host.post(type: type, inputJSON: "{}", at: factAt, frameHandles: frameHandles)
   }
 
+  /// A deadline `ms` after the host's injected clock, which the timers follow.
   private func inMs(_ ms: Int64) -> Int64 {
-    SystemHostClock().now().monoUs + ms * 1000
+    clock.now().monoUs + ms * 1000
   }
 
   func testSinkHealthIsReadOnTheEngineQueueAfterPostedWork() {
@@ -178,10 +179,12 @@ final class EngineHostTests: XCTestCase {
     let firedAgain = expectation(description: "a second timer fired")
     firedAgain.isInverted = true
     let fires = Locked(0)
-    let firedAtMonoUs = Locked<Int64>(0)
+    // The fake clock is fixed, so the real time from the post to the fire is the delay the timer used.
+    let postedAt = SystemHostClock().now().monoUs
+    let elapsedUs = Locked<Int64>(0)
     transport.onSubmit = { message in
       guard message.contains("timer.fired") else { return }
-      firedAtMonoUs.withLock { $0 = SystemHostClock().now().monoUs }
+      elapsedUs.withLock { $0 = SystemHostClock().now().monoUs - postedAt }
       let count = fires.withLock { (count: inout Int) -> Int in
         count += 1
         return count
@@ -194,7 +197,8 @@ final class EngineHostTests: XCTestCase {
     wait(for: [fired], timeout: 30)
     wait(for: [firedAgain], timeout: 0.5)
 
-    XCTAssertGreaterThanOrEqual(firedAtMonoUs.current, flushAt, "never fires early")
+    XCTAssertGreaterThanOrEqual(elapsedUs.current, 290_000, "not before the injected clock's 300 ms")
+    XCTAssertLessThan(elapsedUs.current, 25_000_000)
     XCTAssertEqual(
       transport.submitted.last,
       "{\"type\":\"timer.fired\",\"at\":{\"monoUs\":\(flushAt),\"wallUs\":1791712345678901},"
