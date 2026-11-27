@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.5
+
+- iOS event shape, to match Android and Flutter: a launch while the app is active
+  records `app_foregrounded`; a 4xx/5xx response with no body records an empty
+  `errorResponseBody` (as Android and Dio); a named view's anchor carries
+  `actions` and `enabled`. The JavaScript API and the Android library are
+  unchanged.
+
 ## 0.0.4
 
 - iOS support. The same `NativeTugboat` spec is implemented over the Swift host
