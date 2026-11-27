@@ -181,7 +181,7 @@ Merging publishes \`${flutter}\` to pub.dev via \`publish.yml\`.
 
 ## Test plan
 - [ ] Version policy CI is green
-- [ ] Android example/host resolves \`capture-runtime:${runtime}\` from Maven Central
+- [ ] The plugin resolves the published \`capture-runtime:${runtime}\` from Maven Central (\`TUGBOAT_PUBLISHED_CAPTURE_RUNTIME=1\`; the example otherwise uses the in-repo runtime)
 - [ ] After merge, pub.dev has \`tugboat\` \`${flutter}\`
 
 EOF

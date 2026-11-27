@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Posts or updates the device report comment on a pull request.
 
-A complete report replaces the existing comment (or is posted as a new one).
-An incomplete report never replaces an existing comment: the comment keeps
-its last complete report and gets a warning that the latest run did not
-finish. With no existing comment, the incomplete report is posted as is.
+A complete report replaces the existing comment (or is posted as a new one)
+and is marked complete. An incomplete report never replaces a complete one:
+that comment keeps its report and gets a warning that the latest run did not
+finish. Otherwise (no comment yet, or one that was never complete) the
+incomplete report is posted as is.
 
 Usage:
   upsert-comment.py --repo OWNER/NAME --pr N --report report.md \
@@ -20,6 +21,7 @@ import tempfile
 MARKER = "<!-- tugboat-device-report -->"
 STALE_START = "<!-- tugboat-device-report:stale -->"
 STALE_END = "<!-- /tugboat-device-report:stale -->"
+COMPLETE = "<!-- tugboat-device-report:complete -->"
 BOT = "github-actions[bot]"
 
 
@@ -35,11 +37,20 @@ def gh(*args, body=None):
 
 def find_comment(repo, pr):
     out = gh("api", "--paginate", f"repos/{repo}/issues/{pr}/comments", "--jq", ".[]")
-    for line in out.splitlines():
+    # Not splitlines(): it also splits on U+0085 and similar, which the JSON
+    # encoder leaves unescaped inside comment bodies.
+    for line in out.split("\n"):
+        if not line.strip():
+            continue
         comment = json.loads(line)
         if comment["user"]["login"] == BOT and comment["body"].startswith(MARKER):
             return comment
     return None
+
+
+def marked_complete(report):
+    first, _, rest = report.partition("\n")
+    return f"{first}\n{COMPLETE}\n{rest}"
 
 
 def without_stale_note(body):
@@ -72,7 +83,9 @@ def main():
     existing = find_comment(args.repo, args.pr)
     complete = args.complete == "true"
 
-    if existing and not complete:
+    if complete:
+        body = marked_complete(report)
+    elif existing and COMPLETE in existing["body"]:
         body = with_stale_note(existing["body"], args.run_url)
     else:
         body = report

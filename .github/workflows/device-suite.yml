@@ -7,13 +7,18 @@ name: Device suite
 #   - Actions tab: "Run workflow" (once this file is on the default branch).
 #   - A pull request labelled `device-report`: every push while the label is
 #     on. The report is posted as a PR comment.
-#   - Another workflow: `uses: ./.github/workflows/device-suite.yml`.
+#   - Another workflow: `uses: ./.github/workflows/device-suite.yml`. The
+#     calling job must grant `contents: read` and `pull-requests: write`
+#     (a called workflow cannot have more than its caller).
+# Only a run of both platforms updates the PR comment. `ref` must contain
+# this workflow's scripts (tool/ci/device-report and
+# tool/ci/publish-android-runtime-local.sh), so it cannot be older than them.
 
 on:
   workflow_call:
     inputs:
       ref:
-        description: Commit, branch or tag to test (default the caller's commit).
+        description: Commit, branch or tag to test (default the caller's commit); must contain this workflow's scripts.
         type: string
         default: ""
       platforms:
@@ -27,7 +32,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Commit, branch or tag to test (default the selected branch).
+        description: Commit, branch or tag to test (default the selected branch); must contain this workflow's scripts.
         type: string
         default: ""
       platforms:
@@ -44,14 +49,15 @@ on:
 permissions:
   contents: read
 
-# A new push to a labelled PR cancels its running suite. Adding some other
-# label gets a group of its own, so it never cancels a run in progress.
+# A new push to a labelled PR cancels its running suite. Manual and called
+# runs (they always have inputs.platforms) and runs for some other label
+# each get a group of their own, so they never cancel a run in progress.
 concurrency:
   group: >-
     device-suite-${{
-      (github.event.action == 'labeled' && github.event.label.name != 'device-report')
+      (inputs.platforms != '' || (github.event.action == 'labeled' && github.event.label.name != 'device-report'))
       && github.run_id
-      || (github.event.pull_request.number || inputs.ref || github.ref)
+      || github.event.pull_request.number
     }}
   cancel-in-progress: true
 
@@ -83,7 +89,10 @@ jobs:
           IN_PR: ${{ inputs.pr-number }}
         run: |
           run=true
-          if [[ "$EVENT" == pull_request ]]; then
+          # A called workflow sees its caller's event, so a run with inputs
+          # (manual or called; platforms always has a value then) follows
+          # its inputs whatever the event is.
+          if [[ -z "$IN_PLATFORMS" && "$EVENT" == pull_request ]]; then
             # Only PRs carrying the label; a different label being added is
             # not a reason to run again.
             if [[ "$HAS_LABEL" != true ]] || { [[ "$ACTION" == labeled ]] && [[ "$LABEL" != device-report ]]; }; then
@@ -93,7 +102,14 @@ jobs:
           else
             ref="${IN_REF:-$GITHUB_SHA}"; pr="$IN_PR"; platforms="${IN_PLATFORMS:-android,ios}"
           fi
-          platforms="${platforms// /}"
+          platforms="$(tr -d ' ' <<< "${platforms,,}")"
+          IFS=, read -ra wanted <<< "$platforms"
+          for p in "${wanted[@]}"; do
+            if [[ "$p" != android && "$p" != ios ]]; then
+              echo "::error::Unknown platform '$p' in '$platforms'; use android, ios or android,ios."
+              exit 1
+            fi
+          done
           for p in android ios; do
             on=false
             [[ "$run" == true && ",$platforms," == *",$p,"* ]] && on=true
@@ -130,9 +146,11 @@ jobs:
       # Maven Central, so the report measures the runtime in this commit.
       # The built AAR is cached by a hash of everything it is built from, so
       # it is rebuilt exactly when that source changes.
+      # Saved right after the build, so a failing test later in the job
+      # does not throw the build away.
       - name: Restore the in-repo capture-runtime
         id: runtime
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: .local-maven/com/gettugboat/sdk/capture-runtime
           key: capture-runtime-${{ hashFiles('platforms/android/capture-runtime/**', 'core/image-processing/**', 'platforms/android/*.kts', 'platforms/android/gradle.properties', 'platforms/android/gradle/**', 'tool/ci/publish-android-runtime-local.sh') }}
@@ -141,6 +159,12 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;28.2.13676358" "cmake;3.22.1" > /dev/null
           bash tool/ci/publish-android-runtime-local.sh
+      - name: Save the in-repo capture-runtime
+        if: steps.runtime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .local-maven/com/gettugboat/sdk/capture-runtime
+          key: ${{ steps.runtime.outputs.cache-primary-key }}
       - name: Enable emulator hardware acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -264,7 +288,7 @@ jobs:
           echo "complete=$(cat "$RUNNER_TEMP/complete")" >> "$GITHUB_OUTPUT"
           cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Post or update the PR comment
-        if: needs.plan.outputs.pr != ''
+        if: needs.plan.outputs.pr != '' && needs.plan.outputs.android == 'true' && needs.plan.outputs.ios == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ needs.plan.outputs.pr }}
