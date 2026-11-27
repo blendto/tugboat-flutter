@@ -212,7 +212,7 @@ def benchmark_section(platforms):
     lines = ["### Capture benchmarks", ""]
     lines.append(
         "Fixed script over the example app (browse feed flings, expand/collapse, catalog, "
-        "scroll playground, privacy fixture), one app process per backend. Capture cost is "
+        "scroll playground, privacy fixture; 2 rounds), one app process per backend. Capture cost is "
         "frame wait + readback + mask + encode for each fresh frame; on the native path the "
         "encode part is the platform-channel round trip."
     )

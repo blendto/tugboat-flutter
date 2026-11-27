@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # Runs the Flutter SDK device suite on one emulator or simulator:
-#   1. capture_smoke_test.dart (must pass)
-#   2. device_checklist_test.dart via flutter drive -> device_checklist.json
-#   3. capture_profile_test.dart via flutter drive, once per screenshot
-#      backend -> profile_<backend>.json
+#   1. device_checklist_test.dart via flutter drive -> device_checklist.json
+#   2. capture_profile_test.dart via flutter drive, once per screenshot
+#      backend (2 rounds of the script) -> profile_<backend>.json
+# capture_smoke_test.dart is not run here: the checklist covers the same
+# features row by row, and each app launch costs a build. The smoke test
+# still runs on the host in the package tests.
 # and collects JSON, metadata and logs into OUT_DIR for render-report.py.
 #
 # Usage: run-device-suite.sh <android|ios> <device-id> <out-dir>
 #
 # A checklist row that fails is a result, not a script failure. The script
-# exits non-zero only when the smoke test fails or the harness produced no
-# usable checklist or default-backend profile.
+# exits non-zero only when the harness produced no usable checklist or
+# default-backend profile.
 set -uo pipefail
 
 platform="$1"
@@ -112,25 +114,7 @@ else
 fi
 cat "$out/device.json"
 
-# ---- 1. smoke test -----------------------------------------------------------
-smoke_ok=false
-for attempt in 1 2; do
-  limit=$(( attempt == 1 ? 720 : 360 ))
-  if bounded "$limit" "$logs/smoke-$attempt.log" \
-    flutter test --no-pub ${verbose[@]+"${verbose[@]}"} --reporter expanded -d "$device" \
-    integration_test/capture_smoke_test.dart; then
-    smoke_ok=true
-    break
-  fi
-  echo "::warning::$platform smoke attempt $attempt did not pass"
-  [[ "$platform" == ios ]] || break
-done
-if [[ "$smoke_ok" != true ]]; then
-  echo "::error::$platform capture smoke test failed"
-  status=1
-fi
-
-# ---- 2. checklist -------------------------------------------------------------
+# ---- 1. checklist -------------------------------------------------------------
 # flutter drive writes build/<TBPROF_OUT>.json through the driver.
 drive() {
   local name="$1" target="$2" limit="$3" log="$4"
@@ -161,7 +145,7 @@ if [[ ! -f "$out/device_checklist.json" ]]; then
   status=1
 fi
 
-# ---- 3. backend profiles ----------------------------------------------------
+# ---- 2. backend profiles ----------------------------------------------------
 profile_ok() {
   jq -e '.summary.frames > 0 and .summary.uiFrames > 0' "$1" > /dev/null 2>&1
 }
@@ -181,6 +165,7 @@ for backend in flutterRepaintBoundary nativeCpuExperimental; do
       log="$logs/$name-$mode-$attempt.log"
       drive "$name" capture_profile_test.dart 900 "$log" "--$mode" \
         --dart-define=TUGBOAT_PROFILE=true \
+        --dart-define=TUGBOAT_PROFILE_ROUNDS=2 \
         --dart-define=TUGBOAT_BACKEND="$backend" || true
       if profile_ok "build/$name.json"; then
         cp "build/$name.json" "$out/$name.json"

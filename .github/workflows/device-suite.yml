@@ -1,7 +1,7 @@
 name: Device suite
 
-# The Flutter example on an Android emulator and an iOS simulator: capture
-# smoke test, feature checklist and capture benchmarks, built against the
+# The Flutter example on an Android emulator and an iOS simulator: feature
+# checklist and capture benchmarks, built against the
 # SDK and native runtimes in this repo. Not a merge gate: it runs only when
 # asked for.
 #   - Actions tab: "Run workflow" (once this file is on the default branch).
@@ -172,7 +172,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           sudo udevadm settle
           test -w /dev/kvm
-      - name: Smoke test, feature checklist and capture benchmarks
+      - name: Feature checklist and capture benchmarks
         uses: reactivecircus/android-emulator-runner@v2
         env:
           EMULATOR_GPU: swiftshader
@@ -219,7 +219,7 @@ jobs:
           ')
           xcrun simctl bootstatus "$udid" -b
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
-      - name: Smoke test, feature checklist and capture benchmarks
+      - name: Feature checklist and capture benchmarks
         timeout-minutes: 65
         env:
           SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}

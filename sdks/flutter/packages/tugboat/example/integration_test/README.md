@@ -6,8 +6,9 @@
   A failing row is recorded with its reason and does not fail the run.
 - `capture_profile_test.dart`: capture backend benchmark (below).
 
-The device suite workflow (`.github/workflows/device-suite.yml`) runs all
-three on an Android emulator and an iOS simulator through
+The device suite workflow (`.github/workflows/device-suite.yml`) runs the
+checklist and the profile (2 rounds per backend) on an Android emulator and
+an iOS simulator through
 `tool/ci/device-report/run-device-suite.sh`, and
 `tool/ci/device-report/render-report.py` renders the results as one report.
 It is not a merge gate and runs only when asked for:
