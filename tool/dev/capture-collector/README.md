@@ -22,6 +22,10 @@ The Flutter, Android and Apple SDKs all use these three paths.
 python3 tool/dev/capture-collector/capture_collector.py --port 3000 --out run-flutter
 ```
 
+It listens on `127.0.0.1` only, because it logs every payload. `adb reverse`
+reaches it there. For an emulator at `10.0.2.2` or a phone over the LAN, pass
+`--host 0.0.0.0` (anyone on the network can then post to it).
+
 Output folder:
 
 - `requests.jsonl`: one JSON line per request (`time`, `method`, `path`,

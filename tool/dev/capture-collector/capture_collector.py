@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Local capture collector for SDK development (stdlib only).
 
-  capture_collector.py [serve] [--port 3000] [--out capture-out]
+  capture_collector.py [serve] [--host 127.0.0.1] [--port 3000] [--out capture-out]
   capture_collector.py summarise <out-dir>
   capture_collector.py compare <out-dir-a> <out-dir-b>
 
@@ -119,7 +119,7 @@ def make_handler(out):
 
 
 def serve(a):
-    srv = ThreadingHTTPServer(("0.0.0.0", a.port), make_handler(a.out))
+    srv = ThreadingHTTPServer((a.host, a.port), make_handler(a.out))
     print(f"capture collector on :{a.port}, writing to {a.out}/", flush=True)
     try:
         srv.serve_forever()
@@ -213,6 +213,7 @@ def main():
     s = sub.add_parser("serve")
     for x in (p, s):
         x.add_argument("--port", type=int, default=3000)
+        x.add_argument("--host", default="127.0.0.1")
         x.add_argument("--out", default="capture-out")
     sub.add_parser("summarise").add_argument("dir")
     c = sub.add_parser("compare")
