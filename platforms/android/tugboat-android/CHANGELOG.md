@@ -21,6 +21,14 @@ wiring, window capture, and the Android Views adapter.
   percent-escaped in `canonicalPath` (`%25`, `%23`, `%2F`), so the path stays
   parseable. Names without those characters are unchanged.
 
+- A pop back to a screen several levels down (`Tugboat.setScreen` with an
+  instance id already on the stack, a `NavController` `popBackStack` to an
+  earlier destination, or several fragments popped at once) is one `pop` fact
+  that names the screens in between (`skippedInstanceIds`, engine change
+  BLE-709). `routeStack` is the remaining screens, `fromRoute` the screen that
+  was on top, and the causing tap is kept. Before, the in-between screens
+  stayed in `routeStack` and later routes stacked on them. A contract change.
+
 - Seams for the React Native SDK (no change for apps that do not use them):
   `Tugboat.setScreen(name, instanceId = name)` names the current screen
   without a `NavController` (a push, or a pop to an instance id already on the
