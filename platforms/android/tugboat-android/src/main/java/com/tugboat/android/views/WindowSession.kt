@@ -143,6 +143,7 @@ internal class WindowSession(
     override fun onTouch(event: MotionEvent) {
         if (!attached) return
         pointers.onTouch(event)
+        scrolls?.onTouch(event)
         regionScrolls?.onTouch(event)
         if (event.actionMasked == MotionEvent.ACTION_UP) inputHappened()
     }

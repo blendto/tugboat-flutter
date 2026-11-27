@@ -65,6 +65,75 @@ class ScrollFactsTest {
     }
 
     @Test
+    fun scrollViewPulledPastItsTopIsOneOverscroll() {
+        val (scroll, tracker) = scrollViewTracker(contentHeight = 4_000)
+
+        touch(tracker, 100f, 300f, 100f, 700f) // finger down: the content wants to go up past its start
+
+        assertEquals(listOf("start", "overscroll", "end"), phases())
+        assertEquals(setOf("scrollableId", "phase"), recorded.inputs("scroll")[1].keys().asSequence().toSet())
+        assertEquals(0, scroll.scrollY)
+    }
+
+    @Test
+    fun scrollViewPulledPastItsBottomIsAnOverscrollButNotTheOtherWay() {
+        val (scroll, tracker) = scrollViewTracker(contentHeight = 4_000)
+        scroll.scrollTo(0, 10_000)
+        tracker.onScrollChanged()
+        tracker.onFrame()
+        recorded.facts.clear()
+
+        touch(tracker, 100f, 700f, 100f, 300f) // finger up at the bottom
+        assertEquals(listOf("start", "overscroll", "end"), phases())
+        recorded.facts.clear()
+        touch(tracker, 100f, 300f, 100f, 700f) // finger down: the list could scroll back
+        assertEquals(emptyList<String>(), phases())
+    }
+
+    @Test
+    fun scrollViewThatMovedDuringTheDragIsNotAnOverscroll() {
+        val (scroll, tracker) = scrollViewTracker(contentHeight = 4_000)
+
+        touch(tracker, 100f, 700f, 100f, 300f) { scroll.scrollTo(0, 200); tracker.onScrollChanged() }
+
+        assertEquals(emptyList<String>(), phases().filter { it == "overscroll" })
+    }
+
+    @Test
+    fun shortContentATapAndAnotherAxisAreNotOverscrolls() {
+        val (_, fits) = scrollViewTracker(contentHeight = 100)
+        touch(fits, 100f, 300f, 100f, 700f)
+        val (_, tall) = scrollViewTracker(contentHeight = 4_000)
+        touch(tall, 100f, 300f, 100f, 305f) // inside the touch slop
+        touch(tall, 500f, 300f, 100f, 300f) // a sideways drag on a vertical list
+        assertEquals(emptyList<String>(), phases())
+    }
+
+    private fun scrollViewTracker(contentHeight: Int): Pair<ScrollView, OffsetScrollTracker> {
+        val scroll = ScrollView(context).apply { addView(View(context).apply { minimumHeight = contentHeight }) }
+        val root = FrameLayout(context).apply { addView(scroll) }
+        layOut(root)
+        val tracker = OffsetScrollTracker(root, FactClock(clock), { null }, recorded::emit, { frameRequests++ })
+        tracker.onFrame()
+        recorded.facts.clear()
+        return scroll to tracker
+    }
+
+    /** A window touch stream from ([fromX], [fromY]) to ([toX], [toY]); [between] runs mid-gesture. */
+    private fun touch(
+        tracker: OffsetScrollTracker,
+        fromX: Float,
+        fromY: Float,
+        toX: Float,
+        toY: Float,
+        between: () -> Unit = {},
+    ) {
+        tracker.onTouch(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, fromX, fromY, 0))
+        between()
+        tracker.onTouch(MotionEvent.obtain(0, 50, MotionEvent.ACTION_UP, toX, toY, 0))
+    }
+
+    @Test
     fun recyclerViewDragReportsStartUpdatesAndEnd() {
         val list = recycler(50)
         val tracker = RecyclerScrollTracker(FactClock(clock), anchorResolver(list.parent as FrameLayout)::anchorFor, recorded::emit)
