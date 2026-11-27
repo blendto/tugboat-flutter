@@ -42,3 +42,18 @@ internal class AndroidResourceNames(private val resources: Resources) : Resource
         fun isResourceId(id: Int) = (id ushr 24) != 0
     }
 }
+
+/** [base] names first; a view it has none for falls back to [provider]'s (which may be unset, throw, or return null). */
+internal class FallbackNames(
+    private val base: ResourceNames,
+    private val provider: () -> ((View) -> String?)?,
+) : ResourceNames {
+    override fun entryName(view: View): String? =
+        base.entryName(view) ?: provider()?.let {
+            try {
+                it(view)?.takeIf(String::isNotEmpty)
+            } catch (_: Exception) {
+                null
+            }
+        }
+}

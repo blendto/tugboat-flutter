@@ -5,6 +5,15 @@
 Unpublished. The native Android SDK for Views apps: public facade, engine
 wiring, window capture, and the Android Views adapter.
 
+- Seams for the React Native SDK (no change for apps that do not use them):
+  `Tugboat.setScreen(name, instanceId = name)` names the current screen
+  without a `NavController` (a push, or a pop to an instance id already on the
+  stack, plus the route key). `TugboatAdapters` (adapter opt-in) gains
+  `install(application)` to observe activities before `Tugboat.start`,
+  `setViewNameProvider` (a name for views with no resource-id name, for
+  example a `testID`), and `setFragmentFilter` (fragments not tracked, by
+  class name).
+
 - Host cleanups (BLE-664): when the engine host disables itself (a fatal
   engine status), the outbox drainer and every observer stop, which ends the
   per-frame fact encoding; a closed host takes no post without releasing its
