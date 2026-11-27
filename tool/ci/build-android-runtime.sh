@@ -1,5 +1,17 @@
 #!/usr/bin/env bash
+# Usage: build-android-runtime.sh [--runtime-only]
+#   (default)       everything: capture runtime, sample, and the unpublished
+#                   native host modules (tugboat-android, tugboat-sample,
+#                   tugboat-compose, tugboat-okhttp).
+#   --runtime-only  only what the Flutter SDK uses: capture-runtime, its
+#                   test module and `:sample`. Used for `device-report` PRs.
 set -euo pipefail
+runtime_only=0
+case "${1:-}" in
+  "") ;;
+  --runtime-only) runtime_only=1 ;;
+  *) echo "usage: $0 [--runtime-only]" >&2; exit 2 ;;
+esac
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 android="$root/platforms/android"
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/sdk/android}"
@@ -10,6 +22,10 @@ fi
 cd "$android"
 ./gradlew :capture-runtime:test :capture-runtime-test:test :capture-runtime-test:assembleAndroidTest :capture-runtime:assembleRelease :capture-runtime:publishAllPublicationsToLocalCaptureRepository
 ./gradlew :sample:assembleDebug
+if [[ "$runtime_only" == 1 ]]; then
+  echo "--runtime-only: skipping tugboat-android, tugboat-sample, tugboat-compose, tugboat-okhttp"
+  exit 0
+fi
 # Native host (unpublished): engine JNI build, unit tests, instrumented-test APK.
 ./gradlew :tugboat-android:test :tugboat-android:assembleRelease :tugboat-android:assembleAndroidTest
 # Native SDK sample app (Views + Compose), for emulator device tests against a local collector.

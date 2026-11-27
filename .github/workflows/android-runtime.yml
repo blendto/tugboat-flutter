@@ -1,8 +1,11 @@
 name: Android runtime
 
-# Runs daily from nightly.yml, on pull requests labelled `device-report`
-# (every push while the label is on), or on demand (see README.md in this
-# folder).
+# Runs daily from nightly.yml (everything), on demand (everything), and on
+# pull requests labelled `device-report` (every push while the label is on),
+# where it covers only what the Flutter SDK uses: capture-runtime, its test
+# module and `:sample`, the public API dump and the Flutter plugin check. The
+# unpublished native modules (tugboat-android, tugboat-sample, tugboat-compose,
+# tugboat-okhttp) are skipped there. See README.md in this folder.
 on:
   workflow_call:
   workflow_dispatch:
@@ -50,7 +53,12 @@ jobs:
         run: |
           yes | sdkmanager --install "ndk;28.2.13676358" "cmake;3.22.1" "platforms;android-36" "build-tools;35.0.0"
       - name: Build runtime, tests, local Maven, sample
-        run: bash tool/ci/build-android-runtime.sh
+        env:
+          # Pull requests: the capture runtime only. Nightly and manual runs: all modules.
+          RUNTIME_ONLY: ${{ github.event_name == 'pull_request' && '--runtime-only' || '' }}
+        run: |
+          # shellcheck disable=SC2086 # (empty or one flag)
+          bash tool/ci/build-android-runtime.sh $RUNTIME_ONLY
       - name: Verify public API dump
         run: bash tool/ci/verify-android-runtime-api.sh
       # The Flutter plugin must compile against this runtime as well as the
