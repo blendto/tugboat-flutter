@@ -1,3 +1,10 @@
+## 0.12.8
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.8 (screenshot masking fix). No
+  `tugboat_http` change; its `tugboat` floor is now `^0.12.8`.
+
 ## 0.12.7
 
 ### Changed

@@ -1,3 +1,30 @@
+## 0.12.8
+
+### Fixed
+
+- Privacy: screenshots could be sent with text, images or `TugboatSensitive`
+  regions unmasked. The screenshot mask walk reused the identity walk's
+  pruning, so it skipped content that is still painted:
+  - everything under an `ExcludeSemantics` (Flutter adds one itself in
+    `Text(semanticsLabel:)`, `Icon(semanticLabel:)`, the outgoing child of
+    `AnimatedCrossFade`, the Material and Cupertino date and time pickers and
+    `DropdownMenu` labels), including a `TugboatSensitive` mark inside or
+    directly above it, text fields, obscured fields and images;
+  - the whole screen under an open `showDialog`, `showModalBottomSheet` or
+    `PopupMenuButton` menu, including `TugboatSensitive`;
+  - everything under a `TugboatInternal`.
+  At the default `allTextAndMedia` level this sent that text and those images
+  as pixels; at `explicitOnly` it sent `TugboatSensitive` regions inside those
+  subtrees; at `sensitiveInputsOnly` it sent obscured and email, phone and
+  password fields inside an `ExcludeSemantics`. This affects every earlier
+  version with screenshot capture; upgrade to 0.12.8.
+- The mask walk now has its own pass. It skips only what is not painted
+  (`Offstage`, invisible `Visibility`, opacity 0, and overlay entries below an
+  opaque route). `TugboatInternal` still leaves its subtree out of identity but
+  no longer out of masks. A mask that cannot be computed now fails the capture
+  (`maskFailed`) instead of sending an unmasked frame.
+- No fingerprint, route key, anchor or inventory change.
+
 ## 0.12.7
 
 ### Fixed

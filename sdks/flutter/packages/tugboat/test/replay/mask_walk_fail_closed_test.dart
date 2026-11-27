@@ -253,7 +253,10 @@ void main() {
             child: Align(
               alignment: Alignment.topLeft,
               child: AnimatedCrossFade(
-                firstChild: const Text('outgoing outgoing outgoing', key: ValueKey('out')),
+                firstChild: const Text(
+                  'outgoing outgoing outgoing',
+                  key: ValueKey('out'),
+                ),
                 secondChild: const Text('in', key: ValueKey('in')),
                 crossFadeState: state,
                 duration: const Duration(seconds: 1),
