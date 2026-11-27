@@ -144,6 +144,11 @@ struct CaptureRequest {
   CaptureContext context;
   std::optional<DHashBaseline> dhash_baseline;
   double scale = 1.0;
+  // With `nativeSceneInventory`: the `scene_inventory.trigger` of an
+  // `interaction` capture's inventory (`tap`, `gesture`, `scroll`). The other
+  // triggers map from `trigger` (initial, lifecycle -> resume, route, tap,
+  // scroll, manual).
+  OptString inventory_trigger;
 };
 
 // `scene.watch {armed}`: the settled re-sample watch (section 4.3.2) is armed

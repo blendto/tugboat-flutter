@@ -98,6 +98,8 @@ records next to effects.
 | `http.send` | `requestId` (string, `http-N`), `lane` (`lifecycle`, `events`, `frames`), `path`, `timeoutMs`, either `jsonBody` (the body, already encoded) or `multipart` (`fields`: ordered `[name, value]` string pairs; `frames: [{handle, filename}]`), then `sessionId`, `deliveryKeys`, `isSessionEnd` (below) | `transport.result` |
 | `frame.release` | `handle` | none |
 | `capture.request` | section 8.2 | `capture.result` |
+| `scene.watch` | `armed` (boolean) | none; while armed, `scene.frame` facts (section 4.3.2) |
+| `scene.sample` | none | `scene.inventory {resample: true, …}`, or nothing |
 | `outbox.write` / `outbox.remove` | section 7.8 (phase 3e) | none |
 
 Every `http.send` also arms `delivery.answer.<requestId>` at `timeoutMs +
@@ -220,6 +222,8 @@ of the two. When the larger of `totalElements` and
 `scene_inventory`, and only when the dedupe key is new; a duplicate records
 neither. `inventoryHash` is over the kept element list. Dart exploration
 still attaches inventory on pointer `down` when `sceneInventory` is on.
+The fact also carries the exploration metadata and the re-sample answer
+(section 4.3.2).
 Legacy `event.record` for other toolkit types:
 
 `{eventType, stream, data?, targetAnchor?, atMonoUs?, attachActionContext}`
@@ -230,6 +234,64 @@ enriches and appends the event.
 
 `locale.set {locale}` dedupes, updates the current locale, and emits
 `locale_changed` while a session is active.
+
+#### 4.3.2 Exploration metadata and the settled re-sample
+
+Flutter 0.11.0 added exploration metadata and a settled re-sample to its
+`scene_inventory` events and 0.12.0 removed loading-state detection from them.
+A native adapter sends the same through `scene.inventory`, and the engine owns
+the re-sample rules, so every host and toolkit gets one implementation.
+
+**Metadata** (optional on the fact; each is emitted only when sent, none is
+hash input, none is part of the de-duplication key):
+
+| Fact field | Event field | Notes |
+| --- | --- | --- |
+| `trigger` | `trigger` | `initial`, `resume`, `route`, `tap`, `scroll`, `gesture`, `settled`, `manual`. A `capture.request` of an `interaction` trigger carries `inventoryTrigger` (`tap`, `gesture`, `scroll`) when `nativeSceneInventory` is on; the other captures map from `trigger` (`lifecycle` is `resume`). |
+| `surface {kind, widgetClass?}` | `surface` | `kind`: `page`, `sheet`, `dialog`, `popup`, `menu` |
+| `viewport {widthPx, heightPx, devicePixelRatio, boundaryOffset, insets, keyboardInset}` | `viewport` | Logical pixels. The engine adds `referenceFrame: "captureBoundary"`. |
+| `scroll {offsetPx, maxExtentPx?}` | `scroll` | Primary vertical scrollable. The engine adds `axis: "vertical"`. |
+| element `visibleFraction` | same | 0 to 1; absent when fully visible |
+| element `tag` | same | An explicit developer tag |
+| element `positional: true` | same | The path runs through `[item:N]`; the adapter sets it |
+
+A `scroll` inventory that matches the last one sent (same route, hash, element
+count and boxes on a 2% grid) is not recorded.
+
+**Re-sample.** With `capabilities.resampleSettledInventory` (and
+`nativeSceneInventory`) the engine remembers, per route visit (route epoch),
+each element's path with list positions collapsed (`[item:N]` becomes
+`[item]`, except a `PageView`'s own page position) and the enabled states it
+was sent in. Every inventory fact arms a watch (an inventory with no
+elements too). The host reports drawn frames while the watch is armed:
+
+- `scene.watch {armed: true}` asks the host to send `scene.frame {}` for drawn
+  frames, at most once per 100 ms; `armed: false` stops it.
+- A frame with no window open opens one, 400 ms. A window that ends with no
+  frame in it means the page is quiet: the engine sends `scene.sample`. A
+  window with frames opens another, until 2 s of activity force a sample.
+- `scene.sample` asks the host to build the visible route's inventory and
+  send it as `scene.inventory {resample: true, …}`. The window doubles (up to
+  6.4 s) for each sample that is not emitted, and goes back to 400 ms when
+  one is, or when a new inventory is sent.
+- The answer is emitted only when it adds a path, or a state (enabled or
+  disabled), not yet sent in the visit, and is not an exact repeat of an
+  emitted content (fingerprints with enabled states). A state flip keeps its
+  fingerprints, so it is recorded although its de-duplication key is known.
+  `trigger` is the moment that asked for it (`tap`, `gesture`, `scroll` from
+  the last inventory), used once, else `settled`.
+- At most 50 re-sampled inventories per route visit. The watch ends on a route
+  change, a pause or hide, session end and dispose, and never on a timer.
+  An answer with no watch armed is dropped.
+
+The switch defaults to off in the engine (so a host that does not run the
+watch changes nothing); the Android and Swift hosts turn it on with
+`emitSceneInventory`, as Flutter's `resampleSettledInventory` defaults to on in
+exploration. The engine does not know what the host's `hasScheduledFrame`
+says, so a window that ends while a frame is already on its way samples.
+Fixtures: `scene-inventory-exploration-metadata`,
+`scene-inventory-resample-settled`, `scene-inventory-resample-empty-first`,
+`scene-inventory-trigger-tap-capture`.
 
 #### 4.3.1 External events and network calls
 
@@ -571,11 +633,13 @@ This needs an idempotency key on the wire so the collector can deduplicate
 retried work (Q2). Phase 3e is deferred until Q2 is answered and is not part
 of the current milestone.
 
-### 7.9 Exploration WebSocket
+### 7.9 Exploration WebSocket (removed)
 
-It stays a host mechanism with its current queue (200 messages) and fixed
-2 s reconnect. It receives the same engine records. It is a development
-transport, and moving its policy into the engine buys little (Q4).
+Flutter 0.11.0 removed the exploration WebSocket sink, its
+`explorationCollectorUrl` option, the control messages and the frame
+suppression they drove, because nothing received the socket. The engine and
+the native hosts have no WebSocket transport either, and none is planned:
+records leave only through the collector `http.send` lanes (Q4).
 
 ## 8. Navigation and capture coordination (phase 3d)
 
@@ -1000,8 +1064,8 @@ All five were decided on 2026-10-12.
   collector change and a cross-repo decision. Phase 3e is out of the current
   milestone; native hosts deliver from memory, like Flutter does today.
 - **Q3: Non-202 success codes.** Keep 202-only acceptance (C8).
-- **Q4: Exploration WebSocket policy.** It stays host-side. Native SDKs do not
-  need it in the current milestone.
+- **Q4: Exploration WebSocket policy.** Removed (Flutter 0.11.0). No engine or
+  host WebSocket transport exists.
 - **Q5: In-memory session ownership.** Limits stay config-driven with today's
   defaults. Native SDKs do not need snapshot export, so native hosts may pass
   smaller limits later.

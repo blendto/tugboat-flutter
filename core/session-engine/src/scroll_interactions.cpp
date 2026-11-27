@@ -109,7 +109,7 @@ void request_capture(Turn& turn, const std::string& start_id,
   completion.superseded =
       completion.route_epoch != state.navigation.route_epoch;
   state.captures.request(turn, {CaptureOwner::Kind::kScrollEnd, start_id},
-                         interaction_capture(start_id));
+                         interaction_capture(start_id, "scroll"));
 }
 
 void end_scroll(Turn& turn, const ScrollFact& fact) {

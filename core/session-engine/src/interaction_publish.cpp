@@ -119,7 +119,7 @@ void complete_gesture(Turn& turn, const TransactionPtr& tx) {
   gesture.tx = tx;
   state.interactions.gestures.put(tx->id(), std::move(gesture));
   state.captures.request(turn, {CaptureOwner::Kind::kGesture, tx->id()},
-                         interaction_capture(tx->id()));
+                         interaction_capture(tx->id(), "gesture"));
 }
 
 void finish_gesture(Turn& turn, const std::string& interaction_id,

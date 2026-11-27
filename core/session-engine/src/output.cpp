@@ -134,6 +134,7 @@ struct EffectJson {
       out.set("dHashBaseline", std::move(baseline));
     }
     out.set("scale", Value::number(effect.scale));
+    put_opt(&out, "inventoryTrigger", effect.inventory_trigger);
     return out;
   }
 };
