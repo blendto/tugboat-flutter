@@ -293,6 +293,23 @@ Fixtures: `scene-inventory-exploration-metadata`,
 `scene-inventory-resample-settled`, `scene-inventory-resample-empty-first`,
 `scene-inventory-trigger-tap-capture`.
 
+**Who owns what** (BLE-621):
+
+| Flutter change (0.11.0 PR #143, 0.12.0 PR #154) | Engine | Native host (Kotlin, Swift) | Toolkit adapter (Views, Compose, SwiftUI) | Flutter-only |
+| --- | --- | --- | --- | --- |
+| `trigger` on every inventory | validates and emits it; `capture.request.inventoryTrigger` for interaction captures | Android: maps the capture request to the label | Views: forwards it | |
+| `surface {kind, widgetClass}` | carries and emits it | | Views: window kind and callback class. Compose, SwiftUI: not built | |
+| `viewport`, `scroll` | carries and emits them (adds `referenceFrame`, `axis`) | | Views: window size, insets, keyboard, largest vertical scrollable. Compose, SwiftUI: not built | |
+| `visibleFraction`, `tag`, `positional` per element | carries and emits them | | Views: visible rect share, `anchor.tag`, `[item:` path. Compose entries carry no `visibleFraction`. SwiftUI: not built | |
+| Settled re-sample: novelty per route visit, 400 ms / 2 s / 6.4 s windows, per-visit cap 50, state flips, exact-repeat key | all of it (`scene_resample.cpp`) | Android: reports drawn frames (`scene.frame`) and executes `scene.sample`. Swift: no inventory source yet | Views: builds the sample inventory | `SettledInventoryWatch`, `InventoryVisit` (the Dart originals) |
+| Moments label the next re-sample (`tap`, `gesture`, `scroll`) | pending trigger per visit | | | Programmatic scroll end moment: not ported (needs an adapter fact) |
+| Positional `scroll` inventories sent only when they moved (2% grid) | yes | | | |
+| `resampleSettledInventory` switch | `capabilities.resampleSettledInventory` (off by default in the engine) | Android: on with `emitSceneInventory`; no public option yet | | The Dart config flag |
+| Exploration tap fields (`fingerprintSource`, `routeKey`, `surface` on taps), navigating-tap fix, tag lookup end | | | | Flutter-only: tap identity (BLE-670 with schema 7) |
+| Loading detection removed (0.12.0) | nothing to remove | nothing to remove | nothing to remove | `loading`, `placeholder`, `TugboatLoading` never existed natively |
+| Fingerprint schema 7, `aliases` | out of scope | | | BLE-670 |
+| Exploration WebSocket removed | no transport (docs updated) | no transport | | The Dart sink, `explorationCollectorUrl` |
+
 #### 4.3.1 External events and network calls
 
 Native hosts do not build `external_event` and `network_call` data

@@ -75,6 +75,10 @@ view.tugboatSensitive()                       // always mask it and its subtree;
 - When the app's primary locale changes (`Application.onConfigurationChanged`),
   the SDK posts `locale.set` with the same locale JSON shape as `session.start`
   (deduped; unregistered on `stop`). Locale is evidence, not identity.
+- Scene inventory events carry the exploration metadata of Flutter 0.11.0
+  (`trigger`, `surface`, `viewport`, `scroll`, per-element `visibleFraction`,
+  `tag`, `positional`) and are re-sampled once the screen settles
+  (stateful-engine.md section 4.3.2). Android has no exploration WebSocket.
 - Scene inventory (`emitSceneInventory`) covers the route of the visible
   content: the deepest shown, resumed fragment (a `NavHostFragment`'s
   destination, a parent's child fragment, the current `ViewPager2` page),

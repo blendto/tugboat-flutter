@@ -16,6 +16,22 @@ wiring, window capture, and the Android Views adapter.
   the engine thread, before `session.start`, never on the main thread. A
   non-blank host id wins. `TUGBOAT_LAUNCH` / `TUGBOAT_HEALTH` print the new
   `session-<UUIDv4>` id.
+
+- Capture cadence matches Flutter 0.11.0 (contract change, BLE-621): with
+  `emitSceneInventory`, `scene_inventory` events carry `trigger`, `surface`,
+  `viewport`, `scroll` and per element `visibleFraction`, `tag` and
+  `positional`, and a settled re-sample follows each inventory: the engine
+  asks (`scene.watch`, `scene.sample`), the adapter reports drawn frames of the
+  foreground window (at most one per 100 ms, only while the watch is armed)
+  and answers with the visible route's inventory. A page with nothing to list
+  yet reports an empty inventory so it is watched. An unchanged structure
+  skips the walk only while the watch is armed and the frame is not a tap,
+  gesture or scroll moment. `engine.configure` sends
+  `capabilities.resampleSettledInventory` with `emitSceneInventory`; there is
+  no public switch to turn the re-sample off yet. Needs no collector change:
+  `explorationRunId` is in the event schema and a frame's `trigger` is free
+  text. There is no WebSocket transport.
+
 - Frame backend name (contract change: `frameMetadata` values):
   `requestedBackend` and `resolvedBackend` are `androidPixelCopy`, no
   longer `nativeCpuExperimental`. Needs a collector that accepts the native
