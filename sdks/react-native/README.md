@@ -43,8 +43,9 @@ Then `cd example/ios && pod install`, and build `RnExample.xcworkspace`.
 
 How iOS differs from Android:
 - JavaScript names every screen (`setScreen`, `trackNavigation`); no view
-  controller is a route (`trackHostingControllers: false`). The first route is the
-  first screen named, and an app that never names one reports no routes.
+  controller is a route (`trackHostingControllers: false`). The first screen named
+  is the session's initial route (`session_start`, with a frame of its own, as on
+  Android), and an app that never names one reports no routes.
 - A `testID` is the view's `accessibilityIdentifier`. The host treats a view with
   one as a tap target and a `Named#<ordinal>` path segment (the name never enters
   the path), and the name is the anchor's `tag`, so `tagFingerprint` is the alias.

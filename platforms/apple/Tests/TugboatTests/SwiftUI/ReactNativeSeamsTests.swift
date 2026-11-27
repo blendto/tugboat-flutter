@@ -21,6 +21,8 @@ final class ReactNativeSeamsTests: XCTestCase {
   override func tearDown() {
     TugboatAdapters.setViewNameProvider(nil)
     TugboatAdapters.setViewRoleClassifier(nil)
+    screens.seedsFirstScreen = false
+    screens.isRecording = false
     hosted?.close()
     hosted = nil
     screens.reset()
@@ -158,6 +160,43 @@ final class ReactNativeSeamsTests: XCTestCase {
     wait(for: [done], timeout: 5)
     screens.settle()
     XCTAssertEqual(screens.entries(of: ScreenTracker.navigatorId)?.map(\.name), ["Home", "Cart"])
+  }
+
+  func testAHostThatNamesScreensSeedsItsFirstScreenWithAFrameThenPushes() {
+    screens.seedsFirstScreen = true
+    screens.beginSession()
+    screens.isRecording = true
+    TugboatAdapters.setScreen(name: "Home", instanceId: "home-1")
+    TugboatAdapters.setScreen(name: "Cart", instanceId: "cart-1")
+    let facts = screens.takeFacts().map(\.input.json)
+    XCTAssertEqual(facts.count, 2)
+    XCTAssertTrue(facts[0].contains("\"kind\":\"session_start\""), facts[0])
+    XCTAssertTrue(facts[0].contains("\"captureFrame\":true"), facts[0])
+    XCTAssertTrue(facts[0].contains("Home"), facts[0])
+    XCTAssertTrue(facts[1].contains("\"kind\":\"push\""), facts[1])
+    XCTAssertFalse(facts[1].contains("captureFrame"), facts[1])
+  }
+
+  func testWithoutTheFlagTheFirstScreenIsAPush() {
+    screens.beginSession()
+    screens.isRecording = true
+    TugboatAdapters.setScreen(name: "Home", instanceId: "home-1")
+    let facts = screens.takeFacts().map(\.input.json)
+    XCTAssertEqual(facts.count, 1)
+    XCTAssertTrue(facts[0].contains("\"kind\":\"push\""), facts[0])
+  }
+
+  func testAScreenNamedBeforeTheSessionIsTheSeedWithoutAFrameRequest() {
+    screens.seedsFirstScreen = true
+    TugboatAdapters.setScreen(name: "Home", instanceId: "home-1")
+    screens.beginSession()
+    let facts = screens.sessionStartFacts(at: HostTime(monoUs: 0, wallUs: 0)).map(\.input.json)
+    XCTAssertEqual(facts.count, 1)
+    XCTAssertTrue(facts[0].contains("\"kind\":\"session_start\""), facts[0])
+    // The next screen is a push: the session already has its route.
+    screens.isRecording = true
+    TugboatAdapters.setScreen(name: "Cart", instanceId: "cart-1")
+    XCTAssertTrue(screens.takeFacts().map(\.input.json)[0].contains("\"kind\":\"push\""))
   }
 }
 #endif

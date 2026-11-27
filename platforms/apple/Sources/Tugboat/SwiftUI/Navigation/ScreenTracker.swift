@@ -54,6 +54,12 @@ final class ScreenTracker {
   var isRecording = false
   /// Runs after each callback, so the adapter can request a frame.
   var onEvent: (() -> Void)?
+  /// A host that names its own screens (React Native): the first screen named in
+  /// a session is its initial route (`session_start`, with a frame of its own),
+  /// as Flutter's first route, not a push. Set before the session starts.
+  var seedsFirstScreen = false
+  /// True once this session recorded a navigation fact.
+  private var navigationRecorded = false
   /// True once any screen appeared in this process; hosting-controller
   /// navigation then stays silent so routes are not reported twice.
   private(set) var hasSeenScreen = false
@@ -104,6 +110,7 @@ final class ScreenTracker {
   /// A new session (adapter `start()`): the live navigators keep their ids
   /// (the seeds use them), and only those ids stay issued.
   func beginSession() {
+    navigationRecorded = false
     tree.resetIncarnations()
   }
 
@@ -159,6 +166,7 @@ final class ScreenTracker {
     tree = NavigatorTree()
     chain = []
     hasSeenScreen = false
+    navigationRecorded = false
   }
 
   /// One `session_start` per navigator with a non-empty stack, in the
@@ -166,6 +174,7 @@ final class ScreenTracker {
   /// the visible route).
   func sessionStartFacts(at: HostTime) -> [AdapterFact] {
     settle()
+    if !chain.isEmpty { navigationRecorded = true }
     return chain.map { stack in
       NavigationChange(sessionStart: stack.navigatorId, parentNavigatorId: stack.parentNavigatorId, routes: stack.entries)
         .fact(at: at)
@@ -191,7 +200,11 @@ final class ScreenTracker {
   }
 
   private func record(_ change: NavigationChange?, at: HostTime) {
-    guard isRecording, let change = change else { return }
+    guard isRecording, var change = change else { return }
+    if seedsFirstScreen, !navigationRecorded, let seed = change.asInitialRouteSeed() {
+      change = seed
+    }
+    navigationRecorded = true
     facts.append(change.fact(at: at))
   }
 }

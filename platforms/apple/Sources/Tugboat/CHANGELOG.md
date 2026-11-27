@@ -17,7 +17,9 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   the anchor's tag and alias; `setViewRoleClassifier` says which view classes
   draw their own text or images, which the screenshot then masks whole;
   `markSensitive(_:)` masks a view and its subtree like `.tugboatSensitive()`
-  without changing identity.
+  without changing identity; `setHostNamesScreens(true)` makes the first screen
+  named in a session its initial route (`session_start` with `captureFrame`, as
+  Flutter, a frame of its own) instead of a push. Off by default.
 
 - Fingerprint schema 7 and alias confidence (contract change: identity,
   BLE-670): anchors carry `schemaVersion` 7, read from the engine

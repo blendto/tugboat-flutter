@@ -104,6 +104,19 @@ extension TugboatAdapters {
     }
   }
 
+  /// The app names its own screens with `setScreen` (React Native): the first
+  /// screen named in a session is its initial route (`session_start`, with a
+  /// frame of its own), as in Flutter, not a push. Off by default. Any thread;
+  /// call before `Tugboat.start`.
+  public static func setHostNamesScreens(_ enabled: Bool) {
+    let run = { ScreenTracker.shared.seedsFirstScreen = enabled }
+    if Thread.isMainThread {
+      run()
+    } else {
+      DispatchQueue.main.async(execute: run)
+    }
+  }
+
   /// A name for a view that is not a UIKit control (a React Native `testID`,
   /// its `accessibilityIdentifier`): a view with a name is a tap target and a
   /// path segment (`Named#<ordinal>`), and the name is the anchor's tag, so

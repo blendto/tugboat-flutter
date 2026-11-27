@@ -17,6 +17,7 @@ public final class TugboatRN: NSObject {
   /// `config` is what JavaScript passed to `Tugboat.start`.
   @objc public static func start(_ config: NSDictionary) {
     installSeams()
+    TugboatAdapters.setHostNamesScreens(true)
     guard let collector = config["collector"] as? [String: Any],
       let baseUrl = (collector["baseUrl"] as? String).flatMap(URL.init(string:)),
       let apiKey = collector["apiKey"] as? String,

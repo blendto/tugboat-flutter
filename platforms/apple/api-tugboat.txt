@@ -12,6 +12,7 @@ public enum TugboatViewRole
   case image
 extension TugboatAdapters
   public static func setScreen(name: String, instanceId: String)
+  public static func setHostNamesScreens(_ enabled: Bool)
   public static func setViewNameProvider(_ provider: ((UIView) -> String?)?)
   public static func setViewRoleClassifier(_ classifier: ((AnyClass) -> TugboatViewRole?)?)
   public static func markSensitive(_ view: UIView)

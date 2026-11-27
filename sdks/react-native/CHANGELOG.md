@@ -10,7 +10,8 @@
   once per call). A `testID` is the view's `accessibilityIdentifier`: a named
   view is a tap target, its name the anchor's tag and alias. React Native's text
   and image views are masked whole. JavaScript names every screen: no view
-  controller is a route, and the first route is the first screen named.
+  controller is a route, and the first screen named is the session's initial route
+  (`session_start`, with a frame of its own), as on Android and in Flutter.
 - The Swift host comes in as local pods (`TugboatSessionEngine`,
   `TugboatCaptureRuntime`, `Tugboat`, from the repository root); see the README.
 - Needs the seams added to the Swift host in this tree
