@@ -3,21 +3,13 @@
 # build and test the optional `TugboatAlamofire` package (needs Xcode).
 name: Apple host
 
+# Quick tier: runs on every push to a pull request and every push to main,
+# whatever files changed (see .github/workflows/README.md).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'Package.swift'
-      - 'platforms/apple/**'
-      - 'core/session-engine/**'
-      - 'conformance/host/**'
-      - 'tool/ci/test-apple-host.sh'
-      - 'tool/ci/build-apple-sample.sh'
-      - 'tool/ci/test-apple-sample-ui.sh'
-      - 'tool/ci/apple-simulator-udid.sh'
-      - 'tool/ci/test-apple-alamofire.sh'
-      - 'conformance/evidence/**'
-      - '.github/workflows/apple-host.yml'
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

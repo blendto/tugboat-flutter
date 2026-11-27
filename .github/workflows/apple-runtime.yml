@@ -1,16 +1,13 @@
 # Lint TugboatCaptureRuntime.podspec (needs Xcode).
 name: Apple runtime
 
+# Quick tier: runs on every push to a pull request and every push to main,
+# whatever files changed (see .github/workflows/README.md).
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'TugboatCaptureRuntime.podspec'
-      - 'Package.swift'
-      - 'platforms/apple/**'
-      - 'core/image-processing/**'
-      - 'tool/ci/lint-apple-runtime.sh'
-      - '.github/workflows/apple-runtime.yml'
+  push:
+    branches: [main]
 
 permissions:
   contents: read

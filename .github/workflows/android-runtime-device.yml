@@ -6,29 +6,9 @@ name: Android runtime device tests
 # Also runs :tugboat-android:connectedAndroidTest: the real session engine
 # through JNI, including the collector contract test (session_start body,
 # frameMetadata backends).
-# Runs on pushes to main too: Gradle caches are saved only there, and
-# every pull request restores them.
+# Full tier: runs daily from nightly.yml, or on demand (see .github/workflows/README.md).
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - "platforms/android/capture-runtime/**"
-      - "platforms/android/capture-runtime-test/**"
-      - "platforms/android/tugboat-android/**"
-      - "conformance/evidence/**"
-      - "core/image-processing/**"
-      - "core/session-engine/**"
-      - ".github/workflows/android-runtime-device.yml"
-  push:
-    branches: [main]
-    paths:
-      - "platforms/android/capture-runtime/**"
-      - "platforms/android/capture-runtime-test/**"
-      - "platforms/android/tugboat-android/**"
-      - "conformance/evidence/**"
-      - "core/image-processing/**"
-      - "core/session-engine/**"
-      - ".github/workflows/android-runtime-device.yml"
+  workflow_call:
   workflow_dispatch:
 
 permissions:
