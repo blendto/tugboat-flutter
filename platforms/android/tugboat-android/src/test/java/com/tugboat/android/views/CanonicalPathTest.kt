@@ -115,6 +115,20 @@ class CanonicalPathTest {
     }
 
     @Test
+    fun namesWithPathCharactersAreEscaped() {
+        val target = Button(context)
+        val other = Button(context)
+        val root = frame(column(target, other))
+        layOut(root)
+        val escaping = CanonicalPathBuilder { if (it === target) "a/b#c%d" else null }
+        assertEquals("Button#a%2Fb%23c%25d", escaping.build(root, target)!!.value)
+        assertEquals("Button#a%2Fb%23c%25d", escaping.token(target))
+        // Still one segment, and a plain name is unchanged.
+        assertEquals(1, escaping.build(root, target)!!.segments.size)
+        assertEquals("Button#save", CanonicalPathBuilder { "save" }.token(target))
+    }
+
+    @Test
     fun aViewOutsideTheRootHasNoPath() {
         val root = frame(column())
         layOut(root)

@@ -33,9 +33,13 @@ internal object ViewRoles {
     fun actions(view: View): List<String> {
         if (!view.isEnabled) return emptyList()
         val actions = sortedSetOf<String>()
-        if (view.isClickable || view is CompoundButton) actions += "tap"
-        if (view.isLongClickable) actions += "longPress"
-        if (ViewRules.isEditable(view)) actions += "input"
+        if (ViewRules.isEditable(view)) {
+            // A text field reports only input, as in the Flutter adapter.
+            actions += "input"
+        } else {
+            if (view.isClickable || view is CompoundButton) actions += "tap"
+            if (view.isLongClickable) actions += "longPress"
+        }
         if (view is AbsSeekBar) actions += "slide"
         if (Scrollables.isScrollable(view)) actions += "scroll"
         return actions.toList()
@@ -46,6 +50,22 @@ internal object ViewRoles {
             is RadioButton -> "radio"
             is CheckBox -> "checkbox"
             is Switch, is ToggleButton -> "switch"
-            else -> "checkbox"
+            else -> if (isSwitchByName(view.javaClass)) "switch" else "checkbox"
         }
+
+    /**
+     * React Native's `ReactSwitch` and AndroidX's `SwitchCompat`, `SwitchMaterial`
+     * and `MaterialSwitch` are not `android.widget.Switch`: match the class
+     * chain by simple name, so no dependency is needed.
+     */
+    private fun isSwitchByName(type: Class<*>): Boolean {
+        var current: Class<*>? = type
+        while (current != null && current != CompoundButton::class.java) {
+            if (current.simpleName in SWITCH_CLASSES) return true
+            current = current.superclass
+        }
+        return false
+    }
+
+    private val SWITCH_CLASSES = setOf("ReactSwitch", "SwitchCompat", "SwitchMaterial", "MaterialSwitch")
 }
