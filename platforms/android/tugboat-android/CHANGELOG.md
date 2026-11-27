@@ -7,7 +7,7 @@ wiring, window capture, and the Android Views adapter.
 
 - A `ScrollView`, `HorizontalScrollView`, `NestedScrollView` or `ListView`
   (React Native's `ScrollView` and `FlatList` too) reports an overscroll the way
-  a `RecyclerView` and Flutter do: a drag past the touch slop that moved
+  a `RecyclerView` does (Flutter may count more than one per drag): a drag past the touch slop that moved
   nothing, on a scrollable that cannot scroll further in the drag's direction,
   sends `start`, `overscroll`, `end` once, so the scroll event carries
   `overscrollCount: 1`. Such a drag was published as a `swipe` before and is

@@ -82,6 +82,8 @@ class ScrollFactsTest {
         scroll.scrollTo(0, 10_000)
         tracker.onScrollChanged()
         tracker.onFrame()
+        clock.monoUs += 200_000 // the scroll ends
+        tracker.onFrame()
         recorded.facts.clear()
 
         touch(tracker, 100f, 700f, 100f, 300f) // finger up at the bottom
@@ -145,7 +147,7 @@ class ScrollFactsTest {
 
         tracker.onTouch(MotionEvent.obtain(0, 100, MotionEvent.ACTION_DOWN, 100f, 300f, 0))
         tracker.onTouch(MotionEvent.obtain(0, 150, MotionEvent.ACTION_CANCEL, 100f, 700f, 0))
-        assertEquals(listOf("start", "overscroll", "end"), phases())
+        assertEquals("a cancel is the system's gesture", emptyList<String>(), phases())
 
         val list = recycler(50)
         val root = list.parent as FrameLayout
@@ -154,6 +156,23 @@ class ScrollFactsTest {
         recorded.facts.clear()
         touch(recyclerTracker, 100f, 300f, 100f, 700f)
         assertEquals("a RecyclerView reports through its own tracker", emptyList<String>(), phases())
+    }
+
+    @Test
+    fun aScrollViewThatFitsPassesTheDragToTheOneAbove() {
+        val inner = ScrollView(context).apply { addView(View(context).apply { minimumHeight = 100 }) }
+        val outer = ScrollView(context).apply {
+            addView(FrameLayout(context).apply { minimumHeight = 4_000; addView(inner, FrameLayout.LayoutParams(400, 400)) })
+        }
+        val root = FrameLayout(context).apply { addView(outer) }
+        layOut(root)
+        val tracker = OffsetScrollTracker(root, FactClock(clock), { null }, recorded::emit, { frameRequests++ })
+        tracker.onFrame()
+        recorded.facts.clear()
+
+        touch(tracker, 100f, 100f, 100f, 300f)
+
+        assertEquals(listOf("start", "overscroll", "end"), phases())
     }
 
     private fun scrollViewTracker(contentHeight: Int): Pair<ScrollView, OffsetScrollTracker> {

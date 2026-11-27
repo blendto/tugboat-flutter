@@ -31,17 +31,22 @@ import kotlin.math.abs
  *   sends nothing until it moves again. Discovered `RecyclerView`s go to
  *   [onRecyclerView].
  * - Overscroll comes from the window's touches ([onTouch], which never
- *   consumes them), by the rule [RecyclerScrollTracker] and Flutter use: a
+ *   consumes them), by the rule [RecyclerScrollTracker] uses (Flutter counts
+ *   every `OverscrollNotification`, so it can count more than one per drag): a
  *   drag past the touch slop that moved no scrollable, on a scrollable that
  *   cannot scroll further in the drag's direction, sends `start`,
  *   `overscroll`, `end` once, when the finger lifts. The scrollable is the
  *   nearest one under the touch that scrolls on the drag's axis; a
- *   `RecyclerView` is left to its own tracker. Known gap: it is not seen
- *   whether the scrollable took the drag, so a child that consumes drags
- *   without scrolling (a signature pad, a map, a Compose list) inside a
- *   scrollable at its edge also reports one. `onScrollChanged` runs at the
- *   next draw, so a scroll in the same input batch as the lift can be
- *   missed, and then both a scroll and an overscroll are reported.
+ *   `RecyclerView` is left to its own tracker, and one that cannot scroll
+ *   (its content fits) is skipped for the one above it. Known gaps: it is
+ *   not seen whether the scrollable took the drag, so a child that consumes
+ *   drags without scrolling (a signature pad, a map, a Compose list) inside
+ *   a scrollable at its edge also reports one; slop and axis use the net
+ *   displacement from down to up, so a pull that returns to its start is
+ *   missed; any scroll in the window during the drag suppresses it; and
+ *   `onScrollChanged` runs at the next draw, so a scroll in the same input
+ *   batch as the lift can be missed, and then both a scroll and an
+ *   overscroll are reported.
  *
  * Main thread only.
  */
@@ -76,7 +81,7 @@ internal class OffsetScrollTracker(
         requestFrame()
     }
 
-    /** Window touches, before dispatch. Only a one-pointer gesture's lift looks for an overscroll. */
+    /** Window touches, before dispatch. Only a one-pointer gesture's lift (not a cancel) looks for an overscroll. */
     fun onTouch(event: MotionEvent) {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -86,10 +91,11 @@ internal class OffsetScrollTracker(
                 downY = event.y
             }
             MotionEvent.ACTION_POINTER_DOWN -> gestureOpen = false
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+            MotionEvent.ACTION_UP -> {
                 if (gestureOpen && !movedSinceDown) overscroll(event.x, event.y)
                 gestureOpen = false
             }
+            MotionEvent.ACTION_CANCEL -> gestureOpen = false // the system took the gesture
         }
     }
 
@@ -102,20 +108,20 @@ internal class OffsetScrollTracker(
         val axis = if (vertical) ScrollAxis.Vertical else ScrollAxis.Horizontal
         var view = HitTester.hit(root, downX, downY)
         while (view != null) {
-            if (Scrollables.isScrollable(view) && Scrollables.metrics(view)?.axis == axis) break
+            if (Scrollables.isScrollable(view) && Scrollables.metrics(view)?.axis == axis) {
+                if (isRecycler(view)) return
+                // Content that fits scrolls neither way: the drag is for a scrollable above it.
+                if (canScroll(view, vertical, -1) || canScroll(view, vertical, 1)) break
+            }
             view = view.parent as? View
         }
-        if (view == null || isRecycler(view)) return
+        if (view == null || states[view]?.active == true) return
         // The drag in the scrollable's own coordinates (a flipped list, as an inverted
         // FlatList is, reverses it): down or right pulls the content toward its start.
         val from = ViewGeometry.toDescendant(root, view, downX, downY) ?: return
         val to = ViewGeometry.toDescendant(root, view, upX, upY) ?: return
         val towardStart = (if (vertical) to[1] - from[1] else to[0] - from[0]) > 0
-        val direction = if (towardStart) -1 else 1
-        val canScroll = if (vertical) view.canScrollVertically(direction) else view.canScrollHorizontally(direction)
-        val canScrollBack = if (vertical) view.canScrollVertically(-direction) else view.canScrollHorizontally(-direction)
-        // Pushed past an edge of content that scrolls: not content that fits.
-        if (canScroll || !canScrollBack) return
+        if (canScroll(view, vertical, if (towardStart) -1 else 1)) return
         val metrics = Scrollables.metrics(view) ?: return
         val id = ScrollableIds.of(view)
         val at = clock.now()
@@ -123,6 +129,9 @@ internal class OffsetScrollTracker(
         emit(ScrollFacts.fact(id, ScrollPhase.Overscroll, metrics, density(), at))
         emit(ScrollFacts.fact(id, ScrollPhase.End, metrics, density(), at))
     }
+
+    private fun canScroll(view: View, vertical: Boolean, direction: Int): Boolean =
+        if (vertical) view.canScrollVertically(direction) else view.canScrollHorizontally(direction)
 
     /** Diffs offsets and ends idle scrolls. Called once per frame. */
     fun onFrame() {

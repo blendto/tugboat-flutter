@@ -143,7 +143,7 @@ internal class WindowSession(
     override fun onTouch(event: MotionEvent) {
         if (!attached) return
         // Before the pointer producer: a scroll `start` links to the pointer gesture still pending.
-        scrolls?.onTouch(event)
+        AdapterGuard.run("scroll touch") { scrolls?.onTouch(event) }
         pointers.onTouch(event)
         regionScrolls?.onTouch(event)
         if (event.actionMasked == MotionEvent.ACTION_UP) inputHappened()
