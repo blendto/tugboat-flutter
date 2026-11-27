@@ -5,8 +5,12 @@ import android.widget.CheckBox
 import android.widget.CompoundButton
 import android.widget.EditText
 import android.widget.Switch
+import androidx.appcompat.widget.SwitchCompat
+import com.facebook.react.views.switchview.ReactSwitch
 import com.tugboat.android.views.identity.ViewRoles
+import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -22,11 +26,19 @@ class ViewRolesTest {
         assertEquals("switch", ViewRoles.role(Switch(context)))
         assertEquals("switch", ViewRoles.role(ReactSwitch(context)))
         assertEquals("switch", ViewRoles.role(SwitchCompat(context)))
-        assertEquals("switch", ViewRoles.role(SwitchMaterial(context)))
-        assertEquals("switch", ViewRoles.role(MaterialSwitch(context)))
         assertEquals("switch", ViewRoles.role(MyAppSwitch(context)))
         assertEquals("checkbox", ViewRoles.role(CheckBox(context)))
         assertEquals("checkbox", ViewRoles.role(object : CompoundButton(context) {}))
+        // Same simple name, different package: not a switch.
+        assertEquals("checkbox", ViewRoles.role(SwitchMaterial(context)))
+    }
+
+    @Test
+    fun everySwitchClassNameIsKeptFromRenaming() {
+        assertTrue("com.google.android.material.switchmaterial.SwitchMaterial" in ViewRoles.SWITCH_CLASSES)
+        assertTrue("com.google.android.material.materialswitch.MaterialSwitch" in ViewRoles.SWITCH_CLASSES)
+        val rules = File("consumer-rules.pro").readText()
+        ViewRoles.SWITCH_CLASSES.forEach { assertTrue(it, rules.contains("-keepnames class $it")) }
     }
 
     @Test
@@ -41,14 +53,8 @@ class ViewRolesTest {
         assertEquals(listOf("tap"), ViewRoles.actions(ReactSwitch(context)))
     }
 
-    // Stand-ins named like the real classes, which are not on the test classpath.
-    class ReactSwitch(context: Context) : CompoundButton(context)
-
-    open class SwitchCompat(context: Context) : CompoundButton(context)
-
-    class SwitchMaterial(context: Context) : SwitchCompat(context)
-
-    class MaterialSwitch(context: Context) : CompoundButton(context)
-
     class MyAppSwitch(context: Context) : SwitchCompat(context)
+
+    // Named like the Material class but in another package: not matched.
+    class SwitchMaterial(context: Context) : CompoundButton(context)
 }

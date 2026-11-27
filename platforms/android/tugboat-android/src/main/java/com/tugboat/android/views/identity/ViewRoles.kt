@@ -14,9 +14,24 @@ import com.tugboat.android.views.scroll.Scrollables
  * The anchor `role` and `actions` vocabulary, shared with the Flutter
  * adapter: `button`, `textField`, `checkbox`, `switch`, `radio`, `slider`,
  * `dropdown`, `scrollable`; actions `tap`, `longPress`, `input`, `slide`,
- * `scroll`. Platform classes only, so app subclasses map the same way.
+ * `scroll`. Platform classes, plus the four switch classes of React Native and
+ * AndroidX matched by name, so app subclasses map the same way.
  */
 internal object ViewRoles {
+    /**
+     * `ReactSwitch`, `SwitchCompat`, `SwitchMaterial` and `MaterialSwitch` are
+     * not `android.widget.Switch`: the class chain is matched by fully
+     * qualified name, so no dependency is needed. `consumer-rules.pro` keeps
+     * these names.
+     */
+    internal val SWITCH_CLASSES =
+        setOf(
+            "com.facebook.react.views.switchview.ReactSwitch",
+            "androidx.appcompat.widget.SwitchCompat",
+            "com.google.android.material.switchmaterial.SwitchMaterial",
+            "com.google.android.material.materialswitch.MaterialSwitch",
+        )
+
     /** The role of [view], or null when it is not an actionable target. */
     fun role(view: View): String? =
         when {
@@ -53,19 +68,12 @@ internal object ViewRoles {
             else -> if (isSwitchByName(view.javaClass)) "switch" else "checkbox"
         }
 
-    /**
-     * React Native's `ReactSwitch` and AndroidX's `SwitchCompat`, `SwitchMaterial`
-     * and `MaterialSwitch` are not `android.widget.Switch`: match the class
-     * chain by simple name, so no dependency is needed.
-     */
     private fun isSwitchByName(type: Class<*>): Boolean {
         var current: Class<*>? = type
         while (current != null && current != CompoundButton::class.java) {
-            if (current.simpleName in SWITCH_CLASSES) return true
+            if (current.name in SWITCH_CLASSES) return true
             current = current.superclass
         }
         return false
     }
-
-    private val SWITCH_CLASSES = setOf("ReactSwitch", "SwitchCompat", "SwitchMaterial", "MaterialSwitch")
 }

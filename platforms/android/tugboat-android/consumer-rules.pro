@@ -21,3 +21,10 @@
 -keepnames class androidx.core.view.ScrollingView
 -keepnames class androidx.fragment.app.FragmentActivity
 -keepnames class androidx.compose.ui.platform.AndroidComposeView
+
+# The role of a switch is read from the view class chain by name (React
+# Native and AndroidX switches are not android.widget.Switch).
+-keepnames class com.facebook.react.views.switchview.ReactSwitch
+-keepnames class androidx.appcompat.widget.SwitchCompat
+-keepnames class com.google.android.material.switchmaterial.SwitchMaterial
+-keepnames class com.google.android.material.materialswitch.MaterialSwitch

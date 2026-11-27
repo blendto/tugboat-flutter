@@ -129,6 +129,27 @@ class CanonicalPathTest {
     }
 
     @Test
+    fun escapedNamesStayDistinctAndKeepTheirOrdinals() {
+        val first = Button(context)
+        val second = Button(context)
+        val literal = Button(context)
+        val root = frame(column(first, second, literal))
+        layOut(root)
+        val builder =
+            CanonicalPathBuilder {
+                when (it) {
+                    first, second -> "a#b"
+                    literal -> "a#b#1"
+                    else -> null
+                }
+            }
+        assertEquals("Button#a%23b", builder.build(root, first)!!.value)
+        assertEquals("Button#a%23b#1", builder.build(root, second)!!.value)
+        // A name that already looks like an escaped name plus ordinal cannot collide with it.
+        assertEquals("Button#a%23b%231", builder.build(root, literal)!!.value)
+    }
+
+    @Test
     fun aViewOutsideTheRootHasNoPath() {
         val root = frame(column())
         layOut(root)

@@ -357,7 +357,10 @@ hash input.
   `ViewGroup`.
 - **Segments.** `Token#<ordinal>` without an id, `Token#<entry>` with one
   (`Token#<entry>#<ordinal>` when the same id repeats). Ordinals count
-  same-token siblings after filtering.
+  same-token siblings after filtering. In `<entry>` (a resource entry name or
+  a host-provided name such as a React Native `testID`), `%`, `#` and `/` are
+  percent-escaped (`%25`, `%23`, `%2F`) so a name cannot add or split a
+  segment. Flutter paths carry no tag ids, so Flutter has no such scheme.
 - **Excluded.** Views that are not `VISIBLE`, have zero alpha or zero size,
   or are SDK-owned, with their subtrees.
 - **Kept.** Actionable views (clickable, long- or context-clickable,
