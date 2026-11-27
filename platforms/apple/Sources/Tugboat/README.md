@@ -479,8 +479,8 @@ TugboatConfig(collector: collector, app: app, swiftUIAccessibilityIdentity: .sam
 ```
 
 Prefer `.tugboatTag("checkout")` (optionally `accessibility: true`) on the
-controls that matter: it is free, `high` confidence, and survives layout
-changes. Turn this on only to learn about untagged screens, and sample it.
+controls that matter: it is free, adds a stable `tagFingerprint`, and survives
+layout changes. Turn this on only to learn about untagged screens, and sample it.
 
 **Pros**
 

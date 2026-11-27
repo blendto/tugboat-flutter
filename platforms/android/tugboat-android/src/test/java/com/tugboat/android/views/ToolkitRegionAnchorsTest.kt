@@ -42,7 +42,7 @@ class ToolkitRegionAnchorsTest {
         assertEquals("compose", anchor.getString("toolkit"))
         assertEquals(IdentityHash.fingerprint(mapOf("routeKey" to "/home", "path" to "Fake#0/Button#0")), anchor.getString("fingerprint"))
         assertEquals(IdentityHash.fingerprint(mapOf("routeKey" to "/home", "tag" to "pay")), anchor.getString("tagFingerprint"))
-        assertEquals("high", anchor.getString("fingerprintConfidence"))
+        assertEquals("low", anchor.getString("fingerprintConfidence"))
         // Bounds are mapped out of the host: (0..50) in the host is y 200..250 in the window.
         assertEquals("top", anchor.getString("relativePosition"))
     }

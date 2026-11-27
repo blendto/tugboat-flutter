@@ -8,6 +8,16 @@ entry here must match it.
 Unpublished. The native SwiftUI SDK: public facade, engine wiring, capture,
 the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISample`).
 
+- Fingerprint schema 7 and alias confidence (contract change: identity,
+  BLE-670): anchors carry `schemaVersion` 7, read from the engine
+  (`tb_session_engine_fingerprint_schema_version()`), as Flutter 0.11.0+. The
+  hash is unchanged; schema 7's Flutter canonical-tree rules do not apply to a
+  SwiftUI path. A tag no longer raises confidence: the path is `medium` in a
+  list cell and `low` otherwise (a tag made it `high`), as Flutter 0.12.x. A
+  target anchor is never `high`. The collector `session_start` `appInfo`
+  carries `installationId` and frame uploads carry `frameMetadata.triggeredAt`
+  (Flutter 0.11.5 and 0.12.3).
+
 - Session and event ids, installation id (contract change: identity, BLE-618):
   session ids are `session-<UUIDv4>` and event ids `event-<UUIDv4>` (were
   `session-<epoch microseconds>` and `event-<counter>`), as Flutter 0.12.3;

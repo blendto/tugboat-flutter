@@ -25,12 +25,13 @@ import UIKit
 ///   marker's layout-order ordinal within its hosting view, so tagged
 ///   controls drawn in one hosting view get distinct structural
 ///   fingerprints; the tag value never enters the path. A tag also adds
-///   `tagFingerprint` (`routeKey` + `tag`), the high-confidence alias.
+///   `tagFingerprint` (`routeKey` + `tag`), the alias. It does not raise
+///   confidence.
 /// - **Confidence.** The floor of the route's and the path's. The path is
-///   `high` with a tag (never from the accessibility tree); `low` when it
-///   passes through a fail-closed box (a `Representable` segment: the SDK
+///   `low` when it passes through a fail-closed box (a `Representable` segment: the SDK
 ///   cannot see inside, so every target there shares the box's path);
-///   `medium` inside a list cell (index path); `low` otherwise.
+///   `medium` inside a list cell (index path); `low` otherwise. A tag does
+///   not raise it, as in Flutter 0.12.x.
 ///
 /// Main thread only.
 final class AnchorResolver {
@@ -113,7 +114,7 @@ final class AnchorResolver {
     guard let base = CanonicalPathBuilder.build(root: route.root, target: view) else { return nil }
     let path = leaf.map { base.appending($0.segment) } ?? base
     let tag = leaf?.tag
-    let pathConfidence = AnchorResolver.pathConfidence(path, tagged: tag != nil)
+    let pathConfidence = AnchorResolver.pathConfidence(path)
     let kind = ViewTree.node(view).kind
     let structural = IdentityHash.fingerprint([(key: "routeKey", value: route.value), (key: "path", value: path.value)])
     return TargetAnchor(
@@ -131,8 +132,9 @@ final class AnchorResolver {
     )
   }
 
-  static func pathConfidence(_ path: CanonicalPath, tagged: Bool) -> Confidence {
-    if tagged { return .high }
+  /// `medium` inside a list cell, `low` otherwise. A tag does not raise it
+  /// (Flutter 0.12.x: no target anchor is `high`).
+  static func pathConfidence(_ path: CanonicalPath) -> Confidence {
     if path.passesThroughBox || path.indexPath == nil { return .low }
     return .medium
   }

@@ -16,8 +16,9 @@ A tag does not. Tags keep a control's identity stable across:
 - refactors that wrap it in new layout or components;
 - obfuscated or minified builds, where type names are scrambled.
 
-A tag gives the target a `tagFingerprint` at `high` confidence. It does not
-change the structural fingerprint, which is still recorded alongside it. See
+A tag gives the target a `tagFingerprint`. It does not change the structural
+fingerprint, which is still recorded alongside it, and it does not raise the
+target's confidence. See
 [Capture and fingerprint architecture](../design/capture-and-fingerprint.md).
 
 ## What to tag

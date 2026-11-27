@@ -84,7 +84,7 @@ class ComposeIdentityTest {
         val tagged = resolver.tapAt(compose.activity, compose.onNodeWithTag("ignored")).anchor()
         val plain = resolver.tapAt(compose.activity, compose.onNodeWithTag("plain")).anchor()
         assertEquals("hero", tagged.getJSONObject("fingerprintParts").getString("tag"))
-        assertEquals("high", tagged.getString("fingerprintConfidence"))
+        assertEquals("low", tagged.getString("fingerprintConfidence"))
         val route = ComponentActivity::class.java.name
         assertEquals(IdentityHash.fingerprint(mapOf("routeKey" to route, "tag" to "hero")), tagged.getString("tagFingerprint"))
         assertEquals(

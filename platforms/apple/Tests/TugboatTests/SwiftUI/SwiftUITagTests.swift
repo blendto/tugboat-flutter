@@ -55,7 +55,8 @@ final class SwiftUITagTests: XCTestCase {
     let resolved = try XCTUnwrap(anchor(resolver.tapEvidence(in: window.window, at: point)))
     XCTAssertEqual(resolved.tag, "checkout")
     XCTAssertEqual(resolved.routeKey, "Checkout")
-    XCTAssertEqual(resolved.confidence, .high)
+    // A tag is an alias; it does not raise confidence (Flutter 0.12.x). Not in a list cell: low.
+    XCTAssertEqual(resolved.confidence, .low)
     XCTAssertEqual(resolved.widgetType, "SwiftUIView")
     XCTAssertNil(resolved.role)
     XCTAssertNil(resolved.enabled)

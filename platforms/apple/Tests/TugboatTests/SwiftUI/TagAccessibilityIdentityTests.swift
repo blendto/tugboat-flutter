@@ -56,7 +56,8 @@ final class TagAccessibilityIdentityTests: XCTestCase {
     }
     let checkout = try XCTUnwrap(baseline.anchors["checkout"])
     XCTAssertEqual(checkout.tagFingerprint, IdentityHash.fingerprint([(key: "routeKey", value: "Checkout"), (key: "tag", value: "checkout")]))
-    XCTAssertEqual(checkout.confidence, .high)
+    // A tag does not raise confidence (Flutter 0.12.x).
+    XCTAssertEqual(checkout.confidence, .low)
   }
 
   func testTheMarkerStaysHiddenFromAccessibilityWithTheOptionOn() throws {

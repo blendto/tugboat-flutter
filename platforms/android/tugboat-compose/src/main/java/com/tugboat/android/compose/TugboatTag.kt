@@ -7,8 +7,8 @@ import androidx.compose.ui.semantics.testTag
 
 /**
  * Gives this element a developer alias for Tugboat identity, like
- * `View.tugboatTag` for Views. The alias yields a high-confidence
- * `tagFingerprint` and does not change the structural fingerprint. Prefer it
+ * `View.tugboatTag` for Views. The alias yields a `tagFingerprint`; it
+ * does not change the structural fingerprint or raise the anchor's confidence. Prefer it
  * over `testTag`, which Tugboat also reads. An empty [tag] is ignored.
  *
  * Inside a merged element (a button, a list row), a tag on a child is

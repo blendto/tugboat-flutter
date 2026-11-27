@@ -6,9 +6,10 @@ import android.view.View
 import com.tugboat.android.views.identity.ViewTags
 
 /**
- * The developer alias for this view's identity: a high-confidence
- * `tagFingerprint` that survives layout changes. It is transparent to the
- * structural fingerprint and never contains user content. Null or empty
+ * The developer alias for this view's identity: a `tagFingerprint` that
+ * survives layout changes. It is transparent to the structural fingerprint,
+ * does not raise the anchor's confidence (as in Flutter), and never contains
+ * user content. Null or empty
  * removes it.
  *
  * It has no accessibility option, unlike Compose's `Modifier.tugboatTag`:

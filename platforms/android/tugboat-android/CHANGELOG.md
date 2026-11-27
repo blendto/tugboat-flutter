@@ -12,7 +12,15 @@ wiring, window capture, and the Android Views adapter.
   fingerprint schema version in `targetAnchor` is read from the engine
   (`tb_session_engine_fingerprint_schema_version`, through a handle-free JNI
   binding) instead of a hard-coded 6. Needs `capture-runtime` 0.3.1.
-
+- Fingerprint schema 7 and alias confidence (contract change: identity,
+  BLE-670): anchors carry `schemaVersion` 7, the engine's
+  `tb_session_engine_fingerprint_schema_version()`, as Flutter 0.11.0+. The
+  hash is unchanged; schema 7's Flutter canonical-tree rules do not apply to a
+  Views path. A tag or resource-id alias no longer raises confidence: the path
+  is `medium` with its own id or in a list item and `low` otherwise (it was
+  `high` with an alias), as Flutter 0.12.x. A target anchor is never `high`.
+  The collector `session_start` `appInfo` carries `installationId` and frame
+  uploads carry `frameMetadata.triggeredAt` (Flutter 0.11.5 and 0.12.3).
 - Session and event ids, installation id (contract change: identity, BLE-618):
   session ids are `session-<UUIDv4>` and event ids `event-<UUIDv4>` (were
   `session-<epoch microseconds>` and `event-<counter>`), as Flutter 0.12.3;

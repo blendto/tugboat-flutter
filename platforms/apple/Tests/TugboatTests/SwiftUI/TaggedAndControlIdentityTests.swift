@@ -56,7 +56,8 @@ final class TaggedAndControlIdentityTests: XCTestCase {
       }
       XCTAssertEqual(anchor.tag, tag)
       XCTAssertFalse(anchor.canonicalPath.contains(tag), "the tag value is never in the path")
-      XCTAssertEqual(anchor.confidence, .high)
+      // A tag is an alias; it does not raise confidence (Flutter 0.12.x). Not in a list cell: low.
+      XCTAssertEqual(anchor.confidence, .low)
       paths[tag] = anchor.canonicalPath
       fingerprints.insert(anchor.fingerprint)
     }

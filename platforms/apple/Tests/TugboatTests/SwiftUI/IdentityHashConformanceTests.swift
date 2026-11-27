@@ -74,8 +74,8 @@ final class IdentityHashConformanceTests: XCTestCase {
     )
     let json = decodeObject(anchor.json.json) ?? [:]
     XCTAssertEqual(json["toolkit"] as? String, "swiftui")
-    XCTAssertEqual(json["schemaVersion"] as? Int, 6)
-    XCTAssertEqual(json["fingerprintParts"] as? [String: String], ["schemaVersion": "6", "routeKey": "Checkout"])
+    XCTAssertEqual(json["schemaVersion"] as? Int, 7)
+    XCTAssertEqual(json["fingerprintParts"] as? [String: String], ["schemaVersion": "7", "routeKey": "Checkout"])
     XCTAssertEqual(anchor.fingerprint, IdentityHash.fingerprint([(key: "path", value: "TextField#0"), (key: "routeKey", value: "Checkout")]))
   }
 }

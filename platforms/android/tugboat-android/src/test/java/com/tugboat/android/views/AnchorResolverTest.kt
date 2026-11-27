@@ -46,12 +46,12 @@ class AnchorResolverTest {
         val anchor = anchors.anchorFor(button, root)!!
         val fingerprint = IdentityHash.fingerprint(mapOf("routeKey" to "com.example.HomeActivity", "path" to "Button#0"))
         val expected = JSONObject()
-            .put("schemaVersion", 6)
+            .put("schemaVersion", 7)
             .put("widgetType", "Button")
             .put("role", "button")
             .put("fingerprint", fingerprint)
             .put("fingerprintConfidence", "low")
-            .put("fingerprintParts", JSONObject().put("schemaVersion", "6").put("routeKey", "com.example.HomeActivity"))
+            .put("fingerprintParts", JSONObject().put("schemaVersion", "7").put("routeKey", "com.example.HomeActivity"))
             .put("canonicalPath", "Button#0")
             .put("relativePosition", "top")
             .put("enabled", true)
@@ -61,14 +61,16 @@ class AnchorResolverTest {
     }
 
     @Test
-    fun tugboatTagIsAHighConfidenceAliasTransparentToTheFingerprint() {
+    fun tugboatTagIsAnAliasTransparentToTheFingerprintAndTheConfidence() {
         layOut(root)
         val untagged = anchors.anchorFor(button, root)!!
         ViewTags.setAlias(button, "pay-button")
         val tagged = anchors.anchorFor(button, root)!!
 
         assertEquals(untagged.fingerprint, tagged.fingerprint)
-        assertEquals(Confidence.High, tagged.confidence)
+        // Flutter 0.12.x: an alias does not raise confidence.
+        assertEquals(Confidence.Low, untagged.confidence)
+        assertEquals(untagged.confidence, tagged.confidence)
         assertEquals(
             IdentityHash.fingerprint(mapOf("routeKey" to "com.example.HomeActivity", "tag" to "pay-button")),
             tagged.tagFingerprint,
@@ -82,7 +84,8 @@ class AnchorResolverTest {
         layOut(root)
         val unique = anchors.anchorFor(button, root)!!
         assertEquals("button1", unique.tag)
-        assertEquals(Confidence.High, unique.confidence)
+        // The view's own id is structural evidence (medium), not an alias bonus.
+        assertEquals(Confidence.Medium, unique.confidence)
 
         label.id = android.R.id.button1
         val repeated = anchors.anchorFor(button, root)!!

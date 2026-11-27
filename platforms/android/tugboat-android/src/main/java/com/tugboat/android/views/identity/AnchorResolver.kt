@@ -11,8 +11,9 @@ import com.tugboat.android.views.region.Regions
  *   view under the route root has the same id. It gives `tagFingerprint`
  *   (`routeKey` + `tag`) and leaves the structural fingerprint unchanged.
  * - **Confidence**: the floor of the route's and the path's. The path is
- *   high with an alias, medium when the target has its own id or sits in a
- *   list item, and low otherwise.
+ *   medium when the target has its own id or sits in a list item, and low
+ *   otherwise. An alias does not raise it (Flutter 0.12.x: no target anchor is
+ *   `high`; `high` is reserved).
  * - **Toolkit regions**: a touch inside a region host (Compose) is resolved
  *   by its region first ([RegionAnchors]); the Views rules apply only when
  *   the region defers.
@@ -53,7 +54,7 @@ internal class AnchorResolver(
             widgetType = PlatformToken.name(view),
             role = role,
             fingerprint = fingerprint,
-            confidence = Confidence.floor(route.confidence, pathConfidence(view, path, tag)),
+            confidence = Confidence.floor(route.confidence, pathConfidence(view, path)),
             tagFingerprint = tag?.let { IdentityHash.fingerprint(mapOf("routeKey" to route.value, "tag" to it)) },
             routeKey = route.value,
             tag = tag,
@@ -64,9 +65,8 @@ internal class AnchorResolver(
         )
     }
 
-    private fun pathConfidence(view: View, path: CanonicalPath, tag: String?): Confidence =
+    private fun pathConfidence(view: View, path: CanonicalPath): Confidence =
         when {
-            tag != null -> Confidence.High
             names.entryName(view) != null || path.inListItem -> Confidence.Medium
             else -> Confidence.Low
         }
