@@ -435,6 +435,8 @@ object Tugboat {
             sessionEpoch,
             activationRequestId = id,
             openTransport = transport,
+            // `start` refused a config with missing fields before storing it.
+            validated = true,
         )
         if (started == null) return markFailed(epoch)
         sessionEpoch++

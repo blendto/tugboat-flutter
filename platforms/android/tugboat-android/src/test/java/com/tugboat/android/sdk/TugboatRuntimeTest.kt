@@ -79,6 +79,26 @@ class TugboatRuntimeTest {
         assertTrue(!opened)
     }
 
+    /** BLE-664: `Tugboat.start` refuses before it stores a config, so the session start does not check it again. */
+    @Test
+    fun aValidatedConfigIsNotCheckedAgainAtSessionStart() {
+        val unchecked = config.copy(app = config.app.copy(buildNumber = ""))
+        val transport = FakeEngineTransport()
+
+        val runtime = TugboatRuntime.start(
+            application,
+            unchecked,
+            sessionEpoch = 0,
+            openTransport = { transport },
+            stopSequence = StopSequence(maxDrainMs = 10),
+            validated = true,
+        )
+
+        assertNotNull("the fields were checked by the caller", runtime)
+        runtime!!.stop()
+        awaitUntil { transport.closed }
+    }
+
     /** PR #100 review: the Apple host's rule, an absolute `http`/`https` URL with a host. */
     @Test
     fun aMalformedCollectorUrlRefusesToStartWithoutOpeningAnEngine() {

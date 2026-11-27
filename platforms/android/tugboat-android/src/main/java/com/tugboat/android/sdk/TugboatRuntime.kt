@@ -112,6 +112,9 @@ internal class TugboatRuntime private constructor(
         /**
          * Configures a new engine and starts a session; null (logged) when a
          * `session_start` field is missing or the engine library cannot load.
+         * [validated] is for a caller that already ran [refusal] on [config]
+         * (`Tugboat.start` does, before it stores the config): the fields are
+         * not checked again, so the main thread does that work once.
          */
         fun start(
             application: Application,
@@ -121,14 +124,17 @@ internal class TugboatRuntime private constructor(
             activationRequestId: String? = null,
             openTransport: () -> EngineTransport? = { JniEngineTransport.open() },
             stopSequence: StopSequence = StopSequence(),
+            validated: Boolean = false,
         ): TugboatRuntime? {
             val device = DeviceSnapshot.read(application)
-            // Validates what the config and device give; the installation id is resolved later, off the main thread.
+            // The installation id is resolved later, off the main thread.
             val metadata = HostMetadata(config.app, device)
-            val missing = metadata.missingFields() + collectorProblems(config)
-            if (missing.isNotEmpty()) {
-                Log.e(TAG, "Tugboat not started: required session_start fields are missing: $missing")
-                return null
+            if (!validated) {
+                val missing = metadata.missingFields() + collectorProblems(config)
+                if (missing.isNotEmpty()) {
+                    Log.e(TAG, "Tugboat not started: required session_start fields are missing: $missing")
+                    return null
+                }
             }
             val transport = openTransport() ?: run {
                 Log.e(TAG, "Tugboat not started: the session engine is unavailable")
