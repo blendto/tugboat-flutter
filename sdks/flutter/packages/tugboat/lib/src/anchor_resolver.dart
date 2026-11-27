@@ -561,8 +561,12 @@ class AnchorResolver {
     _cachedRootRender = null;
   }
 
-  /// Collects screenshot mask rectangles using a frame-scoped token map when
-  /// available, avoiding a second full element walk.
+  /// Collects screenshot mask rectangles with the pixels-only [_MaskWalk].
+  ///
+  /// It does not share the identity token map: that walk prunes excluded
+  /// semantics, content behind modal routes and [TugboatInternal], all of which
+  /// are still painted. Throws when the root is gone or a rect cannot be
+  /// computed, so the capture fails instead of sending an unmasked frame.
   List<Rect> collectMaskRects({
     required RenderBox rootRender,
     required bool Function(
@@ -575,23 +579,11 @@ class AnchorResolver {
     shouldMask,
   }) {
     final rootContext = rootKey.currentContext;
-    if (rootContext is! Element) return const [];
-    final tokenMap = _tokenMapFor(rootContext, rootRender);
-    if (tokenMap == null) return const [];
-
-    final masks = <Rect>[];
-    final maskedRenderObjects = <RenderObject>{};
-    for (final element in tokenMap.includedElements) {
-      _addMaskRect(
-        element,
-        tokenMap,
-        rootRender,
-        shouldMask,
-        maskedRenderObjects,
-        masks,
-      );
+    if (rootContext is! Element) {
+      throw StateError('Mask walk has no mounted capture root.');
     }
-    return masks;
+    final walk = _MaskWalk(rootRender, shouldMask)..run(rootContext);
+    return walk.masks;
   }
 
   /// Order-sensitive signature of the visible structure in the current frame.
@@ -661,41 +653,6 @@ class AnchorResolver {
     } catch (_) {
       // Detached render object can race capture; treat bounds as unknown.
       return null;
-    }
-  }
-
-  void _addMaskRect(
-    Element element,
-    _TokenMap tokenMap,
-    RenderBox rootRender,
-    bool Function(Element, Widget, RenderBox, bool, bool) shouldMask,
-    Set<RenderObject> maskedRenderObjects,
-    List<Rect> masks,
-  ) {
-    final widget = element.widget;
-    final renderObject = element.renderObject;
-    if (renderObject is! RenderBox ||
-        !renderObject.attached ||
-        !renderObject.hasSize) {
-      return;
-    }
-    final sensitive = tokenMap.isSensitive[element] == true;
-    final actionable =
-        tokenMap.underActionable[element] == true ||
-        tugboatIsActionableWidget(widget);
-    if (!shouldMask(element, widget, renderObject, sensitive, actionable)) {
-      return;
-    }
-    if (!maskedRenderObjects.add(renderObject)) return;
-    try {
-      final transformed = MatrixUtils.transformRect(
-        renderObject.getTransformTo(rootRender),
-        renderObject.paintBounds,
-      );
-      final rect = transformed.intersect(rootRender.paintBounds);
-      if (rect.width > 0 && rect.height > 0) masks.add(rect);
-    } catch (_) {
-      // Detached render object can race capture; omit its mask safely.
     }
   }
 

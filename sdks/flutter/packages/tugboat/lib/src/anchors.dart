@@ -15,6 +15,7 @@ part 'anchor_fingerprint.dart';
 part 'anchor_models.dart';
 part 'widget_roles.dart';
 part 'anchor_resolver.dart';
+part 'anchor_mask_walk.dart';
 part 'anchor_scene_inventory.dart';
 part 'anchor_bounds_evidence.dart';
 part 'anchor_surface.dart';
