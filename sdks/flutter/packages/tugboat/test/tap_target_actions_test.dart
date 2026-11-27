@@ -15,18 +15,25 @@ const _config = TugboatReplayConfig(
   capturePixelRatio: 1.0,
 );
 
-Future<Map<String, Object?>> _tapAnchor(WidgetTester tester, Finder at) async {
+Future<Map<String, Object?>> _tapAnchor(
+  WidgetTester tester,
+  Finder at, {
+  Widget Function(Widget list)? wrap,
+}) async {
   await tester.pumpWidget(
     MaterialApp(
       builder: (context, child) =>
           TugboatReplay.wrapApp(config: _config, child: child!),
       home: Scaffold(
-        body: ListView(
-          children: [
-            FilledButton(onPressed: () {}, child: const Text('Enabled')),
-            const FilledButton(onPressed: null, child: Text('Disabled')),
-            const TextField(key: Key('field')),
-          ],
+        body: (wrap ?? (list) => list)(
+          ListView(
+            children: [
+              FilledButton(onPressed: () {}, child: const Text('Enabled')),
+              const FilledButton(onPressed: null, child: Text('Disabled')),
+              const TextField(key: Key('field')),
+              const Text('Plain'),
+            ],
+          ),
         ),
       ),
     ),
@@ -70,9 +77,30 @@ void main() {
     expect(anchor.containsKey('actions'), isFalse);
   });
 
+  testWidgets('a tap on plain list content still reports the scrollable', (
+    tester,
+  ) async {
+    final anchor = await _tapAnchor(tester, find.text('Plain'));
+    expect(anchor['role'], 'scrollable');
+    expect(anchor['actions'], ['scroll']);
+  });
+
+  testWidgets('a list under a tappable ancestor keeps its own role', (
+    tester,
+  ) async {
+    final anchor = await _tapAnchor(
+      tester,
+      find.text('Plain'),
+      wrap: (list) => GestureDetector(onTap: () {}, child: list),
+    );
+    expect(anchor['role'], 'scrollable');
+    expect(anchor['actions'], ['scroll']);
+  });
+
   testWidgets('a text field in a list reports only input', (tester) async {
     final anchor = await _tapAnchor(tester, find.byKey(const Key('field')));
     expect(anchor['role'], 'textField');
+    expect(anchor['enabled'], true);
     expect(anchor['actions'], ['input']);
   });
 }

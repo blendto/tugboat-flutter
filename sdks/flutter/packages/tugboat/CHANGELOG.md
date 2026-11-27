@@ -5,9 +5,13 @@
 - A tap target's `actions` are now the tapped element's own, as on native
   Android. A button inside a scrollable list reported `["scroll","tap"]`, and
   a disabled one `["scroll"]`; they now report `["tap"]` and no actions. A
-  parent's role never adds actions. A text field in a list now reports role
-  `textField` with `["input"]` instead of `scrollable`. No fingerprint, route
-  key or inventory hash change.
+  parent's role never adds actions (a slider reports `["slide"]`, not
+  `["scroll","slide"]`). A text field (in a list or not) now reports role
+  `textField` with `["input"]` instead of `scrollable`. No fingerprint or
+  route key change. With `emitSceneInventory` on, inventory entries change the
+  same way, and a disabled control inside a scroll view is no longer listed
+  (as a disabled control outside one never was), so the inventory hash of such
+  a screen differs.
 
 ## 0.12.8
 
