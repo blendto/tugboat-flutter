@@ -3,13 +3,19 @@ package com.tugboat.android.views
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.view.View
+import android.view.ViewTreeObserver
 import android.view.Window
 import androidx.annotation.VisibleForTesting
 import com.tugboat.android.host.HostClock
+import com.tugboat.android.host.SceneWatchSink
 import com.tugboat.android.host.SystemHostClock
 import com.tugboat.android.views.facts.ChoreographerFrames
 import com.tugboat.android.views.facts.FactBatcher
+import com.tugboat.android.views.facts.FactTypes
 import com.tugboat.android.views.facts.FactClock
 import com.tugboat.android.views.facts.FactSink
 import com.tugboat.android.views.facts.FrameScheduler
@@ -26,6 +32,7 @@ import com.tugboat.android.views.navigation.NavigationChange
 import com.tugboat.android.views.navigation.NavigationObservation
 import com.tugboat.android.views.navigation.NavigationProcessState
 import com.tugboat.android.views.overlay.withOverlayWindow
+import org.json.JSONObject
 
 /**
  * The Android Views toolkit adapter (native SDK note section 5): it turns
@@ -59,7 +66,7 @@ internal class ViewsAdapter(
     onInventoryWalk: () -> Unit = {},
     /** `View::getLocationOnScreen` for dialog-window offsets; a seam for tests. */
     private val locateOnScreen: (View, IntArray) -> Unit = View::getLocationOnScreen,
-) : Application.ActivityLifecycleCallbacks {
+) : Application.ActivityLifecycleCallbacks, SceneWatchSink {
     init {
         NavigationObservation.ensureInstalled(application)
     }
@@ -84,6 +91,19 @@ internal class ViewsAdapter(
     internal val focusState = FocusState()
     private var started = false
     private var windowCallbacksRegistered = false
+
+    /** The window whose draws the re-sample watch reports and whose inventory a sample answers with. Main thread. */
+    @VisibleForTesting
+    internal var sampleWindow: () -> Window? = { null }
+
+    /** True while the engine's re-sample watch is armed (`scene.watch`); any thread reads it. */
+    @Volatile
+    internal var watchArmed = false
+        private set
+    private val main = Handler(Looper.getMainLooper())
+    private var drawObserver: ViewTreeObserver? = null
+    private var drawListener: ViewTreeObserver.OnDrawListener? = null
+    private var lastDrawReportMs = 0L
 
     fun start() = AdapterGuard.run("start") {
         if (started) return@run
@@ -125,6 +145,8 @@ internal class ViewsAdapter(
         if (!started) return@run
         batcher.flush()
         started = false
+        watchArmed = false
+        detachDrawListener()
         NavigationObservation.setRecording(null)
         unregisterWindowCallbacks()
         sessions.values.toList().forEach(WindowSession::detach)
@@ -162,10 +184,11 @@ internal class ViewsAdapter(
         structureSignature: String,
         hasRegionHosts: Boolean,
         mainThread: (Runnable) -> Boolean,
+        trigger: String? = null,
         window: () -> Window?,
     ) {
         if (!emitSceneInventory) return
-        mainThread(Runnable { window()?.let { onCapturedFrame(it, structureSignature, hasRegionHosts) } })
+        mainThread(Runnable { window()?.let { onCapturedFrame(it, structureSignature, hasRegionHosts, trigger) } })
     }
 
     /**
@@ -173,10 +196,59 @@ internal class ViewsAdapter(
      * `scene.inventory` when [emitSceneInventory] is on
      * ([SceneInventoryEmitter]). Main thread.
      */
-    fun onCapturedFrame(window: Window, structureSignature: String, hasRegionHosts: Boolean) =
+    fun onCapturedFrame(window: Window, structureSignature: String, hasRegionHosts: Boolean, trigger: String? = null) =
         AdapterGuard.run("scene inventory") {
-            if (emitSceneInventory && started) inventory.onCapturedFrame(window, structureSignature, hasRegionHosts)
+            if (!emitSceneInventory || !started) return@run
+            // A tap, gesture or scroll moment, and any frame while no watch is armed, must reach the engine.
+            val mayReuse = watchArmed && trigger !in MOMENT_TRIGGERS
+            inventory.onCapturedFrame(window, structureSignature, hasRegionHosts, trigger, mayReuse)
         }
+
+    /** `scene.watch` (engine thread): report drawn frames of the sample window while armed. */
+    override fun onSceneWatch(armed: Boolean) {
+        watchArmed = armed && emitSceneInventory
+        main.post {
+            AdapterGuard.run("scene watch") {
+                if (watchArmed && started) attachDrawListener() else detachDrawListener()
+            }
+        }
+    }
+
+    /** `scene.sample` (engine thread): answer with the visible route's inventory. */
+    override fun onSceneSample() {
+        if (!emitSceneInventory) return
+        main.post {
+            AdapterGuard.run("scene sample") {
+                if (started && watchArmed) sampleWindow()?.let { inventory.onSample(it) }
+            }
+        }
+    }
+
+    private fun attachDrawListener() {
+        detachDrawListener()
+        val observer = sampleWindow()?.decorView?.viewTreeObserver?.takeIf { it.isAlive } ?: return
+        val listener = ViewTreeObserver.OnDrawListener { onWatchedDraw() }
+        observer.addOnDrawListener(listener)
+        drawObserver = observer
+        drawListener = listener
+    }
+
+    private fun detachDrawListener() {
+        val observer = drawObserver
+        val listener = drawListener
+        drawObserver = null
+        drawListener = null
+        if (observer != null && listener != null && observer.isAlive) observer.removeOnDrawListener(listener)
+    }
+
+    /** A frame of the watched window was drawn: `scene.frame`, at most once per [WATCH_FRAME_INTERVAL_MS]. */
+    private fun onWatchedDraw() {
+        if (!watchArmed || !started) return
+        val now = SystemClock.uptimeMillis()
+        if (now - lastDrawReportMs < WATCH_FRAME_INTERVAL_MS) return
+        lastDrawReportMs = now
+        emit(ViewsFact(FactTypes.SCENE_FRAME, JSONObject(), clock.now()))
+    }
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
         AdapterGuard.run("activity created") { session(activity).ensureAttached() }
@@ -230,5 +302,13 @@ internal class ViewsAdapter(
     private fun onFrame() {
         NavigationObservation.flushFragments()
         sessions.values.toList().forEach(WindowSession::onFrame)
+    }
+
+    private companion object {
+        /** The engine asks for at most one `scene.frame` per 100 ms (stateful-engine.md section 4.3.2). */
+        const val WATCH_FRAME_INTERVAL_MS = 100L
+
+        /** Captures taken for an interaction: the engine's re-sample is labelled by them. */
+        val MOMENT_TRIGGERS = setOf("tap", "gesture", "scroll")
     }
 }

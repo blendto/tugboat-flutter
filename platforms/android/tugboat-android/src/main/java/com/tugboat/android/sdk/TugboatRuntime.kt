@@ -14,6 +14,7 @@ import com.tugboat.android.engine.EngineTransport
 import com.tugboat.android.engine.JniEngineTransport
 import com.tugboat.android.evidence.EvidenceRecorder
 import com.tugboat.android.evidence.EngineEvidenceEncoder
+import com.tugboat.android.host.CaptureRequestSink
 import com.tugboat.android.host.EngineHost
 import com.tugboat.android.host.FrameHandleTable
 import com.tugboat.android.host.HostClock
@@ -35,6 +36,7 @@ import com.tugboat.android.views.navigation.NavigationObservation
 import java.net.URI
 import java.net.URISyntaxException
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * One running SDK: the engine host, the Views adapter, the capture
@@ -218,6 +220,9 @@ internal class TugboatRuntime private constructor(
                 onBoundary = surfaces::observe,
             )
             val main = Handler(Looper.getMainLooper())
+            adapter.sampleWindow = { foreground.window }
+            // The inventory sent for a captured frame is labelled with what the capture was taken for.
+            val sceneTriggers = ConcurrentHashMap<String, String>()
             val captures = CaptureCoordinator(
                 mainThread = main::post,
                 window = { foreground.window },
@@ -229,13 +234,28 @@ internal class TugboatRuntime private constructor(
                     engineHost.withHost {
                         it.post(HostMessages.CAPTURE_RESULT, answer.toInputJson(), clock.now(), answer.frameHandles)
                     }
+                    val sceneTrigger = sceneTriggers.remove(answer.requestId)
                     if (answer is CaptureAnswer.Captured) {
                         val frame = answer.frame
-                        adapter.onCaptureCompleted(frame.structureSignature, frame.hasRegionHosts, main::post) { foreground.window }
+                        adapter.onCaptureCompleted(
+                            frame.structureSignature,
+                            frame.hasRegionHosts,
+                            main::post,
+                            sceneTrigger,
+                        ) { foreground.window }
                     }
                 },
             )
-            val host = EngineHost.start(transport, frames, http = watcher, captures = captures)
+            val host = EngineHost.start(
+                transport,
+                frames,
+                http = watcher,
+                captures = CaptureRequestSink { request ->
+                    if (config.emitSceneInventory) sceneTriggers[request.requestId] = request.sceneTrigger
+                    captures.onCaptureRequest(request)
+                },
+                scenes = adapter,
+            )
             engineHost.value = host
             // The installation id (the host's when non-blank, else the SDK's own file) is read, or minted
             // and written, on the engine thread when this message is reached: `start` does not wait for the

@@ -107,7 +107,8 @@ class HostMetadataTest {
         assertEquals(5000, configure.getJSONObject("capture").getInt("answerTimeoutMs"))
         assertTrue(configure.getJSONObject("collector").getBoolean("enabled"))
         assertEquals(
-            """{"focusChanges":true,"systemInput":true,"captureDiagnostics":false,"nativeSceneInventory":false}""",
+            """{"focusChanges":true,"systemInput":true,"captureDiagnostics":false,"nativeSceneInventory":false,""" +
+                """"resampleSettledInventory":false}""",
             configure.getJSONObject("capabilities").toString(),
         )
         assertEquals("""{"maxEvents":5000,"maxFrames":500,"maxScrollSamples":200}""", configure.getJSONObject("limits").toString())
