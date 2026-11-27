@@ -102,7 +102,8 @@ internal class ViewsAdapter(
         private set
     private val main = Handler(Looper.getMainLooper())
     private var drawObserver: ViewTreeObserver? = null
-    private var drawListener: ViewTreeObserver.OnDrawListener? = null
+    /** One instance for the adapter's lifetime: removing before adding leaves exactly one on any observer. */
+    private val drawListener = ViewTreeObserver.OnDrawListener { onWatchedDraw() }
     private var lastDrawReportMs = 0L
 
     fun start() = AdapterGuard.run("start") {
@@ -237,18 +238,15 @@ internal class ViewsAdapter(
     private fun attachDrawListener() {
         detachDrawListener()
         val observer = sampleWindow()?.decorView?.viewTreeObserver?.takeIf { it.isAlive } ?: return
-        val listener = ViewTreeObserver.OnDrawListener { onWatchedDraw() }
-        observer.addOnDrawListener(listener)
+        observer.removeOnDrawListener(drawListener)
+        observer.addOnDrawListener(drawListener)
         drawObserver = observer
-        drawListener = listener
     }
 
     private fun detachDrawListener() {
         val observer = drawObserver
-        val listener = drawListener
         drawObserver = null
-        drawListener = null
-        if (observer != null && listener != null && observer.isAlive) observer.removeOnDrawListener(listener)
+        if (observer != null && observer.isAlive) observer.removeOnDrawListener(drawListener)
     }
 
     /** A frame of the watched window was drawn: `scene.frame`, at most once per [WATCH_FRAME_INTERVAL_MS]. */

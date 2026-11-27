@@ -253,7 +253,7 @@ hash input, none is part of the de-duplication key):
 | `scroll {offsetPx, maxExtentPx?}` | `scroll` | Primary vertical scrollable. The engine adds `axis: "vertical"`. |
 | element `visibleFraction` | same | 0 to 1; absent when fully visible |
 | element `tag` | same | An explicit developer tag |
-| element `positional: true` | same | The path runs through `[item:N]`; the adapter sets it |
+| element `positional` | same (`true` only) | The engine sets it when the path runs through `[item:N]`; an adapter-sent `true` is also kept (ORed), `false` never clears it |
 
 A `scroll` inventory that matches the last one sent (same route, hash, element
 count and boxes on a 2% grid) is not recorded.
@@ -287,10 +287,11 @@ elements too). The host reports drawn frames while the watch is armed:
   change, a pause or hide, session end and dispose, and never on a timer.
   An answer with no watch armed is dropped.
 
-The switch defaults to off in the engine (so a host that does not run the
-watch changes nothing); the Android host turns it on with
-`emitSceneInventory` (the Swift host has no inventory source yet, BLE-674), as Flutter's `resampleSettledInventory` defaults to on in
-exploration. The engine does not know what the host's `hasScheduledFrame`
+The switch defaults to on, as Flutter's `resampleSettledInventory` does in
+exploration; `"resampleSettledInventory": false` turns it off. A host that
+does not run the watch (the Swift host has no inventory source yet, BLE-674)
+ignores the `scene.watch` and `scene.sample` effects, as both hosts do for
+effect types they do not execute. The engine does not know what the host's `hasScheduledFrame`
 says, so a window that ends while a frame is already on its way samples.
 Fixtures: `scene-inventory-exploration-metadata`,
 `scene-inventory-resample-settled`, `scene-inventory-resample-empty-first`,
@@ -308,7 +309,7 @@ Fixtures: `scene-inventory-exploration-metadata`,
 | Novelty keeps the page position of a pager apart (`PageView`) | the rule is keyed on Flutter widget names (`PageView#`, `Scrollable#`), so a native pager's pages collapse | | An adapter flag marking page positions (Views `ViewPager2`) is not built | Deferred: toolkit-neutral pager marking |
 | Moments label the next re-sample (`tap`, `gesture`, `scroll`) | pending trigger per visit | | | Programmatic scroll end moment: not ported (needs an adapter fact) |
 | Positional `scroll` inventories sent only when they moved (2% grid) | yes | | | |
-| `resampleSettledInventory` switch | `capabilities.resampleSettledInventory` (off by default in the engine) | Android: on with `emitSceneInventory`; no public option yet | | The Dart config flag |
+| `resampleSettledInventory` switch | `capabilities.resampleSettledInventory` (on by default, as in Flutter) | Android: sends it with `emitSceneInventory`; no public option yet | | The Dart config flag |
 | Exploration tap fields (`fingerprintSource`, `routeKey`, `surface` on taps), navigating-tap fix, tag lookup end | | | | Flutter-only: tap identity (BLE-670 with schema 7) |
 | Loading detection removed (0.12.0) | nothing to remove | nothing to remove | nothing to remove | `loading`, `placeholder`, `TugboatLoading` never existed natively |
 | Fingerprint schema 7, `aliases` | out of scope | | | BLE-670 |

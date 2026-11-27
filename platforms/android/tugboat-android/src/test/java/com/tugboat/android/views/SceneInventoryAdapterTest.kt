@@ -367,6 +367,26 @@ class SceneInventoryAdapterTest {
     }
 
     @Test
+    fun aSecondAttachOnTheSameWindowLeavesOneDrawListener() {
+        val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
+        activity.setContentView(Button(activity))
+        settle()
+        adapter.sampleWindow = { activity.window }
+        adapter.onSceneWatch(true)
+        adapter.onSceneWatch(true)
+        shadowOf(Looper.getMainLooper()).idle()
+        // A sample rebinds too; a stale second listener would report twice per draw.
+        adapter.onSceneSample()
+        shadowOf(Looper.getMainLooper()).idle()
+        sink.batches.clear()
+
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(200))
+        activity.window.decorView.viewTreeObserver.dispatchOnDraw()
+        frames.runFrame()
+        assertEquals(1, sceneFrames())
+    }
+
+    @Test
     fun aDrawnFrameOfTheSampleWindowIsReportedAsASceneFrameAtMostEvery100Ms() {
         val activity = Robolectric.buildActivity(FragmentActivity::class.java).setup().get()
         activity.setContentView(Button(activity))

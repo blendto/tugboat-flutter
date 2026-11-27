@@ -86,8 +86,10 @@ struct Capabilities {
   // mode (`sceneInventory`), which moves tap evidence to pointer-down.
   bool native_scene_inventory = false;
   // The settled re-sample of native scene inventories (Flutter's
-  // `resampleSettledInventory`); it needs `nativeSceneInventory`.
-  bool resample_settled_inventory = false;
+  // `resampleSettledInventory`, on by default); it needs
+  // `nativeSceneInventory`. A host that does not run the watch ignores the
+  // `scene.watch` effect.
+  bool resample_settled_inventory = true;
   bool viewport_semantic_map = false;
   bool capture_diagnostics = false;
   bool action_context = false;

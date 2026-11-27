@@ -256,7 +256,10 @@ Value element_json(const SceneInventoryElement& element) {
   if (element.tag) {
     json.set("tag", Value::string(*element.tag));
   }
-  if (element.positional) {
+  // Derived from the path (the `[item:N]` rule the novelty paths use), or
+  // sent by the adapter: either one marks it.
+  if (element.positional ||
+      element.canonical_path.find("[item:") != std::string::npos) {
     json.set("positional", Value::boolean(true));
   }
   return json;

@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "scene-inventory-exploration-metadata",
-  "description": "A native scene.inventory carries the exploration metadata of Flutter 0.11.0: trigger, surface, viewport, scroll, and per element visibleFraction, tag and a derived positional. Each is emitted only when sent, none is part of the de-duplication key, and bad values are rejected. The re-sample is off by default, so no scene.watch effect.",
+  "description": "A native scene.inventory carries the exploration metadata of Flutter 0.11.0: trigger, surface, viewport, scroll, and per element visibleFraction, tag and a derived positional. Each is emitted only when sent, none is part of the de-duplication key, and bad values are rejected. The re-sample is on by default, so each inventory arms the watch (scene.watch).",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -215,7 +215,12 @@
               "userId": null
             }
           ],
-          "effects": []
+          "effects": [
+            {
+              "type": "scene.watch",
+              "armed": true
+            }
+          ]
         }
       },
       {
