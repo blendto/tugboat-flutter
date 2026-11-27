@@ -171,7 +171,7 @@ bool decode_navigation_fact(const Value& input, const std::string& path,
       !decode_routes(r, out, error)) {
     return false;
   }
-  if (out->kind != NavigationKind::kPop && !out->skipped_instance_ids.empty()) {
+  if (out->kind != NavigationKind::kPop && r.get("skippedInstanceIds")) {
     return r.reject("skippedInstanceIds", "must be absent unless kind is pop");
   }
   if (!out->skipped_instance_ids.empty() && !out->departing_instance_id) {
@@ -198,10 +198,20 @@ bool decode_navigation_fact(const Value& input, const std::string& path,
   if (!out->routes.empty()) {
     return r.reject("routes", "must be absent unless kind is session_start");
   }
+  for (const std::string& id : out->skipped_instance_ids) {
+    if (id == out->departing_instance_id) {
+      return r.reject("skippedInstanceIds", "must not name departing");
+    }
+  }
   if (route == nullptr) return true;
   FactRoute decoded;
   if (!decode_route(*route, r.child("route"), &decoded, error)) return false;
   out->route = std::move(decoded);
+  for (const std::string& id : out->skipped_instance_ids) {
+    if (id == out->route->instance_id) {
+      return r.reject("skippedInstanceIds", "must not name the route");
+    }
+  }
   return true;
 }
 

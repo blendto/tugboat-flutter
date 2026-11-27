@@ -1076,10 +1076,189 @@
       },
       {
         "send": {
+          "type": "navigation",
+          "at": {
+            "monoUs": 11400000
+          },
+          "input": {
+            "kind": "push",
+            "navigatorId": "root",
+            "route": {
+              "instanceId": "a-profile",
+              "name": "/profile",
+              "type": "MaterialPageRoute<dynamic>",
+              "overlayKind": "page",
+              "transitionMs": 0
+            },
+            "departing": {
+              "instanceId": "a-home"
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "navigation.timeout.6",
+              "atMonoUs": 17400000
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "navigation.deadline.6",
+              "atMonoUs": 12400000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 12400000
+          },
+          "input": {
+            "timerId": "navigation.deadline.6"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-6",
+              "trigger": "route",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 12400000,
+              "context": {
+                "routeEpoch": 6,
+                "navigatorId": "nav-0",
+                "routeInstanceId": "route-4",
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-6",
+              "atMonoUs": 17400000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "capture.result",
+          "at": {
+            "monoUs": 12450000
+          },
+          "input": {
+            "requestId": "capture-6",
+            "outcome": "captured",
+            "frame": {
+              "handle": "h-profile",
+              "width": 1080,
+              "height": 2400,
+              "contentHash": "hash-h-profile",
+              "masked": true,
+              "byteLength": 48000,
+              "captureMicros": 12000
+            },
+            "boundaryRect": {
+              "x": 0.0,
+              "y": 0.0,
+              "width": 412.0,
+              "height": 915.0
+            }
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "frame",
+              "handle": "h-profile",
+              "frame": {
+                "id": "frame-18",
+                "atMs": 7450,
+                "width": 1080,
+                "height": 2400,
+                "contentHash": "hash-h-profile",
+                "masked": true,
+                "trigger": "route",
+                "byteLength": 48000,
+                "captureMicros": 12000,
+                "captureSessionId": "session-ec0bae9f-3e3d-4788-aa91-0b5191c57a89"
+              }
+            },
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-82b384ea-6988-485d-b11b-b03557745bf1",
+                "atMs": 7450,
+                "type": "route_change",
+                "stream": "evidence",
+                "captureSessionId": "session-ec0bae9f-3e3d-4788-aa91-0b5191c57a89",
+                "afterFrame": "frame-18",
+                "result": "navigated",
+                "data": {
+                  "fromRoute": "/home",
+                  "route": "/profile",
+                  "navigation": "route_push",
+                  "captureRequestId": "capture_request-17",
+                  "routeName": "/profile",
+                  "routeType": "MaterialPageRoute<dynamic>",
+                  "routeNamed": true,
+                  "fromRouteName": "/home",
+                  "fromRouteType": "MaterialPageRoute<dynamic>",
+                  "fromRouteNamed": true,
+                  "navigatorId": "nav-0",
+                  "routeInstanceId": "route-4",
+                  "fromRouteInstanceId": "route-0",
+                  "stackRevision": 2,
+                  "overlayKind": "page",
+                  "visualObservationGeneration": 6,
+                  "navigationOrigin": "automatic_or_unknown",
+                  "routeStack": [
+                    {
+                      "routeInstanceId": "route-0",
+                      "route": "/home",
+                      "routeNamed": true,
+                      "overlayKind": "page",
+                      "navigatorId": "nav-0"
+                    },
+                    {
+                      "routeInstanceId": "route-4",
+                      "route": "/profile",
+                      "routeNamed": true,
+                      "overlayKind": "page",
+                      "navigatorId": "nav-0"
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-6"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "navigation.timeout.6"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
           "type": "session.end",
           "at": {
-            "monoUs": 12000000,
-            "wallUs": 1781827207000000
+            "monoUs": 13000000,
+            "wallUs": 1781827208000000
           },
           "input": {}
         },
@@ -1088,8 +1267,8 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-82b384ea-6988-485d-b11b-b03557745bf1",
-                "atMs": 7000,
+                "id": "event-946b3408-3828-46dc-a032-ae0415114c75",
+                "atMs": 8000,
                 "type": "session_end",
                 "stream": "semantic",
                 "captureSessionId": "session-ec0bae9f-3e3d-4788-aa91-0b5191c57a89"
@@ -1121,6 +1300,10 @@
             {
               "type": "frame.release",
               "handle": "h-home-again"
+            },
+            {
+              "type": "frame.release",
+              "handle": "h-profile"
             }
           ]
         }
@@ -1206,6 +1389,18 @@
           "width": 1080,
           "height": 2400,
           "contentHash": "hash-h-home-again",
+          "masked": true,
+          "trigger": "route",
+          "byteLength": 48000,
+          "captureMicros": 12000,
+          "captureSessionId": "session-ec0bae9f-3e3d-4788-aa91-0b5191c57a89"
+        },
+        {
+          "id": "frame-18",
+          "atMs": 7450,
+          "width": 1080,
+          "height": 2400,
+          "contentHash": "hash-h-profile",
           "masked": true,
           "trigger": "route",
           "byteLength": 48000,
@@ -1475,7 +1670,51 @@
         },
         {
           "id": "event-82b384ea-6988-485d-b11b-b03557745bf1",
-          "atMs": 7000,
+          "atMs": 7450,
+          "type": "route_change",
+          "stream": "evidence",
+          "captureSessionId": "session-ec0bae9f-3e3d-4788-aa91-0b5191c57a89",
+          "afterFrame": "frame-18",
+          "result": "navigated",
+          "data": {
+            "fromRoute": "/home",
+            "route": "/profile",
+            "navigation": "route_push",
+            "captureRequestId": "capture_request-17",
+            "routeName": "/profile",
+            "routeType": "MaterialPageRoute<dynamic>",
+            "routeNamed": true,
+            "fromRouteName": "/home",
+            "fromRouteType": "MaterialPageRoute<dynamic>",
+            "fromRouteNamed": true,
+            "navigatorId": "nav-0",
+            "routeInstanceId": "route-4",
+            "fromRouteInstanceId": "route-0",
+            "stackRevision": 2,
+            "overlayKind": "page",
+            "visualObservationGeneration": 6,
+            "navigationOrigin": "automatic_or_unknown",
+            "routeStack": [
+              {
+                "routeInstanceId": "route-0",
+                "route": "/home",
+                "routeNamed": true,
+                "overlayKind": "page",
+                "navigatorId": "nav-0"
+              },
+              {
+                "routeInstanceId": "route-4",
+                "route": "/profile",
+                "routeNamed": true,
+                "overlayKind": "page",
+                "navigatorId": "nav-0"
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-946b3408-3828-46dc-a032-ae0415114c75",
+          "atMs": 8000,
           "type": "session_end",
           "stream": "semantic",
           "captureSessionId": "session-ec0bae9f-3e3d-4788-aa91-0b5191c57a89"

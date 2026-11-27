@@ -9,6 +9,7 @@ import 'capture_boundary.dart';
 import 'controller.dart';
 import 'external_event.dart';
 import 'health.dart';
+import 'interaction_transaction.dart';
 import 'input_capture.dart';
 import 'input_context_capture.dart';
 import 'lifecycle.dart';
@@ -317,7 +318,10 @@ class _TugboatEventHook implements TugboatEventHook {
 
 /// A pop waiting for the end of the synchronous turn, in case more follow.
 class _PendingPop {
-  _PendingPop(this.departing, this.destination);
+  _PendingPop(this.owner, this.departing, this.destination, this.cause);
+
+  final TugboatNavigatorObserver owner;
+  final ({InteractionTransaction? tx})? cause;
 
   final Route<dynamic> departing;
   final List<Route<dynamic>> skipped = <Route<dynamic>>[];
@@ -392,18 +396,20 @@ class TugboatNavigatorObserver extends NavigatorObserver
 
   /// The pops of one synchronous turn that chain (each pops the route the
   /// last one revealed), as `Navigator.popUntil` makes them: reported once, as
-  /// a pop back several screens.
-  _PendingPop? _pendingPop;
+  /// a pop back several screens. One for all observers, so that any other
+  /// route change flushes it first and the events keep their order.
+  static _PendingPop? _pendingPop;
 
-  void _flushPendingPop() {
+  static void _flushPendingPop() {
     final pending = _pendingPop;
     if (pending == null) return;
     _pendingPop = null;
-    _emit(
+    pending.owner._emit(
       'route_pop',
       pending.destination,
       departing: pending.departing,
       skipped: pending.skipped,
+      preClaimedCause: pending.cause,
     );
   }
 
@@ -412,6 +418,7 @@ class TugboatNavigatorObserver extends NavigatorObserver
     Route<dynamic>? destination, {
     Route<dynamic>? departing,
     List<Route<dynamic>> skipped = const [],
+    ({InteractionTransaction? tx})? preClaimedCause,
   }) {
     if (TugboatReplay.disabled) return;
     if (type != 'route_pop') _flushPendingPop();
@@ -431,6 +438,7 @@ class TugboatNavigatorObserver extends NavigatorObserver
       navigatorState: navigator,
       departingRoute: departing,
       skippedRoutes: skipped,
+      preClaimedCause: preClaimedCause,
     );
   }
 
@@ -444,13 +452,18 @@ class TugboatNavigatorObserver extends NavigatorObserver
     if (TugboatReplay.disabled) return;
     _retainPop(route);
     final pending = _pendingPop;
-    if (pending != null && identical(pending.destination, route)) {
+    if (pending != null &&
+        identical(pending.owner, this) &&
+        identical(pending.destination, route)) {
       pending.skipped.add(route);
       pending.destination = previousRoute;
       return;
     }
     _flushPendingPop();
-    _pendingPop = _PendingPop(route, previousRoute);
+    // The tap is claimed now, while its pointer is still down (`same_turn`),
+    // not when the pop is reported at the end of the turn.
+    final cause = TugboatReplay.controller?.claimRouteCause(navigator);
+    _pendingPop = _PendingPop(this, route, previousRoute, cause);
     scheduleMicrotask(_flushPendingPop);
   }
 
