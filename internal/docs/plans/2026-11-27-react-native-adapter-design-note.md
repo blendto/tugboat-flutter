@@ -776,7 +776,7 @@ Network (asked for in the narrowed scope; not an S item):
   wrong for this version. Older RN versions were **not run**, so whether they have
   `_targetInst` is unverified here.
 - **What works** (every probed target, 0 misses). Android release: `Text` in a `Pressable`,
-  `Switch`, `TextInput`, horizontal-scroll rows, the outer scroll, tab buttons, `FlatList`
+  `Switch`, `TextInput`, horizontal-scroll rows, tab buttons, `FlatList`
   and `FlashList` rows (the `Switch`, `TextInput` and horizontal-scroll lines are from the
   first Android capture, which was overwritten; they are quoted in the probes doc). iOS
   debug: the same set, kept in `ios88-debug.log`.
@@ -864,7 +864,7 @@ what the native allowlist (section 3.4) sees.
   `prevCellKey`, `horizontal`, `inversionStyle`, `onUpdateSeparators`. Taps in rows
   gave `index` equal to the data index: iOS `fl-1`, `fl-3`; Android release `fl-4`
   and `fl-6` (after a scroll).
-- **`FlashList` 2.3.3 fails the rule as written** (`cellKey` or a `CellContainer`
+- **`FlashList` 2.3.3 fails the rule as originally written** (`cellKey` or a `CellContainer`
   host): every tap in a FlashList row returned `cell: null`. FlashList 2 renders
   rows through `ViewHolder` (inside `ViewHolderCollection`); from its source
   (`recyclerview/ViewHolderCollection.tsx`, `ViewHolder.tsx`) the props are `index`,
