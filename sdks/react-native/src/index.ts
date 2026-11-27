@@ -29,13 +29,21 @@ export interface TugboatConfig {
 
 let warned = false;
 
-// Nothing here throws into the app. On iOS every call is a no-op with one warning.
+const supported = Platform.OS === 'android' || Platform.OS === 'ios';
+
+// Nothing here throws into the app. Where the native module is missing (an
+// unsupported platform, or one that is not linked) every call is a no-op with
+// one warning.
 function call(name: string, run: () => void): void {
   try {
-    if (Platform.OS !== 'android' || NativeTugboat == null) {
+    if (!supported || NativeTugboat == null) {
       if (!warned) {
         warned = true;
-        console.warn(`[Tugboat] ${name}: only Android is supported; ignored.`);
+        console.warn(
+          supported
+            ? `[Tugboat] ${name}: the native module is not linked; ignored.`
+            : `[Tugboat] ${name}: only Android and iOS are supported; ignored.`,
+        );
       }
       return;
     }
@@ -50,7 +58,7 @@ function call(name: string, run: () => void): void {
  * native capture masks this view and everything below it.
  */
 function Sensitive(props: ViewProps) {
-  if (Platform.OS !== 'android') {
+  if (!supported) {
     return React.createElement(React.Fragment, null, props.children);
   }
   const Native = require('./TugboatSensitiveViewNativeComponent').default;

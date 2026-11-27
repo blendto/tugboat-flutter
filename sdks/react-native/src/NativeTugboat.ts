@@ -2,7 +2,8 @@ import type { TurboModule } from 'react-native';
 import { TurboModuleRegistry } from 'react-native';
 
 // Codegen spec. Every method is one call to the same-named `Tugboat` function
-// in tugboat-android. Events are built by its engine, never in JavaScript.
+// in tugboat-android or the Swift host. Events are built by the shared engine,
+// never in JavaScript.
 export interface Spec extends TurboModule {
   start(config: Object): void;
   activate(activationRequestId: string): void;
@@ -13,5 +14,5 @@ export interface Spec extends TurboModule {
   setTraits(traits: Object): void;
 }
 
-// `get`, not `getEnforcing`: the module only exists on Android.
+// `get`, not `getEnforcing`: the module does not exist on other platforms.
 export default TurboModuleRegistry.get<Spec>('Tugboat');
