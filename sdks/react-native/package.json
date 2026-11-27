@@ -29,6 +29,11 @@
       "javaPackageName": "com.tugboat.reactnative"
     },
     "ios": {
+      "modulesConformingToProtocol": {
+        "RCTURLRequestHandler": [
+          "TugboatHTTPRequestHandler"
+        ]
+      },
       "components": {
         "TugboatSensitiveView": {
           "className": "TugboatSensitiveViewComponentView"

@@ -2,10 +2,9 @@
 
 A shop-flow sample that mirrors `sdks/flutter/packages/tugboat/example`, used to
 test the upcoming `@tugboat/react-native` SDK. React Native 0.88 (New
-Architecture, Hermes), TypeScript, React Navigation. Android first; `ios/` is
-the unmodified community template.
+Architecture, Hermes), TypeScript, React Navigation. Android and iOS.
 
-Package: `com.tugboat.rnexample`.
+Package and bundle id: `com.tugboat.rnexample`.
 
 ## Screens
 
@@ -32,6 +31,28 @@ cd sdks/react-native/example
 npm install
 npm start                 # Metro, in one terminal
 npm run android           # debug build to a device or emulator
+```
+
+## Run on iOS
+
+`ios/Podfile` adds the in-repo Swift host as local pods (see `../README.md`).
+
+```sh
+cd sdks/react-native/example/ios && pod install
+cd .. && npm run ios      # simulator; JS from Metro
+```
+
+The collector is `http://localhost:3000` (the simulator shares the Mac's network).
+For a phone, point `baseUrl` in `src/tugboat.ts` at the Mac's LAN address and start
+the collector with `--host 0.0.0.0`; a Release build embeds the JS bundle.
+`RnExampleUITests` is a small XCUITest that drives the shop flow (cold launch to
+the Network screen, plus a second launch of seven taps), used for device runs:
+
+```sh
+xcodebuild test -workspace RnExample.xcworkspace -scheme RnExample -configuration Release \
+  -destination 'platform=iOS,id=<udid>' -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM=<team> TUGBOAT_BUNDLE_SUFFIX=.<unique> \
+  -only-testing:RnExampleUITests/RnExampleUITests/testFullFlow
 ```
 
 ## Build APKs

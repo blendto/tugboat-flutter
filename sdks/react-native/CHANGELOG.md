@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.4
+
+- iOS support. The same `NativeTugboat` spec is implemented over the Swift host
+  (`platforms/apple`): `start`, `activate`, `deactivate`, `stop`, `setUserId`,
+  `setTraits`, `setScreen`. `<Tugboat.Sensitive>` is a Fabric view that the host
+  masks with its whole subtree. `fetch` and `XMLHttpRequest` are recorded through
+  a request handler built on `Tugboat.instrumentedSession` (URL path as route,
+  once per call). A `testID` is the view's `accessibilityIdentifier`: a named
+  view is a tap target, its name the anchor's tag and alias. React Native's text
+  and image views are masked whole. JavaScript names every screen: no view
+  controller is a route, and the first route is the first screen named.
+- The Swift host comes in as local pods (`TugboatSessionEngine`,
+  `TugboatCaptureRuntime`, `Tugboat`, from the repository root); see the README.
+- Needs the seams added to the Swift host in this tree
+  (`TugboatAdapters.setScreen`, `setViewNameProvider`, `setViewRoleClassifier`,
+  `markSensitive`).
+- Android is unchanged.
+
 ## 0.0.3
 
 - Anchors match Flutter (needs the `tugboat-android` of this tree): a `Switch` reports role
