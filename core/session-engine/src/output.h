@@ -146,8 +146,21 @@ struct CaptureRequest {
   double scale = 1.0;
 };
 
+// `scene.watch {armed}`: the settled re-sample watch (section 4.3.2) is armed
+// (`true`) or stopped (`false`). While armed the host reports drawn frames
+// with `scene.frame`, at most once per 100 ms. No answer.
+struct SceneWatch {
+  bool armed = false;
+};
+
+// `scene.sample {}`: build the inventory of the visible route now and send it
+// as `scene.inventory {resample: true, ...}`. The engine decides whether the
+// sample is new; a host that cannot build one sends nothing.
+struct SceneSample {};
+
 using Effect = std::variant<TimerSchedule, TimerCancel, HttpSend,
-                            FrameRelease, CaptureRequest>;
+                            FrameRelease, CaptureRequest, SceneWatch,
+                            SceneSample>;
 
 struct Output {
   std::vector<Record> records;

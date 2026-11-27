@@ -85,6 +85,9 @@ struct Capabilities {
   // Native adapters send `scene.inventory`; distinct from Dart exploration
   // mode (`sceneInventory`), which moves tap evidence to pointer-down.
   bool native_scene_inventory = false;
+  // The settled re-sample of native scene inventories (Flutter's
+  // `resampleSettledInventory`); it needs `nativeSceneInventory`.
+  bool resample_settled_inventory = false;
   bool viewport_semantic_map = false;
   bool capture_diagnostics = false;
   bool action_context = false;

@@ -16,6 +16,7 @@
 #include "lifecycle.h"
 #include "models.h"
 #include "navigation_state.h"
+#include "scene_resample.h"
 #include "session.h"
 
 namespace tugboat {
@@ -60,6 +61,8 @@ struct EngineState {
   CaptureSeam captures;
   InteractionState interactions;
   NavigationState navigation;
+  // The native scene inventory re-sample (scene_resample.h).
+  SceneResampleState scene_resample;
   // Deferred work and the publication queue.
   Coordination coordination;
 

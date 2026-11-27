@@ -1,0 +1,1642 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "scene-inventory-resample-settled",
+  "description": "The settled re-sample of native scene inventories (Flutter 0.11.0): the engine arms a watch on each inventory, the host reports drawn frames, a 400 ms quiet window (forced after 2 s of frames, doubling to 6.4 s when nothing is new) asks the host for a sample, and the sample is emitted only when it adds a control or content path, or a state, not sent in the route visit. A tap labels the next re-sample once.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {
+        "$preset": "default-host"
+      },
+      "capabilities": {
+        "nativeSceneInventory": true,
+        "resampleSettledInventory": true
+      }
+    },
+    "steps": [
+      {
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6000000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "trigger": "initial"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-2",
+                "atMs": 1000,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "0c0beacef8877bbf",
+                  "routeKey": "/home",
+                  "trigger": "initial",
+                  "elements": [
+                    {
+                      "fingerprint": "aaaaaaaaaaaaaaaa",
+                      "canonicalPath": "Page#0/Button#0",
+                      "actions": [
+                        "tap"
+                      ],
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "scene.watch",
+              "armed": true
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.frame",
+          "at": {
+            "monoUs": 6100000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "scene.window",
+              "atMonoUs": 6500000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 6500000
+          },
+          "input": {
+            "timerId": "scene.window"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "scene.sample"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 6510000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "resample": true
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scene.frame",
+          "at": {
+            "monoUs": 6600000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "scene.window",
+              "atMonoUs": 7400000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 7400000
+          },
+          "input": {
+            "timerId": "scene.window"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "scene.sample"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 7410000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "Page#0/Button#1",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "resample": true
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-3",
+                "atMs": 2410,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "0b889a29362c4fe5",
+                  "routeKey": "/home",
+                  "trigger": "settled",
+                  "elements": [
+                    {
+                      "fingerprint": "aaaaaaaaaaaaaaaa",
+                      "canonicalPath": "Page#0/Button#0",
+                      "actions": [
+                        "tap"
+                      ],
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    },
+                    {
+                      "fingerprint": "bbbbbbbbbbbbbbbb",
+                      "canonicalPath": "Page#0/Button#1",
+                      "actions": [
+                        "tap"
+                      ],
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scene.frame",
+          "at": {
+            "monoUs": 7500000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "scene.window",
+              "atMonoUs": 7900000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 7900000
+          },
+          "input": {
+            "timerId": "scene.window"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "scene.sample"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 7910000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "Page#0/Button#1",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "resample": true
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 8000000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "Page#0/Button#1",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "trigger": "tap"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scene.frame",
+          "at": {
+            "monoUs": 8100000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "scene.window",
+              "atMonoUs": 8500000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 8500000
+          },
+          "input": {
+            "timerId": "scene.window"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "scene.sample"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 8510000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "Page#0/Button#1",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ],
+                "enabled": false
+              }
+            ],
+            "resample": true
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-4",
+                "atMs": 3510,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "0b889a29362c4fe5",
+                  "routeKey": "/home",
+                  "trigger": "tap",
+                  "elements": [
+                    {
+                      "fingerprint": "aaaaaaaaaaaaaaaa",
+                      "canonicalPath": "Page#0/Button#0",
+                      "actions": [
+                        "tap"
+                      ],
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    },
+                    {
+                      "fingerprint": "bbbbbbbbbbbbbbbb",
+                      "canonicalPath": "Page#0/Button#1",
+                      "actions": [
+                        "tap"
+                      ],
+                      "enabled": false,
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scene.frame",
+          "at": {
+            "monoUs": 8600000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "scene.window",
+              "atMonoUs": 9000000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 9000000
+          },
+          "input": {
+            "timerId": "scene.window"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "scene.sample"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 9010000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "Page#0/Button#1",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ],
+                "enabled": false
+              },
+              {
+                "fingerprint": "cccccccccccccccc",
+                "canonicalPath": "Page#0/List#0/[item:1]/Row#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "resample": true
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-5",
+                "atMs": 4010,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "ec07ea81595af81a",
+                  "routeKey": "/home",
+                  "trigger": "settled",
+                  "elements": [
+                    {
+                      "fingerprint": "aaaaaaaaaaaaaaaa",
+                      "canonicalPath": "Page#0/Button#0",
+                      "actions": [
+                        "tap"
+                      ],
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    },
+                    {
+                      "fingerprint": "bbbbbbbbbbbbbbbb",
+                      "canonicalPath": "Page#0/Button#1",
+                      "actions": [
+                        "tap"
+                      ],
+                      "enabled": false,
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    },
+                    {
+                      "fingerprint": "cccccccccccccccc",
+                      "canonicalPath": "Page#0/List#0/[item:1]/Row#0",
+                      "actions": [
+                        "tap"
+                      ],
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scene.frame",
+          "at": {
+            "monoUs": 9100000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "scene.window",
+              "atMonoUs": 9500000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 9500000
+          },
+          "input": {
+            "timerId": "scene.window"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "scene.sample"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 9510000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "Page#0/Button#1",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ],
+                "enabled": false
+              },
+              {
+                "fingerprint": "cccccccccccccccc",
+                "canonicalPath": "Page#0/List#0/[item:1]/Row#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "dddddddddddddddd",
+                "canonicalPath": "Page#0/List#0/[item:2]/Row#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "resample": true
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "scene.frame",
+          "at": {
+            "monoUs": 10000000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "scene.window",
+              "atMonoUs": 10800000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.frame",
+          "at": {
+            "monoUs": 10100000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 10800000
+          },
+          "input": {
+            "timerId": "scene.window"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "scene.window",
+              "atMonoUs": 11600000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.frame",
+          "at": {
+            "monoUs": 11000000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 11600000
+          },
+          "input": {
+            "timerId": "scene.window"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "scene.window",
+              "atMonoUs": 12400000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.frame",
+          "at": {
+            "monoUs": 11800000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 12400000
+          },
+          "input": {
+            "timerId": "scene.window"
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "scene.sample"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 12410000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "Page#0/Button#1",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "eeeeeeeeeeeeeeee",
+                "canonicalPath": "Page#0/Button#9",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "resample": true
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-6",
+                "atMs": 7410,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "7171080d24a73acb",
+                  "routeKey": "/home",
+                  "trigger": "settled",
+                  "elements": [
+                    {
+                      "fingerprint": "aaaaaaaaaaaaaaaa",
+                      "canonicalPath": "Page#0/Button#0",
+                      "actions": [
+                        "tap"
+                      ],
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    },
+                    {
+                      "fingerprint": "bbbbbbbbbbbbbbbb",
+                      "canonicalPath": "Page#0/Button#1",
+                      "actions": [
+                        "tap"
+                      ],
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    },
+                    {
+                      "fingerprint": "eeeeeeeeeeeeeeee",
+                      "canonicalPath": "Page#0/Button#9",
+                      "actions": [
+                        "tap"
+                      ],
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": []
+        }
+      },
+      {
+        "send": {
+          "type": "navigation",
+          "at": {
+            "monoUs": 12500000
+          },
+          "input": {
+            "kind": "push",
+            "navigatorId": "root",
+            "route": {
+              "instanceId": "a-next",
+              "name": "/next",
+              "type": "MaterialPageRoute<dynamic>",
+              "overlayKind": "page",
+              "transitionMs": 0
+            }
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "scene.watch",
+              "armed": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "navigation.timeout.1",
+              "atMonoUs": 18500000
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "navigation.deadline.1",
+              "atMonoUs": 13500000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 12600000
+          },
+          "input": {
+            "routeKey": "/next",
+            "elements": [
+              {
+                "fingerprint": "ffffffffffffffff",
+                "canonicalPath": "Next#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "trigger": "route"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-7",
+                "atMs": 7600,
+                "type": "scene_inventory",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "inventoryHash": "6534b338bcb91cf1",
+                  "routeKey": "/next",
+                  "trigger": "route",
+                  "elements": [
+                    {
+                      "fingerprint": "ffffffffffffffff",
+                      "canonicalPath": "Next#0/Button#0",
+                      "actions": [
+                        "tap"
+                      ],
+                      "boundsNorm": {
+                        "left": 0.1,
+                        "top": 0.2,
+                        "width": 0.3,
+                        "height": 0.1
+                      },
+                      "tier": "interactive"
+                    }
+                  ]
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "scene.watch",
+              "armed": true
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "app.lifecycle",
+          "at": {
+            "monoUs": 13000000
+          },
+          "input": {
+            "state": "paused"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-9",
+                "atMs": 8000,
+                "type": "app_backgrounded",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "state": "paused"
+                }
+              },
+              "userId": null
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "navigation.deadline.1"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "navigation.timeout.1"
+            },
+            {
+              "type": "timer.cancel",
+              "timerId": "capture.answer.capture-0"
+            },
+            {
+              "type": "scene.watch",
+              "armed": false
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "scene.inventory",
+          "at": {
+            "monoUs": 13010000
+          },
+          "input": {
+            "routeKey": "/home",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "Page#0/Button#1",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              },
+              {
+                "fingerprint": "eeeeeeeeeeeeeeee",
+                "canonicalPath": "Page#0/Button#9",
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive",
+                "actions": [
+                  "tap"
+                ]
+              }
+            ],
+            "resample": true
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "event-2",
+          "atMs": 1000,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "0c0beacef8877bbf",
+            "routeKey": "/home",
+            "trigger": "initial",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "actions": [
+                  "tap"
+                ],
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-3",
+          "atMs": 2410,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "0b889a29362c4fe5",
+            "routeKey": "/home",
+            "trigger": "settled",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "actions": [
+                  "tap"
+                ],
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "Page#0/Button#1",
+                "actions": [
+                  "tap"
+                ],
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-4",
+          "atMs": 3510,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "0b889a29362c4fe5",
+            "routeKey": "/home",
+            "trigger": "tap",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "actions": [
+                  "tap"
+                ],
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "Page#0/Button#1",
+                "actions": [
+                  "tap"
+                ],
+                "enabled": false,
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-5",
+          "atMs": 4010,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "ec07ea81595af81a",
+            "routeKey": "/home",
+            "trigger": "settled",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "actions": [
+                  "tap"
+                ],
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "Page#0/Button#1",
+                "actions": [
+                  "tap"
+                ],
+                "enabled": false,
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              },
+              {
+                "fingerprint": "cccccccccccccccc",
+                "canonicalPath": "Page#0/List#0/[item:1]/Row#0",
+                "actions": [
+                  "tap"
+                ],
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-6",
+          "atMs": 7410,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "7171080d24a73acb",
+            "routeKey": "/home",
+            "trigger": "settled",
+            "elements": [
+              {
+                "fingerprint": "aaaaaaaaaaaaaaaa",
+                "canonicalPath": "Page#0/Button#0",
+                "actions": [
+                  "tap"
+                ],
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              },
+              {
+                "fingerprint": "bbbbbbbbbbbbbbbb",
+                "canonicalPath": "Page#0/Button#1",
+                "actions": [
+                  "tap"
+                ],
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              },
+              {
+                "fingerprint": "eeeeeeeeeeeeeeee",
+                "canonicalPath": "Page#0/Button#9",
+                "actions": [
+                  "tap"
+                ],
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-7",
+          "atMs": 7600,
+          "type": "scene_inventory",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "inventoryHash": "6534b338bcb91cf1",
+            "routeKey": "/next",
+            "trigger": "route",
+            "elements": [
+              {
+                "fingerprint": "ffffffffffffffff",
+                "canonicalPath": "Next#0/Button#0",
+                "actions": [
+                  "tap"
+                ],
+                "boundsNorm": {
+                  "left": 0.1,
+                  "top": 0.2,
+                  "width": 0.3,
+                  "height": 0.1
+                },
+                "tier": "interactive"
+              }
+            ]
+          }
+        },
+        {
+          "id": "event-9",
+          "atMs": 8000,
+          "type": "app_backgrounded",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "state": "paused"
+          }
+        }
+      ]
+    }
+  }
+}

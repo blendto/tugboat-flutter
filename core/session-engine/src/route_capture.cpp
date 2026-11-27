@@ -8,6 +8,7 @@
 #include "engine_state.h"
 #include "interaction_claims.h"
 #include "route_barrier.h"
+#include "scene_resample.h"
 
 namespace tugboat {
 namespace engine {
@@ -138,6 +139,8 @@ void start_route_capture(Turn& turn, VisibleRouteChange change) {
 
   auto work = std::make_shared<RouteWork>();
   work->epoch = ++navigation.route_epoch;
+  // The re-sample watch ends on any visible route change.
+  stop_resample_watch(state, turn.out);
   work->deadline_ms =
       change.transition_ms + state->config.interaction.settle_delay_ms;
   work->change = std::move(change);
