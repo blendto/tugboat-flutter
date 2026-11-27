@@ -32,13 +32,43 @@ note() {
   notes+=("$*")
 }
 
-# Runs a command with a wall-clock limit, tee'd to a log.
-# The perl alarm is the bound the iOS smoke step already relies on.
+# On iOS, flutter finds the app's Dart VM service by reading the simulator
+# log. On the first launch after boot it has missed that line (the app
+# printed it) and waited until the time limit, about 6 minutes per run.
+# A run that has waited this long without the URL is stopped and retried.
+vm_service_wait=75
+
+# Runs a command with a wall-clock limit (perl alarm), shows its output and
+# keeps it in a log. On iOS it also stops a run stuck waiting for the VM
+# service URL (see vm_service_wait).
 bounded() {
   local limit="$1" log="$2"
   shift 2
-  perl -e 'alarm shift; exec @ARGV' "$limit" "$@" 2>&1 | tee "$log"
-  return "${PIPESTATUS[0]}"
+  : > "$log"
+  perl -e 'alarm shift; exec @ARGV' "$limit" "$@" > "$log" 2>&1 &
+  local pid=$!
+  tail -n +1 -f "$log" &
+  local tail_pid=$! waited=0
+  while kill -0 "$pid" 2>/dev/null; do
+    sleep 5
+    [[ "$platform" == ios && "$waited" -ge 0 ]] || continue
+    if grep -q "Waiting for VM Service port" "$log" && ! grep -q "VM Service URL" "$log"; then
+      waited=$((waited + 5))
+      if ((waited >= vm_service_wait)); then
+        echo "::warning::no VM service URL after ${waited}s; stopping this attempt"
+        kill "$pid" 2>/dev/null
+        pkill -TERM -P "$pid" 2>/dev/null
+        waited=-1
+      fi
+    fi
+  done
+  wait "$pid"
+  local status=$?
+  ((waited < 0)) && status=124
+  sleep 1
+  kill "$tail_pid" 2>/dev/null
+  wait "$tail_pid" 2>/dev/null
+  return "$status"
 }
 
 verbose=()
@@ -82,34 +112,10 @@ else
 fi
 cat "$out/device.json"
 
-# ---- 0. iOS warm-up -----------------------------------------------------------
-# On the first launch after the simulator boots, flutter has missed the VM
-# service line the app printed and waited for it until the time limit
-# (about 6 minutes lost per run). Build the app once and launch it outside
-# flutter, so every timed run below is a later launch and its Xcode build is
-# incremental. The cold build moves here; nothing below depends on it.
-first_limit=720
-if [[ "$platform" == ios ]]; then
-  if bounded 1200 "$logs/warmup-build.log" flutter build ios --simulator --debug --no-pub; then
-    app=build/ios/iphonesimulator/Runner.app
-    bundle=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")
-    if xcrun simctl install "$device" "$app" &&
-      xcrun simctl launch "$device" "$bundle" > "$logs/warmup-launch.log" 2>&1; then
-      sleep 20
-      first_limit=420
-    else
-      note "ios warm-up launch failed; the smoke test launches the app first"
-    fi
-    xcrun simctl terminate "$device" "$bundle" 2>/dev/null || true
-  else
-    note "ios warm-up build failed; the smoke test builds from cold"
-  fi
-fi
-
 # ---- 1. smoke test -----------------------------------------------------------
 smoke_ok=false
 for attempt in 1 2; do
-  limit=$(( attempt == 1 ? first_limit : 360 ))
+  limit=$(( attempt == 1 ? 720 : 360 ))
   if bounded "$limit" "$logs/smoke-$attempt.log" \
     flutter test --no-pub ${verbose[@]+"${verbose[@]}"} --reporter expanded -d "$device" \
     integration_test/capture_smoke_test.dart; then
