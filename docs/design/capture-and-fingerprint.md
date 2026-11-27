@@ -1215,7 +1215,9 @@ semantics without emitting map events.
 The controller fans evidence to the built-in HTTP sink configured by
 `collector`, plus any registered custom sinks.
 
-The sink hub isolates synchronous and asynchronous sink failures. Capture
+The sink hub isolates synchronous and asynchronous sink failures, including
+failed futures from `start()` and `dispose()`. A factory whose `create()`
+throws is skipped; the session and the other sinks still start. Capture
 remains authoritative in memory. Public `TugboatCaptureSinkFactory` registration
 is supported via `TugboatReplayConfig.sinkFactories`; the built-in HTTP sink
 remains available through `collector`.

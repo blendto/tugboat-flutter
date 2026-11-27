@@ -1829,7 +1829,8 @@ class TugboatReplayController extends ChangeNotifier {
       final all = <TugboatCaptureSink>[
         ..._builtinSinks,
         for (final factory in config.sinkFactories)
-          _FactorySinkAdapter(factory.create(context), context),
+          if (_createFactorySink(factory, context) case final sink?)
+            _FactorySinkAdapter(sink, context),
       ];
       _sinkHub = TugboatCaptureSinkHub(all);
     }
@@ -6627,8 +6628,7 @@ class _FactorySinkAdapter implements TugboatCaptureSink {
 
   @override
   void startSession(TugboatSession session) {
-    // ignore: discarded_futures
-    _sink.start(_context);
+    _runDetached(() => _sink.start(_context));
   }
 
   @override
@@ -6680,7 +6680,35 @@ class _FactorySinkAdapter implements TugboatCaptureSink {
 
   @override
   void dispose() {
-    // ignore: discarded_futures
-    _sink.dispose();
+    _runDetached(_sink.dispose);
   }
+}
+
+/// Creates one factory's session sink. A factory that throws is skipped, so
+/// the session and the other sinks still start.
+TugboatSessionCaptureSink? _createFactorySink(
+  TugboatCaptureSinkFactory factory,
+  TugboatSinkSessionContext context,
+) {
+  try {
+    return factory.create(context);
+  } catch (error) {
+    debugPrint(
+      '[tugboat] sink factory ${factory.runtimeType} failed; skipped: $error',
+    );
+    return null;
+  }
+}
+
+/// Runs a sink call the SDK does not wait for. A synchronous throw or a
+/// failed future stays here: sink failures must never reach the host app as
+/// uncaught errors.
+///
+/// `then(onError:)` rather than `catchError`: a sink may return a typed
+/// future such as `Future<bool>` as its `Future<void>`, and a `catchError`
+/// handler returning nothing would itself fail with an `ArgumentError`.
+void _runDetached(Future<void> Function() call) {
+  try {
+    unawaited(call().then<void>((_) {}, onError: (Object _) {}));
+  } catch (_) {}
 }

@@ -1,3 +1,10 @@
+## 0.12.7
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.7 (sink failures stay inside the
+  SDK). No `tugboat_http` change; its `tugboat` floor is now `^0.12.7`.
+
 ## 0.12.6
 
 ### Changed
