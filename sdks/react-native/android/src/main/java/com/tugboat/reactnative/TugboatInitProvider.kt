@@ -25,6 +25,8 @@ class TugboatInitProvider : ContentProvider() {
             TugboatAdapters.setViewNameProvider(::testId)
             // react-native-screens hosts each screen in a fragment; JavaScript names the screen.
             TugboatAdapters.setFragmentFilter { it.startsWith("com.swmansion.rnscreens.") }
+            // JavaScript names every screen with setScreen; the activity is not a route.
+            TugboatAdapters.setHostNamesScreens(true)
         } catch (t: Throwable) {
             Log.w("TugboatRN", "early install failed", t)
         }

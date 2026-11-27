@@ -1,6 +1,6 @@
 # React Native adapter
 
-`@tugboat/react-native` 0.0.2: Android only, unpublished. A thin TurboModule over
+`@tugboat/react-native` 0.0.3: Android only, unpublished. A thin TurboModule over
 `tugboat-android`. React Native draws real Android Views, so the Views adapter
 records frames, masks, taps and scrolls as in a native app. JavaScript starts the
 SDK and marks sensitive regions; events are built by the shared C++ engine, never
@@ -31,7 +31,7 @@ cd platforms/android && ./gradlew :capture-runtime:publishAllPublicationsToLocal
   :tugboat-okhttp:publishAllPublicationsToLocalCaptureRepository
 ```
 
-Then build `example/` (see its README). Known gaps in 0.0.2:
+Then build `example/` (see its README). Known gaps in 0.0.3:
 - Screens: `Tugboat.trackNavigation(navigationRef)` (React Navigation) or
   `Tugboat.setScreen(name, instanceId?)`. A `testID` is the view's tag and
   fingerprint name. A content provider installs the observation before the first

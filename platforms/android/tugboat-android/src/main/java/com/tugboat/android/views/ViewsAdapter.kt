@@ -30,6 +30,7 @@ import com.tugboat.android.views.inventory.SceneInventoryBuilder
 import com.tugboat.android.views.inventory.SceneInventoryEmitter
 import com.tugboat.android.views.mask.WindowMaskResult
 import com.tugboat.android.views.mask.WindowMasks
+import com.tugboat.android.views.navigation.ActivityNavigation
 import com.tugboat.android.views.navigation.NavigationChange
 import com.tugboat.android.views.navigation.NavigationObservation
 import com.tugboat.android.views.navigation.NavigationProcessState
@@ -305,15 +306,17 @@ internal class ViewsAdapter(
 
     private fun reportNavigation(change: NavigationChange) {
         if (!postNavigationFacts) return
+        // The host names its screens: the activity is not a route.
+        if (TugboatAdapters.hostNamesScreens && ActivityNavigation.isActivityNavigator(change.navigatorId)) return
         emit(change.toFact(clock.now()))
     }
 
     private fun emitSessionStartSeeds() {
         if (!postNavigationFacts) return
         val now = clock.now()
-        NavigationProcessState.sessionStartSnapshots().forEach { snapshot ->
-            emit(snapshot.toFact(now))
-        }
+        NavigationProcessState.sessionStartSnapshots()
+            .filterNot { TugboatAdapters.hostNamesScreens && ActivityNavigation.isActivityNavigator(it.navigatorId) }
+            .forEach { snapshot -> emit(snapshot.toFact(now)) }
     }
 
     private fun onFrame() {

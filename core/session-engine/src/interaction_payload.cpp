@@ -73,6 +73,17 @@ void put_tap_resolution(const Transaction& tx, const OptString& fingerprint,
   if (tx.pre_tap_evidence && non_empty(fingerprint) && non_empty(confidence)) {
     envelope->set("fingerprintConfidence", Value::string(*confidence));
   }
+  // Dart `_writeRouteKey`: the route key the fingerprint was hashed under,
+  // which a native adapter carries in the anchor's `fingerprintParts`.
+  if (non_empty(fingerprint) && tx.target_anchor) {
+    for (const Member& part : tx.target_anchor->fingerprint_parts) {
+      if (part.key == "routeKey" && part.value.is_string() &&
+          !part.value.as_string().empty()) {
+        envelope->set("routeKey", part.value);
+        break;
+      }
+    }
+  }
   if (!non_empty(fingerprint) && tx.failure_reason) {
     envelope->set("targetResolutionFailureReason",
                   Value::string(tap_failure_reason_name(*tx.failure_reason)));

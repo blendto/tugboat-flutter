@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.3
+
+- Taps carry `routeKey`, as in the Flutter SDK (needs the `tugboat-android` of this tree).
+- One initial route: the activity is no longer a route of its own, so the first
+  route is the first screen named by `setScreen` / `trackNavigation` (it was the
+  activity, then that screen). An app that never names a screen reports no routes.
+
 ## 0.0.2
 
 - Early start: a content provider installs activity observation before the first
