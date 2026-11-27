@@ -5,7 +5,7 @@
   "description": "Single-pointer classification uses gesture.touchSlop (18): travel of 17.9 from the down point stays a tap; travel of exactly 18 marks a swipe (Dart: delta.distance >= kTouchSlop). Returning inside the slop later does not undo a swipe.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

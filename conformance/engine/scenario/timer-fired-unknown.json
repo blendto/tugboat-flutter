@@ -5,7 +5,7 @@
   "description": "timer.fired for a timer id the engine never scheduled is ignored: no records, no effects. An empty timerId or a missing at is invalid_message.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

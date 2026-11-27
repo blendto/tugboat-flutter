@@ -5,7 +5,7 @@
   "description": "identity.set is accepted before the first session and outlives sessions: session_start and later records carry it. An identical identity.set changes nothing.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

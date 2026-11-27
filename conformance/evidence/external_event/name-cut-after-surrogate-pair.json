@@ -5,7 +5,7 @@
   "description": "A pair ending exactly at unit 256 is kept whole.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\ud83d\ude00tail",

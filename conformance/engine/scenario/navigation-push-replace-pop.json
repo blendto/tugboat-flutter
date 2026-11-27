@@ -5,7 +5,7 @@
   "description": "Visible navigation on one navigator. Each fact claims no cause (no pointer), updates the visible route, advances the route epoch and the visual observation generation, and arms the barrier timeout (transition + settle delay + routeBarrierTimeoutMs) and the deadline (transition + settle delay). At the deadline the route capture is requested (forced) and its answer records route_change with the frame as afterFrame. Adapter route ids map onto route-N and the navigator onto nav-0; the stack keeps route instances bottom to top (stackRevision is its length). A replace swaps the top; a pop removes the departing route and reveals the one below, whose own transition delays the capture.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

@@ -5,7 +5,7 @@
   "description": "Key length is UTF-16 units: 126 ASCII plus an emoji is 128 (valid); 127 plus an emoji is 129 (invalid).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "keys",

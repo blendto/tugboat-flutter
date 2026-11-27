@@ -3,7 +3,7 @@
   "kind": "engine.scenario",
   "name": "navigation-session-start-child-before-parent",
   "description": "A child navigator's session_start may arrive before its parent's. The child seed (tabs under shell, /feed) is accepted and mints the parent navigator after itself (child nav-0, parent nav-1) with an empty stack, so the parent's later seed (shell, /shell) is accepted too. Both are recorded. The last seed sets the visible route: the tap's capture context is nav-1 / route-1, and the interaction is stamped /shell with beforeFrame the initial frame (re-stamped to /shell) and a position.",
-  "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6},
+  "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 7},
   "runners": ["cpp"],
   "input": {
     "configure": {

@@ -5,7 +5,7 @@
   "description": "A tap with Flutter's default timings. Pointer-up releases the tap into its 1250 ms claim window (sweep timer) and starts the settle delay (1000 ms). The settle then waits out the rest of the claim window, takes a standalone forced fresh-paint interaction capture, and publishes the tap with that frame as afterFrame. A settle timer fired before its deadline is stale and ignored. Without a before-frame the interaction has no positions, so no payload.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

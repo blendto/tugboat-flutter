@@ -5,7 +5,7 @@
   "description": "A lone surrogate counts 3 bytes (Dart utf8 encodes U+FFFD) and stays in the value, written as an escape.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

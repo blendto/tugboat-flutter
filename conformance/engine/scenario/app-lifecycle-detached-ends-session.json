@@ -5,7 +5,7 @@
   "description": "detached emits app_detached and then ends the session (session_end at the same atMs), as the Flutter widget calls endSession on detached. A later session.end is idempotent and emits nothing.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

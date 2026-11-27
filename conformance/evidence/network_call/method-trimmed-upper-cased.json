@@ -5,7 +5,7 @@
   "description": "The method is trimmed (Dart whitespace) and upper-cased.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "\u00a0 patch\t",

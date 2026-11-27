@@ -5,7 +5,7 @@
   "description": "A frame upload that gets a retry outcome requeues its frames and reports failed (latched); while frames need retry, an accepted frame does not trigger a pass. The next flush that uploads every frame without a drop reports recovered. Change C6: the gap diagnostics are event records (Dart enqueues them for the collector only).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C6"
@@ -62,7 +62,7 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-d47862cf-ac11-4840-9178-eef5b322963d\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "jsonBody": "{\"sessionId\":\"session-d47862cf-ac11-4840-9178-eef5b322963d\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"installationId\":\"inst-0001\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
               "sessionId": "session-d47862cf-ac11-4840-9178-eef5b322963d",
               "deliveryKeys": [
                 "session-d47862cf-ac11-4840-9178-eef5b322963d/l/session_start/2026-06-19T00:00:00.000Z"
@@ -300,7 +300,7 @@
                   ],
                   [
                     "frameMetadata",
-                    "[{\"id\":\"frame-3\",\"atMs\":140,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-2\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-d47862cf-ac11-4840-9178-eef5b322963d\"}]"
+                    "[{\"id\":\"frame-3\",\"atMs\":140,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-2\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-d47862cf-ac11-4840-9178-eef5b322963d\",\"triggeredAt\":\"2026-06-19T00:00:00.140Z\"}]"
                   ]
                 ],
                 "frames": [
@@ -371,7 +371,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-ff9c8b1a-2a23-440a-969c-27ff30f3f13c\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"afterFrame\":\"frame-3\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-frame-upload-cd9aba37-aa8b-4750-b9a1-9fae8d2c5e9e\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_frame_upload\",\"result\":\"failed\",\"statusCode\":503,\"frameCount\":1,\"droppedFrameCount\":0,\"droppedReferencedFrameCount\":0},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-ff9c8b1a-2a23-440a-969c-27ff30f3f13c\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"afterFrame\":\"frame-3\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":7},\"sessionId\":\"srv-1\"},{\"id\":\"collector-frame-upload-cd9aba37-aa8b-4750-b9a1-9fae8d2c5e9e\",\"atMs\":200,\"triggeredAt\":\"2026-06-19T00:00:00.200Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_frame_upload\",\"result\":\"failed\",\"statusCode\":503,\"frameCount\":1,\"droppedFrameCount\":0,\"droppedReferencedFrameCount\":0},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":7},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
                 "srv-1/e/2fa85a5bae8a6d6b"
@@ -586,7 +586,7 @@
                   ],
                   [
                     "frameMetadata",
-                    "[{\"id\":\"frame-3\",\"atMs\":140,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-2\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-d47862cf-ac11-4840-9178-eef5b322963d\"},{\"id\":\"frame-6\",\"atMs\":340,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-5\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-d47862cf-ac11-4840-9178-eef5b322963d\"}]"
+                    "[{\"id\":\"frame-3\",\"atMs\":140,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-2\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-d47862cf-ac11-4840-9178-eef5b322963d\",\"triggeredAt\":\"2026-06-19T00:00:00.140Z\"},{\"id\":\"frame-6\",\"atMs\":340,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-5\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-d47862cf-ac11-4840-9178-eef5b322963d\",\"triggeredAt\":\"2026-06-19T00:00:00.340Z\"}]"
                   ]
                 ],
                 "frames": [
@@ -661,7 +661,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-1ce20fbd-35dd-41e5-a6ca-991f6fe639ac\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-3\",\"afterFrame\":\"frame-6\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-frame-upload-befde1d3-9d10-4f00-91ce-ecf38e0cd32f\",\"atMs\":410,\"triggeredAt\":\"2026-06-19T00:00:00.410Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_frame_upload\",\"result\":\"recovered\",\"frameCount\":0,\"droppedFrameCount\":0,\"droppedReferencedFrameCount\":0},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-1ce20fbd-35dd-41e5-a6ca-991f6fe639ac\",\"atMs\":300,\"triggeredAt\":\"2026-06-19T00:00:00.300Z\",\"userId\":\"user-configured\",\"eventType\":\"interaction\",\"stream\":\"semantic\",\"enrichmentCandidate\":true,\"interactionSchema\":2,\"gesture\":\"swipe\",\"beforeFrame\":\"frame-3\",\"afterFrame\":\"frame-6\",\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":7},\"sessionId\":\"srv-1\"},{\"id\":\"collector-frame-upload-befde1d3-9d10-4f00-91ce-ecf38e0cd32f\",\"atMs\":410,\"triggeredAt\":\"2026-06-19T00:00:00.410Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_frame_upload\",\"result\":\"recovered\",\"frameCount\":0,\"droppedFrameCount\":0,\"droppedReferencedFrameCount\":0},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":7},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
                 "srv-1/e/e5beef9bb86959eb"

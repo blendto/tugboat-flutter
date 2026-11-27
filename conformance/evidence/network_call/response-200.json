@@ -5,7 +5,7 @@
   "description": "A 200 response: method, route, statusCode, outcome, durationMs. A body sent with a status below 400 is ignored.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

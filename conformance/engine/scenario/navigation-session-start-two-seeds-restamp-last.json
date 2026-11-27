@@ -5,7 +5,7 @@
   "description": "Two session_start seeds in separate batches, then the initial capture is answered; a tap's beforeFrame matches the last seed's visible route (/feed).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

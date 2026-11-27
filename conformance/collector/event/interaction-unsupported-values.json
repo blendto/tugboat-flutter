@@ -5,7 +5,7 @@
   "description": "Edge: the mapper does not validate interaction facts. An unknown gesture and interactionSchema pass through unchanged; unknown data keys and null values are dropped; an empty route string is kept; enrichmentCandidate is true for any interaction, even on the evidence stream.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -73,7 +73,7 @@
         "platform": "ios",
         "versionName": "1.0.0",
         "buildNumber": "1",
-        "fingerprintSchemaVersion": 6
+        "fingerprintSchemaVersion": 7
       }
     }
   }

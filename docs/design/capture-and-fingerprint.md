@@ -277,7 +277,7 @@ pointer-driven: its inventory is still built at once, and with layout dirty
 it can fail (logged, inventory lost) or read stale boxes in release. Production builds no scroll inventory and
 schedules nothing.
 
-## Fingerprint schema v6
+## Fingerprint schema 7
 
 `tugboatFingerprintSchemaVersion` is currently `7`. Hashes are 16-character
 SHA-256 prefixes derived from sorted identity parts. Schema 7 changes are in
@@ -327,9 +327,21 @@ id-based lookups work, and role-based button queries do not match.
 label for route-internal state and scroll attribution. `.tugboatSensitive()` is
 equivalent to `TugboatSensitive`.
 
-The native sections below still raise confidence to `high` for an alias. Since
-Flutter 0.12.x a tag no longer does; aligning the native SDKs is tracked with
-the 0.12.x catch-up.
+**Native toolkits and schema 7.** The native SDKs (Android Views, Compose,
+SwiftUI) use the same number: an anchor's `schemaVersion` and
+`fingerprintParts.schemaVersion` are the session engine's
+`tb_session_engine_fingerprint_schema_version()` (`7`), read from the engine and
+not copied (Kotlin and Swift). There is no per-toolkit schema. The number
+versions the hash (sorted parts, `routeKey` + `path`, 16-character SHA-256
+prefix, which the engine owns and the conformance fixtures pin) and the Flutter
+canonical-tree rules. The canonical-path rules of a native toolkit are its own
+(the sections below) and none of schema 7's Flutter rules apply to them: overlay
+ordinals, `ListTileTheme` and `SwitchTheme`, and low-level Flutter roles are
+Flutter widgets, and a native path does not depend on `enabled`. A native
+toolkit never emitted a schema 6 fingerprint, so its inventory entries carry no
+schema 6 `aliases`. Native anchors and Flutter anchors share the confidence
+rules in [Confidence](#confidence): a tag or resource-id alias does not raise
+it.
 
 ### Android Views canonicalization
 
@@ -367,9 +379,13 @@ hash input.
   and does not change the structural fingerprint. UI test tools read the
   same `android:id` as the resource-id, so `View.tugboatTag` has no
   accessibility option and the SDK installs no `AccessibilityDelegate`.
-- **Confidence.** The floor of the route's and the path's. The path is `high`
-  with an alias, `medium` when the target has its own id or sits in a list
-  item, and `low` otherwise.
+- **Confidence.** The floor of the route's and the path's. The path is
+  `medium` when the target has its own id or sits in a list item, and `low`
+  otherwise. An alias (the `tugboatTag` or the id's entry name) does not
+  raise it, as in Flutter. The `medium` for an own id is a Views rule with no
+  Flutter counterpart (Flutter gives `medium` only to an inherited list
+  position): the id is part of the path itself, a structural signal that
+  Flutter's widget tree has no equivalent of.
 - **Obfuscated resource names.** When the SDK's own probe id does not resolve
   to its own entry name, resource ids are dropped from tokens.
 - **Coordinates.** Pointer positions and scroll offsets are logical pixels
@@ -402,14 +418,15 @@ Compose content for the Views adapter, which hashes it. Anchors add
 - **Route key.** The host view's Views route (above): the same
   `trackNavigation` route pattern without arguments, else the hosting
   activity (or the fragment around a `ComposeView`).
-- **Alias.** `Modifier.tugboatTag`, then `testTag`. Both are `high`
-  confidence and do not change the structural fingerprint.
+- **Alias.** `Modifier.tugboatTag`, then `testTag`. Neither raises confidence
+  or changes the structural fingerprint.
   `tugboatTag(tag, accessibility = true)` also sets `testTag(tag)` for UI
   tests; the anchor and the structure signature are the same as without it.
   A node keeps one `testTag` (the first in the modifier chain), so the
   option is off by default; the alias is the `tugboatTag` either way.
-- **Confidence.** As for Views: `high` with an alias, `medium` in an
-  indexed list item, `low` otherwise, floored by the route.
+- **Confidence.** As for Views: `medium` in an indexed list item (or for a
+  host with an id), `low` otherwise, whatever the alias; floored by the
+  route.
 - **Semantics unavailable.** The anchor is the host view's identity
   (`Compose#0`, `toolkit` still `compose`) and the whole frame is masked.
 
@@ -426,9 +443,9 @@ plus, only when the app opts in, the accessibility tree (ADR 0010).
 - **Tags first.** `.tugboatTag("checkout")` places an invisible,
   non-interactive marker view behind its content. A tap inside the smallest
   tagged frame at the point, in the same window and hosting root as the hit
-  view, resolves to that tag: `tagFingerprint` (`routeKey` + `tag`), `high`
-  confidence, `widgetType: SwiftUIView`, and no `role`, `actions` or
-  `enabled`. A screen under a sheet never wins. The tag is transparent to
+  view, resolves to that tag: `tagFingerprint` (`routeKey` + `tag`),
+  `widgetType: SwiftUIView`, and no `role`, `actions` or `enabled`. Its
+  confidence follows the path rules below (a tag does not raise it). A screen under a sheet never wins. The tag is transparent to
   structural identity. `.tugboatTag("checkout", accessibility: true)` (off by
   default) also sets the tag as the tagged content's
   `accessibilityIdentifier`, never the marker's. A tagged tap never reads
@@ -493,8 +510,9 @@ plus, only when the app opts in, the accessibility tree (ADR 0010).
   the root of the sheet's own navigator. `presentation:` sets the route's
   `overlayKind`, never the route key.
 - **Confidence.** The floor of the route's and the path's. The path is
-  `high` with a tag, `medium` inside a list cell, and `low` otherwise.
-  Accessibility-tree segments never raise it.
+  `medium` inside a list cell and `low` otherwise (and `low` through a
+  fail-closed box). A tag does not raise it. Accessibility-tree segments
+  never raise it.
 - **Coordinates.** Pointer positions and scroll offsets are points in window
   coordinates; scroll offsets are relative to the resting start of the
   content (the adjusted inset included).
@@ -524,9 +542,13 @@ evidence, target anchors, and frame hashes for raw replay facts.
 
 Confidence is the floor of route and structural evidence:
 
-- `high`: reserved. No target anchor is `high` today: a tag alias does not raise
-  confidence, because a `ValueKey<String>` on any ancestor also counts as a tag.
-  The native SDKs still use `high` for an alias (see their sections).
+- `high`: reserved. No target anchor is `high` today, in Flutter or in the
+  native SDKs: an alias does not raise confidence. In Flutter a
+  `ValueKey<String>` on any ancestor also counts as a tag; native aliases
+  (`tugboatTag`, `testTag`, a resource entry name) are treated the same so
+  that one rule covers every toolkit. A route key can still be `high`, but a
+  target anchor is the floor of route and path, and a path is at most
+  `medium`.
 - `medium`: usable structural path and/or structural route fallback;
 - `low`: ambiguous structure, bare collapsed item, or insufficient actionable
   evidence.

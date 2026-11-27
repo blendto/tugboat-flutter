@@ -5,7 +5,7 @@
   "description": "Route length is UTF-16 units: 254 ASCII plus an emoji is 256 (kept).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

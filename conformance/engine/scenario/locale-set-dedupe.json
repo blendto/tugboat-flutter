@@ -5,7 +5,7 @@
   "description": "locale.set dedupes against the current locale (field by field), updates it, and emits locale_changed on the evidence stream with previousLocale and locale while a session is live. Later events carry the new locale and the snapshot reports it.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

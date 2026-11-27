@@ -5,7 +5,7 @@
   "description": "routeStack lists the top navigation.routeStackLimit routes of the navigator, bottom to top; a deeper stack also sets routeStackTruncated. Superseded work on the same navigator records no route_change: only the last push before the deadline does.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

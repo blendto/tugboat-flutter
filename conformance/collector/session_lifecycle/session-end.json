@@ -5,7 +5,7 @@
   "description": "session_end carries no host metadata. A null userId stays null (no configured fallback after start). The active locale is ignored. traitsId passes through when no traits bag is set.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {

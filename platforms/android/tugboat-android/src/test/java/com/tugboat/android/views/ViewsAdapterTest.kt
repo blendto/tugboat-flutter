@@ -112,7 +112,8 @@ class ViewsAdapterTest {
         assertEquals("Button#button1", path)
         assertEquals(IdentityHash.fingerprint(mapOf("routeKey" to routeKey, "path" to path)), anchor.getString("fingerprint"))
         assertEquals("button1", anchor.getJSONObject("fingerprintParts").getString("tag"))
-        assertEquals(Confidence.High.wire, anchor.getString("fingerprintConfidence"))
+        // The view has its own id: medium. The alias derived from it adds nothing.
+        assertEquals(Confidence.Medium.wire, anchor.getString("fingerprintConfidence"))
         assertEquals("view", anchor.getString("toolkit"))
     }
 

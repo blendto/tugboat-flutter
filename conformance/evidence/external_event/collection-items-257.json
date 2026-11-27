@@ -5,7 +5,7 @@
   "description": "The 257th item ends the list: droppedCount 1, truncated. A host may stop sending after the 257th item.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "items",

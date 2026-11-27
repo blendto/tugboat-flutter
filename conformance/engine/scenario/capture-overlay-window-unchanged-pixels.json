@@ -5,7 +5,7 @@
   "description": "A dialog opens over an unchanged activity (change C21). The initial frame is accepted with reasons []. The next reusable capture has the same dHash and contentHash; the host folds the overlay into its structure signature and reports overlayWindow. The structure differs, so it does not coalesce, and its mask coverage differs from the retained frame with that content, so it is not exact-content reused either: it is accepted as a new frame and records capture_masking with overlayWindow. When the dialog is dismissed over the same screen, the next reusable capture (reasons [], the structure without the overlay token) is exact-content reused from the frame from before the overlay, though the overlay frame has the same content and is newer, so dismissing the dialog adds no frame.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C21"

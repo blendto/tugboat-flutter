@@ -1,4 +1,4 @@
-// Fingerprint hashing (fingerprint schema v6).
+// Fingerprint hashing (fingerprint schema 7).
 #include <algorithm>
 #include <string>
 #include <utility>
@@ -57,7 +57,7 @@ bool run_identity_parts(const Value& input, Value* result, Error* error) {
     return false;
   }
   // Dart String.compareTo: UTF-16 code units, not UTF-8 bytes. Separators
-  // are not escaped (fingerprint schema v6).
+  // are not escaped (fingerprint schema 7).
   std::sort(parts.begin(), parts.end(), [](const Part& a, const Part& b) {
     return compare_utf16(a.first, b.first) < 0;
   });

@@ -5,7 +5,7 @@
   "description": "Route work replaced on its navigator is cancelled (no route_change for it) and links its successor (supersededBy). A tap that caused the cancelled route does not inherit an automatic successor as its cause: it observes the successor's frame only as a temporal observation. A swipe during the transition has its capture suppressed (route_transition) and walks the route barriers: it follows the cancelled barrier to its successor and takes that route's frame. Neither the tap nor the swipe is the successor's cause.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

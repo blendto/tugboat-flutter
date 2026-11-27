@@ -55,7 +55,8 @@ final class SwiftUITagTests: XCTestCase {
     let resolved = try XCTUnwrap(anchor(resolver.tapEvidence(in: window.window, at: point)))
     XCTAssertEqual(resolved.tag, "checkout")
     XCTAssertEqual(resolved.routeKey, "Checkout")
-    XCTAssertEqual(resolved.confidence, .high)
+    // A tag is an alias; it does not raise confidence (Flutter 0.12.x). Not in a list cell: low.
+    XCTAssertEqual(resolved.confidence, .low)
     XCTAssertEqual(resolved.widgetType, "SwiftUIView")
     XCTAssertNil(resolved.role)
     XCTAssertNil(resolved.enabled)
@@ -139,7 +140,9 @@ final class SwiftUITagTests: XCTestCase {
     let fromAnyView = try XCTUnwrap(anchor(resolver.tapEvidence(in: erased.window, at: centre(of: erasedMarker, in: erased.window))))
     XCTAssertTrue(fromAnyView.routeKey.hasPrefix("host:"), fromAnyView.routeKey)
     XCTAssertEqual(fromAnyView.routeKey.count, "host:".count + 16)
-    XCTAssertEqual(fromAnyView.confidence, .low, "UIHostingController<AnyView> names no screen")
+    // A tag does not raise confidence, so the anchor is low whatever the route; the route's own score is checked directly.
+    XCTAssertEqual(RouteKey.resolve(for: erasedMarker, in: erased.window, screen: nil).confidence, .low,
+                   "UIHostingController<AnyView> names no screen")
     erased.close()
 
     let concrete = HostedWindow(controller: UIHostingController(rootView: ConcreteScreen(registry: registry)))
@@ -147,7 +150,8 @@ final class SwiftUITagTests: XCTestCase {
     XCTAssertTrue(concrete.wait { self.marker("concrete") != nil })
     let concreteMarker = try XCTUnwrap(marker("concrete"))
     let typed = try XCTUnwrap(anchor(resolver.tapEvidence(in: concrete.window, at: centre(of: concreteMarker, in: concrete.window))))
-    XCTAssertEqual(typed.confidence, .medium, "a concrete root type scores medium")
+    XCTAssertEqual(RouteKey.resolve(for: concreteMarker, in: concrete.window, screen: nil).confidence, .medium,
+                   "a concrete root type scores medium")
     XCTAssertNotEqual(typed.routeKey, fromAnyView.routeKey)
   }
 

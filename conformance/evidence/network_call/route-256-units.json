@@ -5,7 +5,7 @@
   "description": "A route of 256 units is kept.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

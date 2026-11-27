@@ -5,7 +5,7 @@
   "description": "Edge: an eventType outside the wire enum is not rejected; it is treated like any non-start lifecycle record.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {

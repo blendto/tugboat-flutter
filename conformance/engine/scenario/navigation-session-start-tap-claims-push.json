@@ -3,7 +3,7 @@
   "kind": "engine.scenario",
   "name": "navigation-session-start-tap-claims-push",
   "description": "After session_start seeds the visible route, a tap that causes the next push claims that navigation (the seed does not consume the interaction claim).",
-  "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6},
+  "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 7},
   "runners": ["cpp"],
   "input": {
     "configure": {

@@ -5,7 +5,7 @@
   "description": "A session that replaces the live one discards the queued backlog and counts it as dropped, but a request already in flight keeps its items pending until it settles, and counts them as dropped only if the collector left them to retry. A second replacement while the request is still in flight changes none of that. accepted is a running total over sessions, every session_start included.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "collector": {

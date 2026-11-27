@@ -5,7 +5,7 @@
   "description": "maxPendingFrameBytes bounds the encoded bytes of the frames waiting for upload as maxPendingFrames bounds their count: over either bound the oldest unreferenced frame is evicted.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "collector": {

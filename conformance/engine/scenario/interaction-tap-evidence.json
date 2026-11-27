@@ -5,7 +5,7 @@
   "description": "Tap evidence travels on the up fact (principle 2). A tap whose up carries an anchor publishes it as targetAnchor and targetFingerprint; fingerprintConfidence is written only for pre-tap (exploration) evidence. A tap without evidence has neither. With a before-frame (the first tap's capture, which reported its boundary) the down point is normalised against that frame's boundary into payload.position.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

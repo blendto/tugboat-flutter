@@ -5,7 +5,7 @@
   "description": "evidence.externalEvent records external_event on the evidence stream with the session's capture id and no action context; atMonoUs (default at.monoUs) is the fact time. Before the first session it is dropped with no id; an empty name records nothing and mints no id.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

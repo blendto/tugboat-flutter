@@ -5,7 +5,7 @@
   "description": "atMonoUs, when given, is the fact time and sets atMs (a network_call keeps the time it is stamped with); otherwise at.monoUs does. Append order is record order, not atMs order.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

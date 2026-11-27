@@ -5,7 +5,7 @@
   "description": "Same parts as route-and-path supplied in the opposite order; parts are sorted by key before hashing, so the fingerprint is identical.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "parts": [

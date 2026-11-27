@@ -5,7 +5,7 @@
   "description": "A body over 4 KiB made of many small values: the engine stops normalizing once the encoding passes 4096 bytes and keeps the prefix.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

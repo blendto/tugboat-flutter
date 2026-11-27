@@ -5,7 +5,7 @@
   "description": "jsonDecode has no nesting limit: 600 nested arrays decode, and the list at depth 6 is unsupported (truncated). The engine checks the deep subtree without recursion.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

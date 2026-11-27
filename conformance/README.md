@@ -4,10 +4,12 @@ Language-neutral golden fixtures for the session engine described in
 [ADR 0009](../docs/decisions/0009-shared-session-engine.md). Each fixture
 gives the facts a toolkit adapter or platform host submits and the exact
 record the engine must produce. The C++ engine must match every fixture. The
-Dart implementation in `package:tugboat` runs the fixture kinds it still
-matches; since Flutter 0.11.0-0.12.4 moved ahead of the engine, it skips
-`collector.event`, `collector.sessionLifecycle` and `engine.scenario` until the
-engine catches up (see `test/conformance_fixtures_test.dart`). These fixtures
+Dart implementation in `package:tugboat` runs every kind (BLE-670 re-enabled
+`collector.event`, `collector.sessionLifecycle` and `engine.scenario` after the
+engine caught up with Flutter 0.11.0-0.12.x), skipping only fixtures marked
+`engineOnly` or whose `runners` leave Dart out. Dart compares session, event and
+collector-request ids modulo their UUIDs, because Dart draws them from
+`Random.secure()` and the engine from a host-supplied seed. These fixtures
 are what keeps the two equivalent.
 
 This folder is outside the pub package on purpose: it is never published to
@@ -79,7 +81,7 @@ unit test.
   "kind": "collector.event",
   "name": "interaction-tap-full",
   "description": "What this case pins and why.",
-  "contract": { "sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6 },
+  "contract": { "sessionSchemaVersion": 10, "fingerprintSchemaVersion": 7 },
   "input": { },
   "expected": { }
 }
@@ -111,7 +113,7 @@ Absent and `null` mean the same thing in inputs. In outputs they differ (see
 
 ### `fingerprint.identityParts`
 
-Hashes identity parts into a fingerprint (fingerprint schema v6). Toolkit
+Hashes identity parts into a fingerprint (fingerprint schema 7). Toolkit
 adapters compute the parts. The engine owns only the hash.
 
 | Input | Type | Meaning |
@@ -281,8 +283,7 @@ type, `data` is copied into `payload` as-is.
 The collector delivery rules that Dart's `CollectorHttpSink` and the engine
 share (Flutter 0.11.1 and 0.11.2: stalled uploads, bounded frame backlog,
 real backlog and drops in health). Both runners pass every fixture, which is
-what holds the two together while the engine's other kinds are re-pinned
-(BLE-670). Actions, not engine messages, so the same file drives both.
+what holds the two together. Actions, not engine messages, so the same file drives both.
 
 | Input | Meaning |
 | --- | --- |
@@ -457,7 +458,7 @@ Fixtures contain no ambient state:
 - Session and app metadata: everything comes from `host` and `session`.
   Transport settings are not inputs.
 - Contract constants (`interactionSchema` 2, `routeChangeSchema` 2,
-  `fingerprintSchemaVersion` 6) are outputs, not inputs.
+  `fingerprintSchemaVersion` 7) are outputs, not inputs.
 
 ## Comparison
 
@@ -478,7 +479,7 @@ integer/double distinction) is not pinned yet.
 ## Versioning
 
 Every fixture pins `contract.sessionSchemaVersion` (`10`) and
-`contract.fingerprintSchemaVersion` (`6`). The Dart runner fails every fixture
+`contract.fingerprintSchemaVersion` (`7`). The Dart runner fails every fixture
 when `tugboatSessionSchemaVersion` or `tugboatFingerprintSchemaVersion`
 changes. Bumping either one therefore forces each fixture to be re-reviewed and
 re-pinned, and a fixture never carries over to a new contract silently.

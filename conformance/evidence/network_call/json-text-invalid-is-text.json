@@ -5,7 +5,7 @@
   "description": "jsonText that is not valid JSON is kept as a text body.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

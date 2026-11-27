@@ -5,7 +5,7 @@
   "description": "Status 400 keeps a text body (format text, representation native).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

@@ -5,7 +5,7 @@
   "description": "A name that is empty after trimming records nothing (Dart invalid_name).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": " \u00a0\t",

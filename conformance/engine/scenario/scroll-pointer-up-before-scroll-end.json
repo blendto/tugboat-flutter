@@ -5,7 +5,7 @@
   "description": "A swipe that started a scroll completes as a scroll. When the pointer-up arrives first, the interaction waits for the scroll end: the scroll end takes the one interaction capture (no swipe capture is made) and the scroll publishes with the start and end offsets, the scrollable's anchor and fingerprint, and the capture as afterFrame.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

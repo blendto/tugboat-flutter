@@ -4,7 +4,7 @@ import UIKit
 
 extension View {
   /// Gives this view a stable Tugboat identity: taps inside it resolve to
-  /// `tag` (high confidence) instead of the nearest UIKit role view, which
+  /// `tag` instead of the nearest UIKit role view, which
   /// SwiftUI drawing does not have. Use a name that is unique within the
   /// screen and does not change between builds or locales, such as
   /// `"checkout"`. The tag never contains visible text and does not change

@@ -5,7 +5,7 @@
   "description": "Interaction facts are validated strictly: tap evidence only on down or up, closed device, phase, failure-reason, axis, and focus-kind vocabularies, an integer pointerId, an inventory with its dedupe key, pan/zoom deltas only on update (and all of them there), anchor only on scroll start, offset and axis required except on overscroll (which carries only the id), a non-empty scrollableId, and a required at.monoUs. A batch with one invalid fact applies nothing.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

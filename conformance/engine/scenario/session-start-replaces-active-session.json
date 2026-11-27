@@ -5,7 +5,7 @@
   "description": "session.start on a live session (active or background) ends it first: the old session emits session_end, then the new session emits session_start with a new id. The snapshot is the new session.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C10"

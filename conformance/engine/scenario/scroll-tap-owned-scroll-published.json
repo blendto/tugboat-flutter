@@ -5,7 +5,7 @@
   "description": "Change C12. A scroll start links to the first pending pointer even while it is still a tap. Dart publishes that pointer as a tap and never publishes the scroll. The engine instead completes the pointer as the scroll when it goes up, so the scroll is not lost.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C12"

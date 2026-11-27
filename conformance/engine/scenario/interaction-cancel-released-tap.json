@@ -5,7 +5,7 @@
   "description": "A pointer cancel that arrives for a tap already released into its claim window finalizes it as cancelled. Its settle keeps running and still takes its capture, but cannot publish the tap twice.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

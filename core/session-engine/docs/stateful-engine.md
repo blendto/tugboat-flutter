@@ -310,9 +310,9 @@ Fixtures: `scene-inventory-exploration-metadata`,
 | Moments label the next re-sample (`tap`, `gesture`, `scroll`) | pending trigger per visit | | | Programmatic scroll end moment: not ported (needs an adapter fact) |
 | Positional `scroll` inventories sent only when they moved (2% grid) | yes | | | |
 | `resampleSettledInventory` switch | `capabilities.resampleSettledInventory` (on by default, as in Flutter) | Android: sends it with `emitSceneInventory`; no public option yet | | The Dart config flag |
-| Exploration tap fields (`fingerprintSource`, `routeKey`, `surface` on taps), navigating-tap fix, tag lookup end | | | | Flutter-only: tap identity (BLE-670 with schema 7) |
+| Exploration tap fields (`fingerprintSource`, `routeKey`, `surface` on taps), navigating-tap fix, tag lookup end | the collector record keeps the three tap keys when a host sends them (BLE-670; `interaction-tap-exploration-keys`) | none sends them yet | | Flutter-only: computing them (tap identity), the navigating-tap fix, the tag lookup end |
 | Loading detection removed (0.12.0) | nothing to remove | nothing to remove | nothing to remove | `loading`, `placeholder`, `TugboatLoading` never existed natively |
-| Fingerprint schema 7, `aliases` | out of scope | | | BLE-670 |
+| Fingerprint schema 7 (BLE-670) | reports `7` (`tb_session_engine_fingerprint_schema_version()`); the hash is unchanged | Kotlin and Swift read the version from the engine for anchors | Alias confidence: a tag or id never raises it; no target anchor is `high` | The canonical-tree rules of schema 7 (overlay ordinals, theme wrappers, roles, disabled controls) and the schema 6 `aliases`: native paths never had a schema 6 |
 | Exploration WebSocket removed | no transport (docs updated) | no transport | | The Dart sink, `explorationCollectorUrl` |
 
 #### 4.3.1 External events and network calls
@@ -1009,7 +1009,7 @@ A new fixture kind, `engine.scenario`, under `conformance/engine/scenario/`:
 
 ```json
 {"fixtureFormat": 1, "kind": "engine.scenario", "name": "…", "description": "…",
- "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 6},
+ "contract": {"sessionSchemaVersion": 10, "fingerprintSchemaVersion": 7},
  "input": {"configure": { }, "steps": [{"send": { }, "expect": {"records": [ ], "effects": [ ]}}]},
  "expected": {"finalSnapshot": { }}}
 ```
@@ -1074,6 +1074,7 @@ behaviour, and scenarios that encode a change are `engineOnly` (section 10).
 | C19 | A `network_call` from `evidence.networkCall` is stamped with the call's start (`startMonoUs`) | Dart stamps `atMs` when the call finishes | yes: `triggeredAt` of native network calls is the request start | Yes (engine-only; decided by the ADR 0009 orchestrator for native evidence 2026-10-16) |
 | C20 | `scene.inventory` facts are capped at `limits.maxSceneInventoryElements` (default 500) before `inventoryHash` and `scene_inventory` are recorded. Adapters stop collecting at the same limit and send what they found as `totalElements`; when the larger of `totalElements` and the elements sent exceeds the limit, a new (not deduped) inventory first records `capture_diagnostic` `{component: scene_inventory, truncatedFrom}` | Dart has no element cap | yes: native inventory size bound | Yes (engine-only; approved by orchestrator 2026-10-22, truncation owner 2026-10-23, PR #116) |
 | C21 | Exact-content reuse requires the retained frame's `maskCoverage` (mode and reason set) to equal the answer's; otherwise the answer is accepted as a new frame and records `capture_masking`. Amended 2026-10-23 (PR #119 review 2 m1, PR #123): the candidate is the newest retained frame with the same `contentHash` and the same coverage, not only the newest with that hash, so the frame from before an overlay is reused once the overlay is gone; the rule itself is unchanged | Dart has no `maskCoverage`: reuse matches `contentHash` only | yes: native hosts get a new frame (and `capture_masking`) when masking provenance changes over unchanged pixels to provenance that no retained frame has, e.g. `overlayWindow` | Yes (engine-only; decided by the ADR 0009 orchestrator for W6a, PR #119, 2026-10-23) |
+| C22 | Per-lane `Retry-After` waits on 429/503 (section 7.4): a lane that got a parseable `Retry-After` does not send again before `now + min(parsed, collector.maxRetryAfterMs)`; lifecycle waits shrink to `maxEndingRetryAfterMs` after `session.end` | Flutter's `CollectorHttpSink` (0.12.x) reads no `Retry-After`: a retry outcome is retried on the next flush trigger | timing only: fewer requests to a collector that is rate limiting | Pending approval (BLE-670 found Flutter has no `Retry-After`; engine-only until Dart ports it or the engine drops it). The eight `delivery-retry-after-*` fixtures that need a wait are `engineOnly`; the others still run on Dart |
 
 ## 12. Open questions and decisions
 

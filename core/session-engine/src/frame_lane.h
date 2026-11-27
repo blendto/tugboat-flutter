@@ -23,7 +23,7 @@ struct PendingFrame {
   int64_t frame_no = 0;
   std::string frame_id;
   std::string handle;
-  Value metadata;  // TugboatFrame.toJson() when the frame was added
+  Value metadata;  // TugboatFrame.toJson() plus triggeredAt when the frame was added
   int64_t bytes = 0;  // the encoded frame's size (`byteLength`)
 };
 

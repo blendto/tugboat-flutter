@@ -20,7 +20,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Compose anchors hash with the shared fingerprint (schema v6): each Compose
+ * Compose anchors hash with the shared fingerprint (schema 7): each Compose
  * anchor's fingerprints are the `IdentityHash` of its own parts, the hash
  * `IdentityHashConformanceTest` checks against every
  * `conformance/fingerprint/identity_parts` vector.
@@ -49,7 +49,7 @@ class ComposeFingerprintConformanceTest {
             val route = anchor.getJSONObject("fingerprintParts").getString("routeKey")
             val path = anchor.getString("canonicalPath")
             assertEquals(IdentityHash.fingerprint(mapOf("routeKey" to route, "path" to path)), anchor.getString("fingerprint"))
-            assertEquals(6, anchor.getInt("schemaVersion"))
+            assertEquals(7, anchor.getInt("schemaVersion"))
         }
         assertEquals("Compose#0/Switch#0", anchors[1].getString("canonicalPath"))
         assertEquals("switch", anchors[1].getString("role"))

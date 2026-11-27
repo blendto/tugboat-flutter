@@ -5,7 +5,7 @@
   "description": "Design section 9.3 #6: a navigation that arrives while its pointer is still down claims that pointer's transaction directly (interactionAttribution same_turn). The claim happens before the route epoch advances. route_change names the cause (causeEventId, causedByInteractionId, navigationOrigin interaction) with the tap's live fingerprint and gesture. At pointer-up the tap sees the route it caused active, skips the settle delay and the claim window, and waits for that route's barrier instead of taking its own capture; it publishes after the route_change with the route frame as afterFrame.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

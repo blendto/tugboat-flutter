@@ -5,7 +5,7 @@
   "description": "session_end with both a traits bag and a traitsId: only traits is sent.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {

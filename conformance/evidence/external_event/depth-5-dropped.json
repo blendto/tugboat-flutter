@@ -5,7 +5,7 @@
   "description": "A value at depth 5 is dropped (droppedCount 1, truncated); its enclosing list stays, empty.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "deep",

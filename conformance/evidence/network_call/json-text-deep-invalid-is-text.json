@@ -5,7 +5,7 @@
   "description": "Invalid JSON deep inside a 600-level nesting fails jsonDecode, so the body is text.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

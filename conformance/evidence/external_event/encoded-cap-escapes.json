@@ -5,7 +5,7 @@
   "description": "The 16 KiB cap measures the jsonEncode output, where a lone surrogate is a 6-byte \\uD800 escape (3 bytes in plain UTF-8) and a control character a 6-byte \\u0001: three strings of 1000 lone surrogates exceed it.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "size",

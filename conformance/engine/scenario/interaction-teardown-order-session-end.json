@@ -5,7 +5,7 @@
   "description": "Session end tears interaction work down in Dart's order (design section 4.2): tap settles, capture work, pending pointers (in pointer-down order; a tap becomes cancelled), released taps (cancelled), waiting gesture captures and scroll interactions (keeping their gesture, without a frame), then waiting input observations, and finally session_end. A tap whose claim window already closed and whose capture is in flight is dropped, as in Dart. Capture answers that arrive afterwards are ignored.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

@@ -5,7 +5,7 @@
   "description": "Trackpad pan/zoom contacts (input.panZoom) classify on each update: a cumulative scale at least trackpadScaleThreshold (1.08) zooms in, at most its reciprocal zooms out, otherwise a pan of at least panSlop pans. The end position is the contact position plus the last pan. A contact that ends unclassified is cancelled.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

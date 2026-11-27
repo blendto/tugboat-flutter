@@ -5,7 +5,7 @@
   "description": "A late fact batched after session.end does not reject the batch: session_end is recorded and the late event.record is dropped, like one sent on its own afterwards.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

@@ -5,7 +5,7 @@
   "description": "A retry head that got a status back (here 503) does not park fresh events: the endpoint answers, so fresh events still go out behind it. The pass drains the events queued when it reached them, those that arrived during it included, in batches of batchSize.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "collector": {

@@ -5,7 +5,7 @@
   "description": "tagFingerprint: routeKey plus the developer tag id; the path is not an input.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "parts": [

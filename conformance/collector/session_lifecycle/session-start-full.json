@@ -2,10 +2,10 @@
   "fixtureFormat": 1,
   "kind": "collector.sessionLifecycle",
   "name": "session-start-full",
-  "description": "session_start with every host field, a traits bag, and an active locale. userId is null so the configured startup user is used. appInfo drops name and installationId; the active locale replaces language/country/script/tag but keeps the configured timezone; traits wins over traitsId.",
+  "description": "session_start with every host field, a traits bag, and an active locale. userId is null so the configured startup user is used. appInfo drops name and keeps installationId; the active locale replaces language/country/script/tag but keeps the configured timezone; traits wins over traitsId.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -82,6 +82,7 @@
       "appInfo": {
         "version": "2.4.0",
         "buildNumber": "240",
+        "installationId": "inst-0001",
         "appId": "com.example.app",
         "packageName": "com.example.app"
       },

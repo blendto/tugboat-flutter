@@ -5,7 +5,7 @@
   "description": "Retry batches beyond maxPendingBatches and pending events beyond maxPendingEvents evict the oldest, and every evicted event counts as dropped in health.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "collector": {

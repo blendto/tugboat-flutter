@@ -5,7 +5,7 @@
   "description": "capture.result.frame.maskCoverage {mode, reasons} says which mask mode applied to a native frame: precise, wholeHost (a toolkit host masked whole, the Compose default), or wholeFrame, with reasons from a closed set. When the engine accepts such a frame it records a capture_diagnostic {component: capture_masking, frameId, mode, reasons} right after the frame, always (here without the captureDiagnostics capability), so Atlas can tell a whole-masked frame from a broken capture. The frame record never carries the coverage. A frame without maskCoverage records nothing new.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

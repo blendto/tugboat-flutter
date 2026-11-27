@@ -1,7 +1,8 @@
 import CommonCrypto
 import Foundation
+import TugboatSessionEngine
 
-/// The engine's `fingerprint.identityParts` hash (fingerprint schema v6),
+/// The engine's `fingerprint.identityParts` hash (fingerprint schema 7),
 /// computed in Swift because the engine queue is not synchronous with the
 /// main thread. Verified against every `conformance/fingerprint/identity_parts`
 /// vector.
@@ -13,7 +14,9 @@ import Foundation
 /// lowercase hex characters of SHA-256 over the UTF-8 bytes, or `""` for no
 /// parts. Parts are an ordered list, not a dictionary, for the same reason.
 enum IdentityHash {
-  static let fingerprintSchemaVersion: Int64 = 6
+  /// The schema the engine hashes under (`tb_session_engine_fingerprint_schema_version`),
+  /// read from it instead of copied.
+  static let fingerprintSchemaVersion = Int64(tb_session_engine_fingerprint_schema_version())
   private static let hexLength = 16
 
   static func canonicalString(_ parts: [(key: String, value: String)]) -> String {

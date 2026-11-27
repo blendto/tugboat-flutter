@@ -5,7 +5,7 @@
   "description": "A non-string key uses up one of the 128 visits and sets truncated; an empty or long string key is fine in bodies.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

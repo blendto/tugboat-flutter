@@ -5,7 +5,7 @@
   "description": "Scroll. payload carries startOffset, endOffset (logical pixels) and overscrollCount; targetFingerprint is the scrollable's.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -62,7 +62,7 @@
       "type": "interaction",
       "stream": "semantic",
       "targetAnchor": {
-        "schemaVersion": 6,
+        "schemaVersion": 7,
         "widgetType": "ListView",
         "role": "scrollable",
         "fingerprint": "1234abcd5678ef90",
@@ -146,7 +146,7 @@
         "platform": "android",
         "versionName": "2.4.0",
         "buildNumber": "240",
-        "fingerprintSchemaVersion": 6
+        "fingerprintSchemaVersion": 7
       }
     }
   }

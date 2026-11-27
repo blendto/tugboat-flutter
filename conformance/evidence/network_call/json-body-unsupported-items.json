@@ -5,7 +5,7 @@
   "description": "Non-finite doubles, unsupported values, and iterables are left out with truncated; -0.0 and big integers are kept.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

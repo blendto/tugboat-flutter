@@ -5,7 +5,7 @@
   "description": "inventoryHash sorts element fingerprints and joins them with | before labelHash, matching TugboatSceneInventory.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "fingerprints": [

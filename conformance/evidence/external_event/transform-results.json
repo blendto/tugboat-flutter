@@ -5,7 +5,7 @@
   "description": "transform: the host sends each valid key's transform result. {drop} (the sentinel or a thrown closure) adds 1 to droppedCount without truncated; a null result is kept as null; an invalid key is never transformed and is dropped with truncated.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "profile",

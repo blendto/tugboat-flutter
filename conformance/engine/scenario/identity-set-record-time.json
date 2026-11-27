@@ -5,7 +5,7 @@
   "description": "Each event record carries the runtime user id at record time. It starts as host.configuredUserId, identity.set replaces it (also before a session), and null clears it. Records already emitted keep their user id.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

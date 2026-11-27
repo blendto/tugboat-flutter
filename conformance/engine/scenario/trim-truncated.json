@@ -5,7 +5,7 @@
   "description": "With limits.maxEvents 3 the oldest events are dropped after each append and truncated becomes true and stays true. Records are emitted for every event even when it is trimmed later.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

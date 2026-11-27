@@ -5,7 +5,7 @@
   "description": "A JSON body whose encoding is exactly 4096 bytes stays json/native.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

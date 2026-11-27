@@ -5,7 +5,7 @@
   "description": "The settled re-sample of native scene inventories (Flutter 0.11.0): the engine arms a watch on each inventory, the host reports drawn frames, a 400 ms quiet window (forced after 2 s of frames, doubling to 6.4 s when nothing is new) asks the host for a sample, and the sample is emitted only when it adds a control or content path, or a state, not sent in the route visit. A tap labels the next re-sample once.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

@@ -5,7 +5,7 @@
   "description": "The root is depth 0. Lists and maps up to depth 5 are kept; one at depth 6 is unsupported (left out, truncated), while a string at depth 6 is kept.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

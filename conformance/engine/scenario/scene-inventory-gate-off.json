@@ -5,7 +5,7 @@
   "description": "Without capabilities.nativeSceneInventory, scene.inventory is accepted and dropped.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": ["cpp"],
   "input": {

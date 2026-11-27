@@ -5,7 +5,7 @@
   "description": "capture.result.frame.maskCoverage is validated strictly: mode and reasons are required, both vocabularies are closed, reasons are unique strings and at most 8, and no other key is allowed. A rejected message is invalid_message with the precise path, and the host keeps the frame handle (no frame.release).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

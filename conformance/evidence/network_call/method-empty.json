@@ -5,7 +5,7 @@
   "description": "An empty method (after trimming) records nothing.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "  ",

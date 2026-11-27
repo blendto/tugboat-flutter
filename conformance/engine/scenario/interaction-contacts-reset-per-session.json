@@ -5,7 +5,7 @@
   "description": "Change C14. Teardown forgets every pointer contact, also at session end. A finger still down when the session ended cannot lift into a dropped fact, so in Dart (which resets contacts only on paused, hidden, and detached) it stays a contact and joins the next session's first gesture: here it would turn a swipe into an unpublished zoom. The engine records the swipe.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C14"

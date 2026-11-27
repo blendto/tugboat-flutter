@@ -5,7 +5,7 @@
   "description": "Without the focusChanges and systemInput capabilities, focus and system-input facts record nothing and request no capture.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

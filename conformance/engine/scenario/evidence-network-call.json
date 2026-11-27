@@ -5,7 +5,7 @@
   "description": "evidence.networkCall records network_call on the evidence stream at its start (startMonoUs, change C19; Dart stamps the finish), appended when it finishes. durationMs is the difference of the floored start and end readings; endMonoUs defaults to at.monoUs. A call before the first session, a call begun before the live session started (Dart's stale or no-op token), and an invalid route record nothing and mint no id.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C19"

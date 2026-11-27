@@ -5,7 +5,7 @@
   "description": "Empty jsonText means no body (Dio returns null for an empty JSON response).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

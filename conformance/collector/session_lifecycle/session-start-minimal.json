@@ -5,7 +5,7 @@
   "description": "session_start with only required host fields, no active locale, no traits bag, and a cached traitsId. An explicit runtime userId wins over the configured one. Integral screen metrics are emitted as doubles.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -54,6 +54,7 @@
       "appInfo": {
         "version": "1.0.0",
         "buildNumber": "1",
+        "installationId": "inst-0002",
         "appId": "com.example.app",
         "packageName": "com.example.app"
       },

@@ -5,7 +5,7 @@
   "description": "A tap's standalone capture is in flight when an automatic navigation starts (the claim window is closed). The first route work advances the capture generation, so the tap's answer is stale: superseded_route_epoch, frame released. With a later route active, the tap waits for that route's barrier and takes its frame as a temporal observation, published after the route_change through the publication queue. The route capture waited behind the tap's (one capture in flight).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

@@ -5,7 +5,7 @@
   "description": "With the sceneInventory capability (Dart exploration mode) the adapter attaches tap evidence on the primary down instead of up, and up evidence is ignored. A tap publishes its pre-tap anchor with fingerprintConfidence and records the evidence inventory as scene_inventory, once per route key and inventory hash per session. A gesture that becomes a swipe discards the evidence. A tap whose down carried no evidence publishes targetResolutionFailureReason no_target_at_point.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

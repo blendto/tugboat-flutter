@@ -5,7 +5,7 @@
   "description": "Any other event type uses the generic envelope: data is nested under payload; relatedEventId appears only inside payload, while explorationRunId and actionId appear both at the top level and inside payload; result and the full targetAnchor (with schemaVersion and fingerprintParts) are kept.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -62,13 +62,13 @@
       "type": "focus_changed",
       "stream": "evidence",
       "targetAnchor": {
-        "schemaVersion": 6,
+        "schemaVersion": 7,
         "widgetType": "TextField",
         "role": "textField",
         "fingerprint": "abcdef0123456789",
         "fingerprintConfidence": "low",
         "fingerprintParts": {
-          "schemaVersion": "6",
+          "schemaVersion": "7",
           "routeKey": "/login"
         },
         "canonicalPath": "Scaffold#0/TextField#0",
@@ -113,13 +113,13 @@
       "afterFrame": "frame-80",
       "traitsId": "traits-123",
       "targetAnchor": {
-        "schemaVersion": 6,
+        "schemaVersion": 7,
         "widgetType": "TextField",
         "role": "textField",
         "fingerprint": "abcdef0123456789",
         "fingerprintConfidence": "low",
         "fingerprintParts": {
-          "schemaVersion": "6",
+          "schemaVersion": "7",
           "routeKey": "/login"
         },
         "canonicalPath": "Scaffold#0/TextField#0",
@@ -141,7 +141,7 @@
         "platform": "android",
         "versionName": "2.4.0",
         "buildNumber": "240",
-        "fingerprintSchemaVersion": 6
+        "fingerprintSchemaVersion": 7
       }
     }
   }

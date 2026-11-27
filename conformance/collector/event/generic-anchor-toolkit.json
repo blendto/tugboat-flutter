@@ -5,7 +5,7 @@
   "description": "A native adapter's anchor toolkit (here `compose`) passes through, last, in the generic envelope's full targetAnchor. C++ only: Flutter anchors have no toolkit.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"
@@ -74,7 +74,7 @@
         "platform": "ios",
         "versionName": "1.0.0",
         "buildNumber": "1",
-        "fingerprintSchemaVersion": 6
+        "fingerprintSchemaVersion": 7
       }
     }
   }

@@ -5,7 +5,7 @@
   "description": "Two keys longer than 4097 units, equal in their first 4097, are cut by the host to the same key. The body map keeps both in order; the first already puts the encoding past 4096 bytes, so the prefix is Dart's.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

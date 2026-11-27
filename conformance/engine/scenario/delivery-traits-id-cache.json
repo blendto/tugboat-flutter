@@ -5,7 +5,7 @@
   "description": "Any accepted lifecycle response caches a non-empty traitsId. Events are stamped with the traits id current when their batch is sent; lifecycle posts carry it while no traits bag is set, and a traits bag replaces it.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {
@@ -58,7 +58,7 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-42bea15d-5314-4acc-a61b-978571390438\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "jsonBody": "{\"sessionId\":\"session-42bea15d-5314-4acc-a61b-978571390438\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"installationId\":\"inst-0001\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
               "sessionId": "session-42bea15d-5314-4acc-a61b-978571390438",
               "deliveryKeys": [
                 "session-42bea15d-5314-4acc-a61b-978571390438/l/session_start/2026-06-19T00:00:00.000Z"
@@ -172,7 +172,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-d3d4b5e5-ffff-4e25-9a9b-69ea31938ffe\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"first\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\",\"traitsId\":\"tr-1\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-d3d4b5e5-ffff-4e25-9a9b-69ea31938ffe\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"first\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":7},\"sessionId\":\"srv-1\",\"traitsId\":\"tr-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
                 "srv-1/e/98006b5eb099d30a"
@@ -370,7 +370,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-06d767ca-8d4e-4a2e-98c4-7d200e3436c2\",\"atMs\":3300,\"triggeredAt\":\"2026-06-19T00:00:03.300Z\",\"userId\":\"user-2\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"second\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\",\"traitsId\":\"tr-2\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-06d767ca-8d4e-4a2e-98c4-7d200e3436c2\",\"atMs\":3300,\"triggeredAt\":\"2026-06-19T00:00:03.300Z\",\"userId\":\"user-2\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"second\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":7},\"sessionId\":\"srv-1\",\"traitsId\":\"tr-2\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
                 "srv-1/e/0bdbb5bcc197cf43"
@@ -570,7 +570,7 @@
               "lane": "events",
               "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"events\":[{\"id\":\"event-2e7e8062-d3d3-4242-9138-0ecf6eef7df6\",\"atMs\":6500,\"triggeredAt\":\"2026-06-19T00:00:06.500Z\",\"userId\":\"user-2\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"third\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\",\"traitsId\":\"tr-2\"}]}",
+              "jsonBody": "{\"events\":[{\"id\":\"event-2e7e8062-d3d3-4242-9138-0ecf6eef7df6\",\"atMs\":6500,\"triggeredAt\":\"2026-06-19T00:00:06.500Z\",\"userId\":\"user-2\",\"eventType\":\"external_event\",\"stream\":\"evidence\",\"enrichmentCandidate\":false,\"payload\":{\"name\":\"third\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":7},\"sessionId\":\"srv-1\",\"traitsId\":\"tr-2\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
                 "srv-1/e/0ebda3becb8ccc94"

@@ -5,7 +5,7 @@
   "description": "An empty key or one longer than 128 units is not listed and adds 1 to droppedCount with truncated. A nonStringKeys run counts each entry (and towards the first 64). A 128-unit key is valid.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "keys",

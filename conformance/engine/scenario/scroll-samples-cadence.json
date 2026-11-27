@@ -5,7 +5,7 @@
   "description": "Scroll samples follow scrollCaptureIntervalMs on the monotonic clock (change C1; Dart uses the wall clock). The start sample does not start the cadence, so the first update is always due. Beyond limits.maxScrollSamples the oldest are dropped and the session becomes truncated. When the pointer-linked scroll's end capture resolves, the last sample takes the end offset and, for a fresh frame, the after-frame.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "engineOnly": [
     "C1"

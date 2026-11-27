@@ -5,7 +5,7 @@
   "description": "Focus facts carry only the kind of the node holding primary focus. The engine keeps the previous kind (also without a session: here the text field was focused before the session started) and records focus_changed only for transitions into, out of, or between text inputs; churn between other nodes is ignored. Each event waits for one manual capture after the settle delay and publishes once: with the frame the capture produced or reused, else the latest frame when it completed after the input, else without a frame. The screenshot budget is unbounded here, so each observation takes its own capture.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

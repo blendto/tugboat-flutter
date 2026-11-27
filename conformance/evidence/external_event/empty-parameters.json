@@ -5,7 +5,7 @@
   "description": "A map without entries is the same as no parameters.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "app_open",

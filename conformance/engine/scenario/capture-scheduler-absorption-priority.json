@@ -5,7 +5,7 @@
   "description": "The capture scheduler runs one capture at a time and queues the rest (FIFO). A request that is compatible with the queue's tail (same session, route epoch, route, navigator, route instance, boundary generation) and is not an interaction capture joins it: the higher-priority trigger wins (manual > interaction > route > lifecycle > tap > scroll > initial), force and fresh paint stick, and the later not-before time applies. Here /home's route capture waits behind the unanswered initial capture, and a system input's manual observation joins it: the route capture now waits out the observation's settle delay (timer capture.due) and runs as one manual capture. One execution resolves both requests (one capture_execution id, a diagnostic each, coalesced), so the route and the observation share the frame.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

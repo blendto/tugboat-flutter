@@ -5,7 +5,7 @@
   "description": "Invalid evidence.externalEvent / evidence.networkCall inputs are invalid_message with a JSON path and change nothing: an unknown policy mode, allowedKeys outside allow_list or missing with it, a bare double, a bad double tag, an unknown tag, drop outside a top-level transform value, a ref above its value's root, duplicate map keys, omitted on the parameters map before 64 entries, a bad run or omitted count, a non-string entry key, a tag with extra keys, parameters that are not a map, a missing name, an unknown outcome, a missing or negative startMonoUs, both or a non-string body form, a double statusCode, an invalid body below status 400 (validated whatever the status), and an unknown key. The next valid event gets the next id.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

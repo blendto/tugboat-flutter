@@ -5,7 +5,7 @@
   "description": "The body rule depends on statusCode only: a failure with status 503 keeps its body.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

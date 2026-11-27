@@ -5,7 +5,7 @@
   "description": "Consecutive duplicates are dropped by state and by event type: a repeated state, and a different state mapping to the same event type (paused after hidden). A new event appears only on an effective transition, so backgrounded -> foregrounded -> backgrounded emits twice.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

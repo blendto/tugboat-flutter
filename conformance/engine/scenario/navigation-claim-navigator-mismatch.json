@@ -5,7 +5,7 @@
   "description": "A transaction that began on another navigator is not claimed: the pointer went down on the root navigator's route, and a nested navigator navigates. route_change has no cause.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

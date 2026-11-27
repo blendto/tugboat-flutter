@@ -5,7 +5,7 @@
   "description": "A body of 3 lists of 128 strings of 4097 units ([[s x128] x3], about 1.57 MB as sent in full, past the message cap) as a host sends it under the text budget (section 4.5): the first string takes the text past 4096 units, so the host stops and closes the open lists without omitted. The serialized_prefix equals Dart's on the full body.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

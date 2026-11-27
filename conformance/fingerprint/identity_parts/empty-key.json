@@ -5,7 +5,7 @@
   "description": "An empty key is accepted and sorts first, contributing '=value'.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "parts": [

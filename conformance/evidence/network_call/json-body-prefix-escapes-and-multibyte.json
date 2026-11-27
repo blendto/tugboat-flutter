@@ -5,7 +5,7 @@
   "description": "The serialized prefix is cut on whole code points of the escaped encoding: escapes (\\n, \\u0001, \\uD800) are ASCII; a 3-byte character crossing 4096 is left out.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "method": "GET",

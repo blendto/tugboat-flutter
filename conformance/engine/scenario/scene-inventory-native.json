@@ -5,7 +5,7 @@
   "description": "Native scene.inventory is gated on capabilities.nativeSceneInventory, dedupes per routeKey|inventoryHash|, truncates to limits.maxSceneInventoryElements (C20), and rejects event.record forgery of scene_inventory.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": ["cpp"],
   "engineOnly": ["C20"],

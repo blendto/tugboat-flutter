@@ -5,7 +5,7 @@
   "description": "Dart counts every top-level key beyond 64, so the host sends the exact count of omitted entries (here 936 of 1000).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "wide",

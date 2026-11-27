@@ -5,7 +5,7 @@
   "description": "Edge: values outside the closed vocabulary are dropped field by field: unknown outcome, statusCode without outcome response, non-int durationMs, attemptCount 0, non-string method, and the error body (not an API error).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "host": {
@@ -75,7 +75,7 @@
         "platform": "ios",
         "versionName": "1.0.0",
         "buildNumber": "1",
-        "fingerprintSchemaVersion": 6
+        "fingerprintSchemaVersion": 7
       }
     }
   }

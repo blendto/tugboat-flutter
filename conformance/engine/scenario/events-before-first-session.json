@@ -5,7 +5,7 @@
   "description": "Before the first session.start, event-producing facts (here event.record) are accepted and dropped: no record and no id. locale.set records nothing but sets the locale the session starts with. app-lifecycle-before-first-session covers app.lifecycle, where Dart's ids differ.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "configure": {

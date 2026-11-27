@@ -15,8 +15,8 @@ import com.tugboat.android.views.region.Regions
  *   its region's token) followed by the region's segments, so the full path
  *   is unique within the route even with several hosts.
  * - **Alias**: the region's alias; for the host itself, its `tugboatTag`.
- * - **Confidence**: as for Views: `high` with an alias, `medium` in a list
- *   item (or for a host with an id), else `low`; floored by the route.
+ * - **Confidence**: as for Views: `medium` in a list item (or for a host
+ *   with an id), else `low`, whatever the alias; floored by the route.
  * - **Toolkit**: always the region's, including the host-identity fallback
  *   used when the region cannot be read.
  */
@@ -54,7 +54,7 @@ internal class RegionAnchors(
             widgetType = target?.widgetType ?: host.region.hostToken,
             role = target?.role,
             fingerprint = IdentityHash.fingerprint(mapOf("routeKey" to route.value, "path" to path)),
-            confidence = Confidence.floor(route.confidence, pathConfidence(host.view, target, tag, inListItem)),
+            confidence = Confidence.floor(route.confidence, pathConfidence(host.view, target, inListItem)),
             tagFingerprint = tag?.let { IdentityHash.fingerprint(mapOf("routeKey" to route.value, "tag" to it)) },
             routeKey = route.value,
             tag = tag,
@@ -66,9 +66,8 @@ internal class RegionAnchors(
         )
     }
 
-    private fun pathConfidence(host: View, target: RegionHit.Target?, tag: String?, inListItem: Boolean): Confidence =
+    private fun pathConfidence(host: View, target: RegionHit.Target?, inListItem: Boolean): Confidence =
         when {
-            tag != null -> Confidence.High
             inListItem || (target == null && names.entryName(host) != null) -> Confidence.Medium
             else -> Confidence.Low
         }

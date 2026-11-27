@@ -33,7 +33,18 @@
 // cannot be driven to produce. Scenarios with frames run in delivery replay
 // mode instead (`dartParity: "delivery"`, engine_scenario_replay.dart).
 //
+// What is compared modulo ids: Dart draws session and event ids (and the
+// ids of the collector's own requests) from `Random.secure()`, the engine from
+// a host-supplied seed (BLE-618). Both sides are rewritten so each distinct
+// UUID becomes `<uuid-N>`, numbered by first appearance for the whole run, so
+// the prefixes, the UUID v4 shape and which records and requests share an id
+// are still compared; the digits are not.
+//
 // What is not compared:
+// - Delivery's own `capture_diagnostic` records (`collector-…` ids) as hub
+//   records and snapshot events: Dart's sink only enqueues them for the
+//   collector, the engine also publishes them. Their wire bodies are compared
+//   in the `http.send` effects.
 // - Fixtures whose `runners` exclude `dart` (including every `engineOnly`
 //   scenario) are skipped by the caller.
 // - Steps that expect an `error` pin the engine's message validation. Dart's
@@ -188,6 +199,8 @@ class _ScenarioRun {
   final ScenarioScheduler _scheduler;
   final List<Map<String, Object?>> _steps;
   final _ScenarioClock _clock = _ScenarioClock();
+  final ScenarioIdNormalizer _expectedIds = ScenarioIdNormalizer();
+  final ScenarioIdNormalizer _actualIds = ScenarioIdNormalizer();
   late final _RecordingSinks _sinks = _RecordingSinks(
     () => _delivery?.sink.userId,
     (envelope) => _delivery?.forward(envelope),
@@ -233,19 +246,53 @@ class _ScenarioRun {
     String path,
   ) {
     final out = diffJson(
-      _plainJson(expect['records']),
-      _plainJson(_sinks.records.sublist(records)),
+      _expectedIds.apply(_hubRecords(expect['records'])),
+      _actualIds.apply(_plainJson(_sinks.records.sublist(records))),
       '$path.records',
     );
     final actual = _delivery?.client.effects.sublist(effects) ?? const [];
     out.addAll(
       diffJson(
-        comparableEffects(expect['effects']! as List),
-        actual,
+        _expectedIds.apply(comparableEffects(expect['effects']! as List)),
+        _actualIds.apply(actual),
         '$path.effects',
       ),
     );
     return out;
+  }
+
+  /// The expected records Dart's sink hub publishes. The engine also
+  /// publishes delivery's own `capture_diagnostic` records (`collector-…`
+  /// ids: `collector_request` reports, gap reports under C6); Dart's sink
+  /// only enqueues them for the collector, so they are not hub records. Their
+  /// wire bodies are compared in the `http.send` effects.
+  Object? _hubRecords(Object? records) => [
+    for (final record in _plainJson(records)! as List)
+      if (!_isDeliveryRecord(record as Map<String, Object?>)) record,
+  ];
+
+  /// The expected snapshot with delivery's own `collector-…` events left out
+  /// (see [_hubRecords]).
+  Object? _hubSnapshot(Map<Object?, Object?> snapshot) {
+    final plain = _plainJson(snapshot)! as Map<String, Object?>;
+    final events = plain['events'];
+    if (events is! List) return plain;
+    return {
+      ...plain,
+      'events': [
+        for (final event in events)
+          if (!(((event as Map)['id'] as String?) ?? '').startsWith(
+            'collector-',
+          ))
+            event,
+      ],
+    };
+  }
+
+  bool _isDeliveryRecord(Map<String, Object?> record) {
+    final event = record['event'];
+    return event is Map &&
+        (event['id'] as String? ?? '').startsWith('collector-');
   }
 
   List<String> _compareSnapshot() {
@@ -255,8 +302,8 @@ class _ScenarioRun {
         ? null
         : _plainJson(session.toJson())! as Map;
     return diffJson(
-      expected == null ? null : _plainJson(expected),
-      actual,
+      expected == null ? null : _expectedIds.apply(_hubSnapshot(expected)),
+      _actualIds.apply(actual),
       r'$.expected.finalSnapshot',
     );
   }

@@ -5,7 +5,7 @@
   "description": "Entries in a nonStringKeys run use up the first 64: a run of 70 leaves no room for later keys, which are counted as dropped.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "keys",

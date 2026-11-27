@@ -5,7 +5,7 @@
   "description": "Interaction facts and capture answers without a live session are accepted and dropped: before the first session and after session_end.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"

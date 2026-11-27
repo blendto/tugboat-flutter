@@ -5,7 +5,7 @@
   "description": "One part whose value contains the '|' and '=' separators. Collides with separator-collision-split (current behavior, not a goal).",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "parts": [

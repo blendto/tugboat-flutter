@@ -5,7 +5,7 @@
   "description": "The 256-item budget spans the whole event: map entries with valid keys and list items share it. Once spent, each further collection with an item adds 1 and stops; empty collections stay; invalid keys still count one each before the first valid one.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "items",

@@ -5,7 +5,7 @@
   "description": "allow_all keeps every JSON-safe value in host order: integers, doubles in Dart's format, booleans, null, lists, nested maps. capture is {values, truncated, droppedCount}.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "input": {
     "name": "USER_LOGIN",

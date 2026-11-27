@@ -5,7 +5,7 @@
   "description": "A control that becomes enabled after a scroll (same fingerprints, same boxes) is sent by the re-sample, labelled scroll: a re-sample is not a positional repeat.",
   "contract": {
     "sessionSchemaVersion": 10,
-    "fingerprintSchemaVersion": 6
+    "fingerprintSchemaVersion": 7
   },
   "runners": [
     "cpp"
