@@ -1,6 +1,6 @@
 # React Native adapter design note
 
-Status: Draft for review, revision 2 · 2026-11-27 · BLE-642 (ADR 0009, rule 4 of the amendment)
+Status: Decisions recorded, revision 3 · 2026-11-27 · BLE-642 (ADR 0009, rule 4 of the amendment)
 
 Working note, not product docs. It sits in `internal/docs/plans/` with the
 other design notes ([native SDK design note](2026-10-12-native-sdk-design-note.md))
@@ -14,8 +14,10 @@ mapping table (PR #190).
 Scope of release 1 of `@tugboat/react-native`: session replay and fingerprints
 (sessions, navigation, masked frames, taps, scrolls and text input with stable
 fingerprints, the same on Android and iOS). Network evidence is release 2
-(BLE-648, BLE-671). Error reporting is release 3. Network, scene inventory and
-pager sections fix the seams those later steps need.
+(BLE-648, BLE-671). Error reporting is release 3. The exploration scene inventory
+is later (Q10, decided): 0.1.0 ships without it. Brownfield is unknown, so
+release 1 is pure React Native (Q6, decided). The network, inventory and pager
+sections fix the seams the later steps need.
 
 Sources: ADR 0009 and its amendment; `core/session-engine/docs/stateful-engine.md`
 (including open PR #188, the settled re-sample); open PR #187 (`idSeed`); open
@@ -35,13 +37,13 @@ marked [memory] or [spike] is a fact until the spike passes.
 | --- | --- |
 | 1 | New Architecture only. A TurboModule carries batched facts and a Fabric component carries the mask mark. The old architecture is not supported. |
 | 2 | Native owns pointer facts, scroll offsets, focus, frame timing, pixels and mask rectangles. JS owns identity: it resolves the touched target from the React tree and sends identity parts. |
-| 3 | The RN mask is one native container view, `<Tugboat.Sensitive>`, with the shared model's one override (`sensitive`). JS sends marks. Native reads rectangles at draw time. This deviates from the ADR 0009 sentence "JS sends mask rectangles" (Q2). |
+| 3 | The RN mask is one native container view, `<Tugboat.Mask override="inherit" or "sensitive">` (`<Tugboat.Sensitive>` is sugar), implementing the PR #190 contract as written. JS sends marks. Native reads rectangles at draw time (Q2, decided). |
 | 4 | Navigation facts come from the navigation container state, diffed in JS. A navigator that appears late sends `push` for its initial route. Expo Router uses the same path. |
 | 5 | A new JS context ends a session the RN adapter started and starts a new one. Brownfield is excluded from release 1 unless a waiting client needs it. |
 | 6 | One npm package, autolinked. The Expo plugin only enforces minimums in release 1. Published native artifacts (BLE-638, BLE-639) are a blocker. |
 | 7 | The identity token is a portable role from host component names, never component function names. `testID` is the alias. |
 | 8 | Network is recorded in JS by wrapping `XMLHttpRequest` (release 2). It contradicts the roadmap's "native network for free" row. |
-| 9 | The scene inventory is built in JS. Native runs the frame watch and forwards `scene.sample`. |
+| 9 | Release 0.1.0 ships without the exploration scene inventory (Q10, decided). Its design is kept under "Later" (section 11). |
 | 10 | Pager pages use an explicit `[page:N]` segment. Its format is fixed now because it is in the fingerprint. |
 | 11 | A gated spike (section 15) comes before BLE-644. Nothing marked [spike] ships until it passes. |
 
@@ -104,8 +106,8 @@ Rules:
 | `navigation` | JS, navigation container state | Route names exist only in JS. |
 | Mask rectangles | Native, at draw time | Section 3. |
 | Pixels | Native pixel runtime | Raw pixels never enter JS. |
-| `scene.watch`, `scene.frame` | Native (`Choreographer`, `CADisplayLink`) | Drawn frames are native. |
-| `scene.inventory` | JS | Identity parts are in JS (section 11). |
+| `scene.watch`, `scene.frame` | Later (section 11) | Not in 0.1.0. |
+| `scene.inventory` | Later (section 11) | Not in 0.1.0. |
 | `evidence.networkCall` | JS (release 2) | Section 9. |
 | Lifecycle, launch, exit, delivery, outbox | Native host | ADR 0009. |
 
@@ -147,8 +149,10 @@ back to route-only identity (`low`), never throws.
 
 ## 3. Masks
 
-PR #190 defines the privacy model. This section maps React Native onto it and
-does not restate it. Re-check against #190 before release; it is being revised.
+PR #190's `docs/architecture/native-capture-contracts.md` (Privacy model, and
+its "React Native" section) is the source of truth. This section says only what
+is specific to React Native and links the contract for the rules. Re-check
+against #190 before release.
 
 ### 3.1 The problem
 
@@ -163,86 +167,90 @@ not exist. For a mask that is a privacy bug.
 
 ### 3.2 Mapping onto the privacy model
 
-| Model (PR #190) | React Native |
-| --- | --- |
-| Dimensions `text`, `media`, `region` | Same. No `touch` and no `hide` dimension. |
-| App level, `MaskLevel` | `Tugboat.start({ maskLevel })`. Only `allTextAndMedia` is implemented natively; an unknown level resolves to `allTextAndMedia`. |
-| Override `inherit` or `sensitive` | One component, `<Tugboat.Sensitive>`, a native container view, named for Flutter parity (`TugboatSensitive`). No per-dimension props. `sensitive` masks its `region` and every descendant at its own bounds. The default is `inherit`, which is no mark. |
-| No relaxing or reveal level | None exists in the component. A descendant cannot loosen an ancestor. |
-| Inheritance | Resolved **in the host** from the native view tree, as Views does. Native ancestry equals React ancestry because the mark view is never flattened **[spike]**. The adapter sends no mask tree to the engine. |
-| Override is not identity | A mask never changes tags, paths or fingerprints. Conformance fixture: the same React tree with and without `<Tugboat.Sensitive>` gives the same fingerprints. |
-| Fail closed order: element bounds, region host, whole frame | Element at its own bounds, then the **region host** (the React root view), then the whole frame. |
-| `MaskCoverage` (`precise`, `wholeHost`, `wholeFrame`) with the engine's closed reasons | Reported per frame. Reasons reuse the existing list (below). Any new reason is a contract change in the engine's `capture_types`, and none is proposed. |
-| Reach: descendants at their own bounds, even outside the marked bounds | RN children overflow their parent by default, so the host unions the bounds of the mark's descendants, not only the mark view's bounds. |
+The component implements the contract as written. Nothing is added to it.
 
-Reasons used, all existing: `regionUnreadable` (an expected mark has no native
-instance, or the root's bounds cannot be read), `treeUnreadable`, `animating`,
-`interop` / `webView` / `renderer` / `surfaceLayer` (unknown native views that
-are boxed), `unclassifiedLayer` (iOS), `overlayWindow` (a window the copy cannot
-see). A mode of `wholeHost` means the React root view is boxed.
+| Contract | React Native |
+| --- | --- |
+| `MaskOverride = inherit \| sensitive`, absent means `inherit` | `<Tugboat.Mask override="inherit" \| "sensitive">`: one prop with exactly those two values, absent is `inherit`. `<Tugboat.Sensitive>` is sugar for `override="sensitive"`, named for Flutter parity (`TugboatSensitive`). No per-dimension props, no `reveal`, no touch masking. |
+| `MaskLevel`, default `allTextAndMedia` | `Tugboat.start({ maskLevel })`. Only `allTextAndMedia` is implemented. This config parses a string, so the contract requires a parse point and a test: JS validates at `start`, native re-validates, and an unknown value becomes `allTextAndMedia`, never a narrower level. |
+| Inheritance and the effective mask | Resolved in the host from the native view tree. Native ancestry equals React ancestry because the mask view is never flattened **[spike]**. No mask tree goes to the engine. |
+| Override is not identity | A mask never changes tags, paths or fingerprints. Conformance fixture: the same React tree with and without the mask component gives the same fingerprints. |
+| Fail-closed ladder | Element at its own bounds, then the **region host** (the React root view), then the whole frame (section 3.3). |
+| `MaskCoverage` and the engine's closed reasons | Reported per frame with existing reasons only: `regionUnreadable`, `treeUnreadable`, `animating`, `interop`, `webView`, `renderer`, `surfaceLayer`, `unclassifiedLayer`, `overlayWindow`. A new reason is a contract change in the engine's `capture_types`; none is proposed. |
+| `sensitive` covers the region and every descendant at its own bounds | RN children overflow their parent by default, so the host unions the bounds of the descendants, not only the mark view's bounds. |
+| Secure input, bundled asset (used by narrower levels) | Not needed at `allTextAndMedia`. When a narrower level is added, a secure input is a text input with `secureTextEntry` or an email, phone or visible-password keyboard type, and a bundled asset is an image whose source came from a `require()` of a local file (resolved asset source), as the contract says. An unknown source is not a bundled asset. |
+| Classification gaps are violations | Anything `allTextAndMedia` says it masks must be classified. Section 3.4 boxes every unknown native view, so an unclassified view is masked, not left visible. |
+| Touch | An accepted residual in the contract: a tap inside a `sensitive` region still records the target identity and position. The RN adapter does not suppress it. The follow-up is the contract's. |
+| Tests | The contract's two properties (a mark adds and never removes, an unplaceable mask masks more) plus section 3.5. The contract says "New Architecture on and off"; with the old architecture unsupported (Q1, decided) the off leg is dropped and the contract text needs the same amendment. |
 
 ### 3.3 The mask view
 
-- `<Tugboat.Sensitive>` renders a Fabric component, `TugboatSensitiveView`, with
-  its own component descriptor and `collapsable={false}` set anyway. It is a real
+- `<Tugboat.Mask>` renders a Fabric component, `TugboatMaskView`, with its own
+  component descriptor and `collapsable={false}` set anyway. It is a real
   container view, so a flattened parent cannot remove it **[spike]**.
-- **Layout-neutral.** The view uses the same shadow-node layout as a plain `View`
-  (a Yoga node with `flex` default, no props that add size, margin or position),
-  passes its style prop straight through, and draws nothing. Its child stacking
-  is unchanged. Adding it to a tree must not move a pixel; a layout test checks a
-  tree with and without it **[spike]**.
-- **Rectangles are read at draw time.** The host's mask supplier runs in the
-  same main-thread turn as `PixelCopy` / `drawHierarchy`, as the SwiftUI and
-  Android adapters do (native note, section 2). It reads the real window bounds
-  of each mark and of every descendant, so scrolled, animated and overflowing
-  content is where native has it.
-- **Expected marks.** On mount JS registers `expectMask(id)` (no level: the only
-  override is `sensitive`). The native view attaches with the same `maskId`.
-- **"Missing" means never created.** An expected id whose native view was **never
-  created** after a bound (proposal: two flushes) means the mark cannot be placed:
-  mask the **region host** and report `regionUnreadable`. A view that was created
-  and is now **detached** is not missing: a detached view draws nothing, so
-  nothing needs masking. That matters because `react-native-screens` detaches
-  covered screens, `removeClippedSubviews` detaches off-screen rows, and inactive
-  tabs stay mounted **[memory]**. A rule that fired on detachment would mask the
-  whole frame constantly. A detached view that reattaches is masked from the
-  frame it is drawn in.
-- **If the region host cannot be read** (the root view bounds), mask the whole
-  frame.
-- **Animating.** The existing adapters mask the whole frame while something is
-  animating whose layout bounds do not describe where it draws (Android
+- **Layout-neutral.** The view uses the shadow-node layout of a plain `View` (no
+  props that add size, margin or position), passes its style prop through, and
+  draws nothing. Adding it must not move a pixel; a layout test checks a tree
+  with and without it **[spike]**.
+- **Rectangles are read at draw time.** The host's mask supplier runs in the same
+  main-thread turn as `PixelCopy` / `drawHierarchy`, as the SwiftUI and Android
+  adapters do (native note, section 2). It reads the real window bounds of each
+  mark and of every descendant, so scrolled, animated and overflowing content is
+  where native has it. JS sends marks, not rectangles (Q2, decided).
+- **Expected marks.** On mount JS registers `expectMask(id)` (no level). The
+  native view attaches with the same `maskId`.
+- **"Missing" means never created.** An expected id whose native view was
+  **never created** after a bound (proposal: two flushes) cannot be placed: mask
+  the **region host** and report `regionUnreadable`. A view that was created and
+  is now **detached** is not missing: a detached view draws nothing. That matters
+  because `react-native-screens` detaches covered screens, `removeClippedSubviews`
+  detaches off-screen rows, and inactive tabs stay mounted **[memory]**. A rule
+  that fired on detachment would mask the whole frame constantly. A detached view
+  that reattaches is masked from the first frame it is drawn in.
+- **If the region host cannot be read**, mask the whole frame.
+- **Overlays and modals** follow the contract: content behind a modal, sheet,
+  menu, drawer or scrim is still painted, so it is masked as if the overlay were
+  absent, and the overlay's own content is masked too. The walk skips only what is
+  not painted (hidden, offscreen, zero-sized, detached). It never prunes a screen
+  because another screen or a scrim covers it. For React Native this means an
+  attached `react-native-screens` screen under a pushed or modal screen is still
+  walked, and a transparent modal or a translucent scrim does not exempt what is
+  behind it. A `Modal` on Android is a separate Dialog window that the
+  activity-window copy does not paint; the frame carries `overlayWindow` and the
+  Dialog's content is not in the pixels (a gap for pointer facts, section 5.5).
+- **Animating.** The existing adapters mask the whole frame while something
+  animates whose layout bounds do not describe where it draws (Android
   `AnimationProbe.kt`: a running legacy `View` animation or `LayoutTransition`;
-  iOS `LayerWalk.swift`: `animationKeys()` non-empty, reason `animating`). The RN
-  walk reuses those probes on the React root's native subtree. Property and
-  transform animations are covered by the real bounds. Whether Reanimated and
-  `react-native-screens` transitions are covered by the probes is a **[spike]**
-  item.
+  iOS `LayerWalk.swift`: non-empty `animationKeys()`, reason `animating`). The RN
+  walk reuses those probes on the React root's native subtree. Whether Reanimated
+  and `react-native-screens` transitions are covered is a **[spike]** item.
 
 ### 3.4 Automatic masks under `allTextAndMedia`
 
 - **Allowlist by type, not by name.** The walk classifies native views by an
   allowlist of RN-core view classes referenced **by type** in the native code
   (`ReactTextView`, `ReactEditText`, `ReactImageView`, `ReactViewGroup`,
-  `ReactScrollView` and equivalents on iOS; **[memory]** names), so R8 and Swift
-  symbol stripping cannot change the result. Text and text input are `text`.
-  Image is `media`.
+  `ReactScrollView` and equivalents on iOS; names **[memory]**), so R8 and Swift
+  stripping cannot change the result. Text and text input are `text`. Image is
+  `media`.
 - **Every unknown native view is `media` and boxed.** Skia canvases, maps, video,
-  `WebView`, `SurfaceView`, `TextureView` and any third-party native component
-  not on the allowlist are masked over their whole bounds, as SwiftUI does for
-  its unverified layer allowlist (`unverifiedLayerAllowlist`). Plain RN
-  containers (`ReactViewGroup`, scroll views) are walked, not boxed.
+  `WebView`, `SurfaceView`, `TextureView` and any third-party native component off
+  the allowlist are masked over their whole bounds, as SwiftUI does for its
+  unverified layer allowlist. Plain RN containers (`ReactViewGroup`, scroll views)
+  are walked, not boxed.
 - An RN version whose allowlist is unverified masks the region host (reason
-  `regionUnreadable`), the same posture as Compose on an unverified version.
+  `regionUnreadable`), the posture Compose takes on an unverified version.
 
 ### 3.5 Device tests (Fabric on)
 
 - a mark inside nested layout-only `View`s, default `collapsable`;
-- a mark with **overflowing children** (children outside the mark's bounds);
+- a mark with **overflowing children**;
 - a mark under an animated transform, and inside a `ScrollView`;
 - a mark unmounted mid-capture;
 - a mark whose native view is never created (test hook): region host masked;
-- a **covered stack screen** (`react-native-screens`) with a mark under the top
-  screen: no whole-frame mask, no leak;
+- a **covered stack screen** (`react-native-screens`) with a mark: no whole-frame
+  mask, no leak, and the covered screen's text still masked while attached;
+- a **transparent modal** over a screen: both are masked;
 - a **clipped list row** (`removeClippedSubviews`) with a mark;
 - an **inactive tab** that stays mounted and holds a mark;
 - a **native-stack push** while a mark is on the screen below;
@@ -433,7 +441,7 @@ brownfield support waits for a client that needs it (Q6).
 | Item | Decision |
 | --- | --- |
 | npm package | `@tugboat/react-native`: TypeScript source and build, `android/`, `ios/`, `app.plugin.js`. Peer deps `react`, `react-native` (>=0.76); optional peers `react-native-pager-view`, `@react-navigation/native`, `expo`. |
-| Codegen | `codegenConfig` of type `all` (TurboModule `NativeTugboat`, component `TugboatSensitiveView`), Java package `com.tugboat.reactnative`. |
+| Codegen | `codegenConfig` of type `all` (TurboModule `NativeTugboat`, component `TugboatMaskView`), Java package `com.tugboat.reactnative`. |
 | Android | Gradle library depending on `com.gettugboat.sdk:tugboat-android` from Maven Central. minSdk 26. |
 | iOS | `TugboatReactNative.podspec` depending on the `Tugboat` pod (`TugboatSDK.podspec`). RN on iOS builds with CocoaPods, so a published podspec is required. iOS 15. |
 | Autolinking | RN CLI and Expo autolinking from `package.json`, `android/build.gradle` and the podspec. |
@@ -603,35 +611,38 @@ and the BLE-670 alias work are to be confirmed before release).
   not promised (AGENTS.md). The test: one app, four builds (debug and release,
   iOS and Android), compare fingerprints for a fixed interaction script.
 
-## 11. Settled re-sample and the scene inventory
+## 11. Later: settled re-sample and the scene inventory
+
+**Decided (Q10, 2026-11-27): `@tugboat/react-native` 0.1.0 ships without the
+exploration scene inventory.** Release-1 fingerprints do not depend on it. This
+section keeps the design for the release that adds it. Nothing here is built
+now: no `scene.watch` effect is executed, no frame callback runs, no inventory
+is sent.
 
 Facts (stateful-engine.md section 4.3.2, PR #188): the engine owns the settled
 re-sample. It emits `scene.watch {armed}` and `scene.sample`, takes `scene.frame
 {}` from the host (at most once per 100 ms while armed), and takes the answer as
 `scene.inventory {resample: true, ...}`. Exploration metadata (`trigger`,
 `surface`, `viewport`, `scroll`, per-element `visibleFraction`, `tag`,
-`positional`) rides on the fact.
+`positional`) rides on the fact. A host that does not run the watch ignores
+both effects, which is what 0.1.0 does.
 
-| Piece | Owner |
+| Piece | Owner (later) |
 | --- | --- |
 | Novelty, windows, caps, de-duplication | Engine |
 | `scene.watch`: arm drawn-frame callbacks, send `scene.frame` | Native host. No JS. |
 | `scene.sample` | Native receives the effect and emits `sceneSample` to JS. **JS answers.** |
 | The inventory (elements, identity, `tag`, `positional`) | **JS**, from the visible route's fiber tree, using section 10. |
-| Element boxes and `visibleFraction` | **Primary: native, by React tag.** JS names the elements (tag plus identity); native fills the window box and visible fraction from the mounted view. `getBoundingClientRect` and DOM-like APIs are an optional alternative, not relied on **[spike]**. |
+| Element boxes and `visibleFraction` | **Primary: native, by React tag.** JS names the elements; native fills the window box and visible fraction from the mounted view. `getBoundingClientRect` and DOM-like APIs are an optional alternative **[spike, later]**. |
 | `viewport`, `scroll`, `surface` | Native (window, insets, keyboard); JS names the primary scrollable. |
 | Stale answers | Dropped by the engine. JS echoes the request token. |
 
-JS builds it because identity parts are in JS; a native-built inventory would carry
-native-view fingerprints that do not match RN taps. A busy JS thread delays or loses
-a sample, which is the right failure. JS builds in an idle turn and caps the fiber
-walk at the engine's element limit while counting `totalElements`. Production
-capture builds no inventory and keeps `scene.watch` unarmed.
+JS builds it because identity parts are in JS; a native-built inventory would
+carry native-view fingerprints that do not match RN taps. A busy JS thread
+delays or loses a sample, which is the right failure.
 
-**The user must confirm (Q10):** if the app graph that fingerprints join to is
-built from exploration inventories, then release-1 fingerprints need an inventory
-to join to, and inventory is in release 1. This note had put inventory after
-release 1.
+Later spike items (not in the gated spike of section 15): box source by React tag
+on both OSes; a JS fiber walk capped at the engine's element limit.
 
 ## 12. Pager pages (BLE-677)
 
@@ -639,11 +650,11 @@ Today the engine keeps a pager's page position apart from collapsed list positio
 only through Flutter widget names (`PageView#`, `Scrollable#`). Two RN pages built
 from one component share every path.
 
-Proposal: an explicit, toolkit-neutral segment **`[page:N]`** in the canonical
-path, never collapsed by the novelty rule (`[item:N]` still collapses). Because it
-is in the path it is in the fingerprint, so **its format is fixed now**:
-`[page:<zero-based index>]`, placed after the pager's own `Scrollable` token
-segment. The engine work (rule and fixture) moves with inventory (Q10, Q11).
+**The segment format is fixed now, because it is in the fingerprint** (Q11,
+decided): `[page:<zero-based index>]`, placed after the pager's own `Scrollable`
+token segment, never collapsed. Tap and scroll anchors in 0.1.0 already carry it.
+The **engine rule** (the novelty rule keeping `[page:N]` apart, plus its fixture)
+is **later**, with the inventory it serves.
 
 | Source | Detection |
 | --- | --- |
@@ -666,7 +677,7 @@ diagnostics only.
 ## 14. Testing
 
 - **Conformance.** Golden fixtures for identity parts to fingerprints; one per
-  role-table entry; **same fingerprint with and without `<Tugboat.Sensitive>`**;
+  role-table entry; **same fingerprint with and without `<Tugboat.Mask>`**;
   **debug versus release Hermes** and **iOS versus Android** for one script
   (section 10).
 - **Mask device tests:** section 3.5, Fabric on.
@@ -701,32 +712,35 @@ Expo Router.
 | S8 | Scroll matching: native scroll start to the scrollable ancestor anchor by React tag | Correct anchor for nested and horizontal scrolls. |
 | S9 | Native hit view: React-managed or not (native-stack back button, native tab bar, `Alert`) | Native decides `opaque_platform_view` or `system_ui` at `down`. |
 | S10 | Animation probes cover Reanimated and `react-native-screens` transitions | No unmasked content during a scripted transition, or the probe is extended. |
-| S11 | Box source by React tag from native | Window box and visible fraction match the screen on both OSes. |
 | S12 | Android late start: JS `start` after the first resume | Frames and pointer facts work with the adopt-activity seam or the early initializer. |
 | S13 | Modal, iOS: the key-window frame and the root wrapper cover a `Modal` | Frame correct and anchor resolved, or the gap is documented. |
 | S14 | Debug versus release Hermes: identical fingerprints for a script on both OSes | Equal. |
 
-## 16. Open questions for the user
+## 16. Decisions on the open questions
 
-| # | Question | Recommendation |
+**DECIDED 2026-11-27.** The user accepted every recommendation, with the Q10 answer
+below.
+
+| # | Question | Decision |
 | --- | --- | --- |
-| Q1 | Support the old architecture? Amend rule 4? | No. 0.76+ New Architecture only; amend rule 4 to "Fabric on, mark inside layout-only parents". |
-| Q2 | Native reads mask rectangles at draw time instead of JS sending them (ADR 0009 text)? | Yes. Amend the ADR sentence in the BLE-644 PR. |
-| Q3 | `testID` as the alias, plus a JS-only `<Tugboat.Tag>`; a switch to keep `testID` out of the path? | Yes to all. Docs say `testID` must be stable and carry no user data. |
-| Q4 | Route key: path of names or leaf name? | The path. The leaf collides. |
-| Q5 | `Tugboat.setScreen` for custom navigators; Wix? | Add `setScreen`. No Wix in release 1. |
-| Q6 | Host seam: extend `ToolkitRegion` for RN and build the Swift equivalent (section 8)? | Yes. Release 1: pure RN ("RN owns its root"). Full hybrid claim later, unless a waiting client is brownfield. |
-| Q7 | Host `restart`, and end the session on a new JS context? | Restart yes. Always end on a new JS context for RN-started sessions; exclude brownfield (native-started sessions never ended by JS). |
-| Q8 | JS start in release 1? | Yes, only with the Android adopt-current-activity seam or an early initializer. Otherwise native early start. |
-| Q9 | Request mark by header? | Defer, lean no. A header to customers' servers can break CORS-strict and signed requests. Reconcile with the roadmap first (section 9). |
-| Q10 | Is exploration scene inventory in release 1? | **User to confirm.** If the app graph is built from exploration inventories, fingerprints need inventory, so yes. Otherwise no. |
-| Q11 | `[page:N]` engine change? | Fix the segment format now (it is in the fingerprint). Engine rule and fixture move with inventory. |
-| Q12 | Tap-anchor hold, 100 ms? | Start at 100 ms. Gate release on the unresolved-tap rate (taps with `resolution_error`); fix the reason to `resolution_error`, not `identity_unavailable`. |
-| Q13 | Should a tab switch emit a navigation fact? | Yes in release 1: `replace` on the tab navigator, departing the old tab top. Switch to an engine `activate` fact when it exists. Otherwise the visible route does not move and later facts are misattributed. |
+| Q1 | Support the old architecture? Amend rule 4? | **DECIDED.** No. 0.76+ New Architecture only. Amend rule 4 (and the "on and off" line in PR #190's React Native section) to "Fabric on, mark inside layout-only parents". |
+| Q2 | Native reads mask rectangles at draw time instead of JS sending them (ADR 0009 text)? | **DECIDED.** Yes. Amend the ADR sentence in the BLE-644 PR. |
+| Q3 | `testID` as the alias, plus a JS-only `<Tugboat.Tag>`; a switch to keep `testID` out of the path? | **DECIDED.** Yes to all. `testID` must be stable and carry no user data. |
+| Q4 | Route key: path of names or leaf name? | **DECIDED.** The path. |
+| Q5 | `Tugboat.setScreen` for custom navigators; Wix? | **DECIDED.** Add `setScreen`. No Wix in release 1. |
+| Q6 | Host seam: extend `ToolkitRegion` for RN and build the Swift equivalent (section 8)? | **DECIDED.** Yes. Release 1 is pure React Native ("RN owns its root"). Brownfield is unknown, so the full hybrid claim is later and is revisited when brownfield demand is known. |
+| Q7 | Host `restart`, and end the session on a new JS context? | **DECIDED.** Restart yes. Always end on a new JS context for RN-started sessions. Brownfield is excluded (native-started sessions are never ended by JS). |
+| Q8 | JS start in release 1? | **DECIDED.** Yes, only with the Android adopt-current-activity seam or an early initializer. |
+| Q9 | Request mark by header? | **DECIDED.** Defer, lean no. Reconcile with the roadmap first (section 9). |
+| Q10 | Is exploration scene inventory in release 1? | **DECIDED: NO.** `@tugboat/react-native` 0.1.0 ships without it; fingerprints do not depend on it. Inventory items moved to "Later" (section 11). |
+| Q11 | `[page:N]` | **DECIDED.** The segment format is fixed now (it is in the fingerprint). The engine rule and fixture are later, with inventory. |
+| Q12 | Tap-anchor hold | **DECIDED.** Start at 100 ms. Gate release on the unresolved-tap rate (taps with `resolution_error`). |
+| Q13 | Tab switch emits a navigation fact? | **DECIDED.** Yes in release 1: `replace` on the tab navigator, departing the old tab top. Move to an engine `activate` fact when it exists. |
 
 ## 17. Release 1 work not yet tracked
 
-New issues this note implies:
+Issue IDs to be added by the user's filing. Items that depended on the scene
+inventory are removed (they are "Later", section 11).
 
 1. The spike (section 15), gated before BLE-644.
 2. Android `ToolkitRegion` for React Native (async anchor, region route key, no
@@ -737,16 +751,17 @@ New issues this note implies:
 6. RN scroll facts (native offsets, JS ancestor anchors matched by tag).
 7. RN focus and text-input facts (native `focus {kind}`, role `TextInput`).
 8. Navigation: late-navigator `push`, seed on every session start, tab-switch
-   decision (Q13), same path string in facts and anchors.
+   `replace` (Q13), same path string in facts and anchors.
 9. Tap failure reasons mapped onto the engine's closed set, plus the
    unresolved-tap counter.
 10. Publishing prerequisites: `TugboatSDK` podspec and `tugboat-android` on Maven
     Central (BLE-638, BLE-639).
 11. ADR 0009: rule 4 amendment (no Fabric-off leg) and the mask-rectangles
-    amendment (Q2); the RN column in PR #190's adapter mapping table.
-12. RN masking device tests (section 3.5).
+    amendment (Q2); the RN column in PR #190's adapter mapping table; the
+    "on and off" line in its React Native section.
+12. RN masking device tests (section 3.5), including overlays and modals.
 13. Fingerprint conformance: debug versus release Hermes, iOS versus Android, with
-    and without `<Tugboat.Sensitive>`.
+    and without `<Tugboat.Mask>`.
 
 ## 18. Could not verify
 
@@ -754,12 +769,11 @@ New issues this note implies:
   fiber internals, host component names, list cell props, scroll matching,
   `nativeEvent.timestamp` parity, `onScroll` not bubbling, `react-native-screens`
   and `removeClippedSubviews` detach behavior, animation library behavior, Expo Go's
-  limit, `expo/fetch`, `useNavigationContainerRef`, Expo Router on React Navigation,
-  DOM-like box APIs.
+  limit, `expo/fetch`, `useNavigationContainerRef`, Expo Router on React Navigation.
 - That a custom Fabric component is never flattened (the docs read cover
   `collapsable`, `testID`, `nativeID`, not custom descriptors).
-- PR #190 is being revised; section 3 follows its current branch. PRs #187 and
-  #188 were read open.
+- PR #190 was re-read on its branch on 2026-11-27 and may change again. PRs #187
+  and #188 were read open.
 - The native hosts' stamped fingerprint schema version and the BLE-670 alias work.
 - `LiveActivities` was read from source; the failure of a late JS start is a spike
   item, not observed.
