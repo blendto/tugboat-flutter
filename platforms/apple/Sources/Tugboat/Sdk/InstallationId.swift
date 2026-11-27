@@ -1,4 +1,4 @@
-import CryptoKit
+import CommonCrypto
 import Foundation
 
 /// The SDK's own installation id (BLE-618), with the rules of Flutter's
@@ -183,7 +183,9 @@ enum IdSeed {
       index = next
     }
     bytes += [UInt8](repeating: 0, count: 8)
-    var digest = Array(SHA256.hash(data: Data(bytes)).prefix(16))
+    var full = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+    _ = CC_SHA256(bytes, CC_LONG(bytes.count), &full)
+    var digest = Array(full.prefix(16))
     digest[6] = (digest[6] & 0x0f) | 0x40
     digest[8] = (digest[8] & 0x3f) | 0x80
     let hex = digest.map { String(format: "%02x", $0) }.joined()
