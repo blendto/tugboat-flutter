@@ -21,6 +21,14 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
   named in a session its initial route (`session_start` with `captureFrame`, as
   Flutter, a frame of its own) instead of a push. Off by default.
 
+- SwiftUI masks on iOS 27 (BLE-702): the layer allowlist and the SwiftUI
+  platform-view hosts are verified for iOS 27 (same class names as iOS 26;
+  probed on the iOS 27.2 simulator, 2026-11-28; the iOS 27.0.1 device run is
+  pending). Before, every window with a SwiftUI hosting view (for example a
+  React Native native-stack header) was masked whole on iOS 27
+  (`unverifiedLayerAllowlist`). An iOS major without an entry still masks such
+  a window whole.
+
 - Fingerprint schema 7 and alias confidence (contract change: identity,
   BLE-670): anchors carry `schemaVersion` 7, read from the engine
   (`tb_session_engine_fingerprint_schema_version()`), as Flutter 0.11.0+. The

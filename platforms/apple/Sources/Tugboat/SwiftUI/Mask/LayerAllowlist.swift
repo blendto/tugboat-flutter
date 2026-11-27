@@ -23,17 +23,35 @@ struct LayerAllowlist: Equatable {
   /// bounds and are not padded.
   static let imagePadding: CGFloat = 4
 
-  /// Verified majors. iOS 26.5: the probe of 2026-10-11 (text IoU
-  /// 0.99-1.00, image IoU 0.76) and CI layer dumps of 2026-10-12, which
-  /// showed SF Symbols drawn either into an `ImageLayer` or as a vector
-  /// `ColorShapeLayer` (a `CAShapeLayer` subclass without contents). Plain
-  /// colour fills are contents-less `CALayer`s and stay visible.
+  /// The classes verified on iOS 26.5 and again on iOS 27.2; each major
+  /// still has its own entry, so an unverified major fails closed.
+  private static let classes26And27 = (
+    text: ["_TtC7SwiftUIP33_863CCF9D49B535DAEB1C7D61BEE53B5914CGDrawingLayer"] as Set<String>,
+    image: ["SwiftUI.ImageLayer"] as Set<String>,
+    shape: ["_TtC7SwiftUIP33_E19F490D25D5E0EC8A24903AF958E34115ColorShapeLayer"] as Set<String>
+  )
+
+  /// Verified majors.
+  /// - iOS 26.5: the probe of 2026-10-11 (text IoU 0.99-1.00, image IoU
+  ///   0.76) and CI layer dumps of 2026-10-12, which showed SF Symbols drawn
+  ///   either into an `ImageLayer` or as a vector `ColorShapeLayer` (a
+  ///   `CAShapeLayer` subclass without contents). Plain colour fills are
+  ///   contents-less `CALayer`s and stay visible.
+  /// - iOS 27.2 (simulator runtime 27.2, build 24B8117; probe 2026-11-28,
+  ///   a throwaway test dumping layer classes and frame IoU): the same three class names. Text layers are
+  ///   `CGDrawingLayer` (IoU 1.00 on a title and a body line), bitmap images
+  ///   `SwiftUI.ImageLayer` (IoU 1.00), a resizable SF Symbol and a
+  ///   font-sized one `ColorShapeLayer` (IoU 1.00 and 0.73, both inside the
+  ///   mask), and a `Label`'s symbol an `ImageLayer` (19 pt, padded by the
+  ///   mask). Colour fills and a filled `Circle` have no contents or path
+  ///   and stay visible. Device iOS 27.0.1 is not yet probed: that run is
+  ///   pending.
   static let verified: [Int: LayerAllowlist] = [
     26: LayerAllowlist(
-      major: 26,
-      textClasses: ["_TtC7SwiftUIP33_863CCF9D49B535DAEB1C7D61BEE53B5914CGDrawingLayer"],
-      imageClasses: ["SwiftUI.ImageLayer"],
-      shapeClasses: ["_TtC7SwiftUIP33_E19F490D25D5E0EC8A24903AF958E34115ColorShapeLayer"]
+      major: 26, textClasses: classes26And27.text, imageClasses: classes26And27.image, shapeClasses: classes26And27.shape
+    ),
+    27: LayerAllowlist(
+      major: 27, textClasses: classes26And27.text, imageClasses: classes26And27.image, shapeClasses: classes26And27.shape
     ),
   ]
 

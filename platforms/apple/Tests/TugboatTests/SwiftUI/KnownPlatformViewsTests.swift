@@ -20,7 +20,9 @@ final class KnownPlatformViewsTests: XCTestCase {
     for host in [navigationStack, textField, list, navigationView, tabView] {
       XCTAssertTrue(KnownPlatformViews.isInternal(host), host)
       XCTAssertTrue(KnownPlatformViews.isVerified(host, major: 26), host)
+      XCTAssertTrue(KnownPlatformViews.isVerified(host, major: 27), host)
       XCTAssertFalse(KnownPlatformViews.isVerified(host, major: 17), "only verified majors walk \(host)")
+      XCTAssertFalse(KnownPlatformViews.isVerified(host, major: 28), "an unverified newer major stays fail-closed: \(host)")
     }
     XCTAssertEqual(KnownPlatformViews.representedType(ofHost: navigationStack)?.name, "NavigationStackRepresentable")
     XCTAssertEqual(KnownPlatformViews.representedType(ofHost: list)?.name, "ListRepresentable")
@@ -33,6 +35,7 @@ final class KnownPlatformViewsTests: XCTestCase {
     for host in [app, appView, wrappedInApp] {
       XCTAssertFalse(KnownPlatformViews.isInternal(host), host)
       XCTAssertFalse(KnownPlatformViews.isVerified(host, major: 26), host)
+      XCTAssertFalse(KnownPlatformViews.isVerified(host, major: 27), host)
     }
   }
 

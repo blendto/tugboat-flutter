@@ -146,6 +146,28 @@ final class WindowMasksTests: XCTestCase {
     XCTAssertEqual(WindowMasks.compute(window.window, allowlist: nil, iOSMajor: 18).rects, [.fullFrame])
   }
 
+  func testOnlyVerifiedMajorsHaveAnAllowlist() throws {
+    XCTAssertEqual(Set(LayerAllowlist.verified.keys), [26, 27])
+    for major in [15, 18, 25, 28, 99] {
+      XCTAssertNil(LayerAllowlist.forMajor(major), "iOS \(major) is unverified and masks SwiftUI windows in full")
+    }
+    let ios26 = try XCTUnwrap(LayerAllowlist.forMajor(26))
+    let ios27 = try XCTUnwrap(LayerAllowlist.forMajor(27))
+    XCTAssertEqual(ios27.major, 27)
+    XCTAssertEqual(ios27.textClasses, ios26.textClasses)
+    XCTAssertEqual(ios27.imageClasses, ios26.imageClasses)
+    XCTAssertEqual(ios27.shapeClasses, ios26.shapeClasses)
+    XCTAssertEqual(ios27.textClasses.count + ios27.imageClasses.count + ios27.shapeClasses.count, 3)
+  }
+
+  func testAnUnverifiedMajorAboveTheVerifiedOnesMasksAWindowWithSwiftUIInFull() {
+    let window = HostedWindow(Text("Hello"))
+    hosted = window
+    let result = WindowMasks.compute(window.window, allowlist: LayerAllowlist.forMajor(28), iOSMajor: 28)
+    XCTAssertEqual(result.fallback, .unverifiedLayerAllowlist(iOSMajor: 28))
+    XCTAssertEqual(result.rects, [.fullFrame])
+  }
+
   func testAnUnverifiedSwiftUIPlatformViewIsABox() throws {
     let window = HostedWindow(List(0..<3, id: \.self) { Text("Row \($0)") })
     hosted = window
