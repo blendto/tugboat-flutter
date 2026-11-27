@@ -30,7 +30,6 @@ export default function PaymentScreen() {
       </Section>
       {method === 'card' ? (
         <Section title="Card details">
-          {/* TODO(@tugboat/react-native): Sensitive masks this subtree once the SDK is wired in. */}
           <Sensitive>
             <Field testID="payment-card-number" label="Card number" placeholder="4242 4242 4242 4242" keyboardType="number-pad" secureTextEntry={false} />
             <View style={{ flexDirection: 'row', gap: 12 }}>

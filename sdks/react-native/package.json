@@ -1,0 +1,30 @@
+{
+  "name": "@tugboat/react-native",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Tugboat session capture for React Native (Android only, unpublished).",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "src",
+    "android"
+  ],
+  "peerDependencies": {
+    "@react-navigation/native": "*",
+    "react": "*",
+    "react-native": ">=0.88.0"
+  },
+  "peerDependenciesMeta": {
+    "@react-navigation/native": {
+      "optional": true
+    }
+  },
+  "codegenConfig": {
+    "name": "TugboatSpec",
+    "type": "all",
+    "jsSrcsDir": "src",
+    "android": {
+      "javaPackageName": "com.tugboat.reactnative"
+    }
+  }
+}

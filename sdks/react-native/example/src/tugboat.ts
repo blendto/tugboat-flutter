@@ -1,14 +1,17 @@
-// Placeholder for the Tugboat SDK. The @tugboat/react-native PR replaces this file.
-import React from 'react';
-
-/** No-op until the SDK exists. Called once at app start. */
-export function init(): void {}
+import { Tugboat } from '@tugboat/react-native';
 
 /**
- * Wrap anything that must never be recorded (card fields, OTP codes, ...).
- * TODO(@tugboat/react-native): mark `children` as sensitive so the native
- * capture masks the whole subtree. Today it renders children unchanged.
+ * Starts the SDK once. The collector is the local capture collector:
+ * `python3 tool/dev/capture-collector/capture_collector.py --port 3000 --out <dir>`
+ * and `adb reverse tcp:3000 tcp:3000`.
  */
-export function Sensitive({ children }: { children: React.ReactNode }) {
-  return React.createElement(React.Fragment, null, children);
+export function init(): void {
+  Tugboat.start({
+    collector: { baseUrl: 'http://localhost:3000', apiKey: 'rn-example' },
+    app: { name: 'Tugboat RN Example' },
+    enabled: true,
+  });
 }
+
+/** Wrap anything that must never be recorded (card fields, OTP codes, ...). */
+export const Sensitive = Tugboat.Sensitive;

@@ -24,7 +24,8 @@ A mobile monorepo (Dart pub workspace + Melos 7), not a single package:
   `tugboat_dio` — Dio network evidence; `tugboat_build` — `build_runner`
   generator for the `widgetNames` map (not published yet); `example/` — demo
   app, not published.
-- `sdks/react-native` — future adapter placeholder only.
+- `sdks/react-native` — `@tugboat/react-native` 0.0.1, Android only, unpublished
+  (a TurboModule over `tugboat-android`); `example/` — demo app.
 - `tool/ci` — host scripts for tests, builds, pins, API dumps, release checks.
 - `docs/` — public contracts; `docs/publishing.md` rules what belongs there.
   Working notes (plans, lab gates, canaries) are not product docs.
