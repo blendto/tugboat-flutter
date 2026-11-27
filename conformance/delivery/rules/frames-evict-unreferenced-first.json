@@ -1,0 +1,204 @@
+{
+  "fixtureFormat": 1,
+  "kind": "delivery.rules",
+  "name": "frames-evict-unreferenced-first",
+  "description": "While frame uploads stall, frames wait under maxPendingFrames. Over the bound the oldest frame no event references goes first, even when an older frame is referenced, and the newest frame is kept; when every older frame is referenced, the oldest goes. Each drop counts in health and is reported (collector_frame_upload dropped).",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "collector": {
+      "maxPendingFrames": 3
+    },
+    "steps": [
+      {
+        "note": "a frame an event references is uploaded",
+        "do": {
+          "frame": {
+            "bytes": 48000
+          }
+        }
+      },
+      {
+        "note": "the upload fails: frames retry, and the pass goes on to the failure report",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 503
+          }
+        }
+      },
+      {
+        "note": "a second referenced frame: frames wait, no pass starts while they retry",
+        "do": {
+          "frame": {
+            "bytes": 48000
+          }
+        }
+      },
+      {
+        "note": "a lifecycle frame, which no event references",
+        "do": {
+          "lifecycleFrame": {
+            "bytes": 48000
+          }
+        }
+      },
+      {
+        "note": "over the bound (3): the unreferenced frame goes, not the older referenced ones",
+        "do": {
+          "frame": {
+            "bytes": 48000
+          }
+        }
+      },
+      {
+        "note": "every older frame is referenced: the oldest is evicted",
+        "do": {
+          "frame": {
+            "bytes": 48000
+          }
+        }
+      },
+      {
+        "note": "flush: a request is already in flight",
+        "do": {
+          "flush": true
+        }
+      },
+      {
+        "note": "the report is delivered: the pass uploads the frames left",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      },
+      {
+        "note": "events follow, with the drop reports",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "steps": [
+      {
+        "sent": [
+          {
+            "lane": "frames",
+            "frames": [
+              1
+            ]
+          }
+        ],
+        "health": {
+          "pending": 2,
+          "accepted": 3,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "interaction",
+              "diag:collector_frame_upload:failed"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 3,
+          "accepted": 3,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 5,
+          "accepted": 5,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 8,
+          "accepted": 8,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 10,
+          "accepted": 10,
+          "dropped": 1
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 12,
+          "accepted": 12,
+          "dropped": 2
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 12,
+          "accepted": 12,
+          "dropped": 2
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "frames",
+            "frames": [
+              2,
+              4,
+              5
+            ]
+          }
+        ],
+        "health": {
+          "pending": 10,
+          "accepted": 12,
+          "dropped": 2
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "interaction",
+              "app_backgrounded",
+              "app_foregrounded",
+              "diag:collector_frame_upload:dropped",
+              "interaction",
+              "diag:collector_frame_upload:dropped",
+              "interaction",
+              "diag:collector_frame_upload:recovered"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 8,
+          "accepted": 12,
+          "dropped": 2
+        }
+      }
+    ]
+  }
+}

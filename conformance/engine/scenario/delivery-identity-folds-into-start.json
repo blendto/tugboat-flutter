@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "delivery-identity-folds-into-start",
-  "description": "While session_start is still queued, identity changes are not posted: lifecycle bodies are built when sent, so the retried session_start carries the new user id and traits.",
+  "description": "While session_start is still queued, identity changes are not posted: lifecycle bodies are built when sent, so the retried session_start carries the new user id and traits. Delivery's own collector_request reports (Dart 0.11.1) are events like any other: they join batches and take request ids, so a request a step answers may be a batch of reports, and step notes describe the state without them.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -28,8 +28,7 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0,
-            "idSeed": "77881ed134efcae8845e90e9098b0fe1c1d52bfc5397eab8d1b2b11d7135e603"
+            "sessionEpoch": 0
           }
         },
         "expect": {
@@ -37,11 +36,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-ddb4983e-f2cd-450c-a7e9-514ddc3a3de4",
+                "id": "event-0",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-361513af-0805-4668-813d-e6093f7a022a"
+                "captureSessionId": "session-1781827200000000"
               },
               "userId": "user-configured"
             }
@@ -58,10 +57,10 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-361513af-0805-4668-813d-e6093f7a022a\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
-              "sessionId": "session-361513af-0805-4668-813d-e6093f7a022a",
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-1781827200000000",
               "deliveryKeys": [
-                "session-361513af-0805-4668-813d-e6093f7a022a/l/session_start/2026-06-19T00:00:00.000Z"
+                "session-1781827200000000/l/session_start/2026-06-19T00:00:00.000Z"
               ],
               "isSessionEnd": false
             },
@@ -107,7 +106,25 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-0",
+                "atMs": 10,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "failed",
+                  "statusCode": 503
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -170,10 +187,10 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-361513af-0805-4668-813d-e6093f7a022a\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-2\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"},\"traits\":{\"plan\":\"pro\"}}",
-              "sessionId": "session-361513af-0805-4668-813d-e6093f7a022a",
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-2\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"},\"traits\":{\"plan\":\"pro\"}}",
+              "sessionId": "session-1781827200000000",
               "deliveryKeys": [
-                "session-361513af-0805-4668-813d-e6093f7a022a/l/session_start/2026-06-19T00:00:00.000Z"
+                "session-1781827200000000/l/session_start/2026-06-19T00:00:00.000Z"
               ],
               "isSessionEnd": false
             },
@@ -200,11 +217,69 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-1",
+                "atMs": 310,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-2"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
               "timerId": "delivery.answer.http-1"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-0\",\"atMs\":10,\"triggeredAt\":\"2026-06-19T00:00:00.010Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"failed\",\"statusCode\":503},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-1\",\"atMs\":310,\"triggeredAt\":\"2026-06-19T00:00:00.310Z\",\"userId\":\"user-2\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/c9278cefbaea220b"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 25310000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5320000,
+            "wallUs": 1781827200320000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
             }
           ]
         }
@@ -215,8 +290,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-361513af-0805-4668-813d-e6093f7a022a",
-        "captureSessionId": "session-361513af-0805-4668-813d-e6093f7a022a",
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -238,11 +313,36 @@
       "frames": [],
       "events": [
         {
-          "id": "event-ddb4983e-f2cd-450c-a7e9-514ddc3a3de4",
+          "id": "event-0",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-361513af-0805-4668-813d-e6093f7a022a"
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "collector-request-0",
+          "atMs": 10,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/sessions",
+            "result": "failed",
+            "statusCode": 503
+          }
+        },
+        {
+          "id": "collector-request-1",
+          "atMs": 310,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/sessions",
+            "result": "recovered"
+          }
         }
       ]
     }

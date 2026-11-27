@@ -131,7 +131,7 @@
         }
       },
       {
-        "note": "a pass while session_start is in flight only marks a follow-up (C2); Dart drops it, and both send nothing",
+        "note": "a pass while session_start is in flight only marks a follow-up (C2); Dart queues a follow-up that finds nothing to send, and both send nothing",
         "send": {
           "type": "transport.flush",
           "at": {

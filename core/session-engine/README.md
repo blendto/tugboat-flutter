@@ -316,6 +316,7 @@ message `input`. The field-level vocabulary is in
 | `timer.fired` | mono | `{timerId}` | Routes by timer-id prefix to the module that armed the timer. Unknown, cancelled, and stale (fired before the current deadline) ids are ignored. |
 | `session.snapshot` | optional | `{}` | Query. `result.snapshot` is the live or last session as `TugboatSession.toJson()` (schema 10), or `null` before the first session. |
 | `engine.config` | optional | `{}` | Query. `result.config` is the effective configuration: every `engine.configure` group except `host` (`limits`, `gesture`, `interaction`, `navigation`, `capture`, `collector`, `capabilities`), each field under its `engine.configure` name with its value, so a fresh handle reports the defaults below. Hosts read their timeouts from it (below). |
+| `engine.health` | none | `{}` | Query. `result.health.sinks` is `{pending, accepted, dropped}`, the fields of Dart's `TugboatHealth.sinks`: `pending` is what delivery holds now (queued, waiting for a retry, or in a request that has not finished, a replaced session's included), `accepted` and `dropped` are running totals over every session of the handle. `dropped` counts events and frames evicted at the bounds, backlog a new session or `engine.dispose` discarded, and requests of a replaced session the collector left to retry. SDK-local: never sent to the collector. |
 | `input.pointer` | mono | `{pointerId, phase, x, y, device, tap?}` | A pointer fact (section 9.1). `phase`: `down`, `move`, `up`, `cancel`; `device`: `touch`, `mouse`, `stylus`, `trackpad` (validated; it does not change classification, as in Dart). `x`, `y` are logical pixels in the adapter's surface space. `tap {anchor?, failureReason?, inventory?}` is allowed on `down` (exploration pre-tap evidence) and `up`. A `pointerId` must be unique per contact. |
 | `input.panZoom` | mono | `{pointerId, phase, x, y, panX?, panY?, scale?}` | A trackpad pan/zoom contact at `x, y`. `phase`: `start`, `update`, `end`. The cumulative `panX`, `panY`, and `scale` are required on `update` and not allowed otherwise. |
 | `scroll` | mono | `{scrollableId, phase, offset?, axis?, maxScrollExtent?, anchor?}` | `phase`: `start`, `update`, `end`, `overscroll`. `offset` and `axis` (`vertical`, `horizontal`) are required except on `overscroll`, which carries only the id; `maxScrollExtent` gives samples their `offsetNorm`; `anchor` (the scrollable's) is allowed on `start` only. `scrollableId` is stable for the scrollable's lifetime. |
@@ -517,7 +518,7 @@ validated. `host.configuredUserId` is the runtime user id until
 | `interaction` | `claimWindowMs` 1250, `settleDelayMs` 1000, `maxReleased` 8, `scrollEndCaptureDelayMs` 0, `captureScrollSamples` false, `captureScrollScreenshots` false, `scrollCaptureIntervalMs` 2000, `factGraceMs` 0 |
 | `navigation` | `routeBarrierTimeoutMs` 5000, `routeStackLimit` 16 |
 | `capture` | `budgetMs` 60, `budgetWindowMs` 5000, `degradedScale` 0.8, `answerTimeoutMs` 5000 (change C18) |
-| `collector` | `enabled` false, `batchSize` 10, `flushIntervalMs` 3000, `maxPendingBatches` 20, `maxPendingEvents` 60, `maxPendingFrames` 20, `frameChunk` 20, `frameTimeoutMs` 15000, `jsonTimeoutMs` 15000, `identityDebounceMs` 3000, `backgroundFlushDelayMs` 500, `endDrainTimeoutMs` 5000, `reportEventLaneGaps` false, `answerGraceMs` 5000, `maxRetryAfterMs` 60000, `maxEndingRetryAfterMs` 10000 |
+| `collector` | `enabled` false, `batchSize` 10, `flushIntervalMs` 3000, `maxPendingBatches` 20, `maxPendingEvents` 60, `maxPendingFrames` 400, `maxPendingFrameBytes` 8388608, `frameChunk` 20, `frameTimeoutMs` 15000, `jsonTimeoutMs` 15000, `identityDebounceMs` 3000, `backgroundFlushDelayMs` 500, `endDrainTimeoutMs` 5000, `reportEventLaneGaps` false, `answerGraceMs` 5000, `maxRetryAfterMs` 60000, `maxEndingRetryAfterMs` 10000 |
 | `capabilities` | `sceneInventory`, `nativeSceneInventory`, `viewportSemanticMap`, `captureDiagnostics`, `actionContext`, `focusChanges`, `systemInput`, all false |
 
 Durations are milliseconds in [0, 86400000], except the period `flushIntervalMs`, in [1, 86400000]; counts are in [1, 1000000]. A periodic flush that fires late re-arms at its first tick after the fire.
@@ -587,9 +588,21 @@ request is in flight at a time across the three lanes.
   head follows it. From `session.end` until the next `session.start`,
   lifecycle waits cap at `maxEndingRetryAfterMs`, and `session.end` shortens
   a longer running one. `session.start` clears every lane.
-- **Bounds** (`delivery_bounds.h`): `maxPendingEvents`, `maxPendingBatches`,
-  and `maxPendingFrames` evict the oldest; failed frames are requeued at the
-  front, so they go first.
+- **Bounds** (`delivery_bounds.h`): `maxPendingEvents` and
+  `maxPendingBatches` evict the oldest; `maxPendingFrames` (400) and
+  `maxPendingFrameBytes` (8 MiB) evict the oldest frame no event references,
+  else the oldest, and never the newest while another could go; failed
+  frames are requeued at the front. Each drop counts in `engine.health`.
+- **Stalled uploads** (Dart 0.11.1). A pass takes one frame batch at a time,
+  only the frames pending when the step began, and uploads frames between
+  event batches. It drains only the events queued when it reached them. When
+  an event batch is left to retry, or the retry head got no response at all,
+  the events the pass had not sent move into retry batches unsent. A lifecycle
+  post other than `session_start` that the collector rejects for good leaves
+  the lane. The first failed `/v1/sessions` or
+  `/v1/events/batch` post of an outage (`collector_request`), a flush pass of
+  10 s or more (`collector_flush`), and the session's final frame drop count
+  are reported as events.
 - **Frames.** Every frame `capture.result` accepts is queued (a frame
   acceptance observer). A chunk with a retry outcome requeues itself and
   every later chunk; a chunk of several frames rejected with 400 is re-sent

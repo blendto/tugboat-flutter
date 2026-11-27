@@ -1,0 +1,610 @@
+{
+  "fixtureFormat": 1,
+  "kind": "engine.scenario",
+  "name": "delivery-request-gaps",
+  "description": "The first failed /v1/sessions or /v1/events/batch post of an outage is reported as collector_request failed (statusCode, or error timeout | transport), once per path, and the path's next accepted post as recovered. A flush pass that lasts 10 s or more is reported once as collector_flush slow (duration, slowest step) until a fast pass finds nothing waiting for a retry. The reports are ordinary events of the semantic stream with ids from one sequence.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "runners": [
+    "cpp"
+  ],
+  "input": {
+    "configure": {
+      "host": {"$preset": "default-host", "configuredUserId": "user-configured"},
+      "collector": {
+        "enabled": true
+      }
+    },
+    "steps": [
+      {
+        "note": "session_start is sent",
+        "send": {
+          "type": "session.start",
+          "at": {
+            "monoUs": 5000000,
+            "wallUs": 1781827200000000
+          },
+          "input": {
+            "viewport": {
+              "width": 412.0,
+              "height": 915.0
+            },
+            "platform": "android",
+            "sessionEpoch": 0
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "event-0",
+                "atMs": 0,
+                "type": "session_start",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000"
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.flush",
+              "atMonoUs": 8000000
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-0",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-1781827200000000",
+              "deliveryKeys": [
+                "session-1781827200000000/l/session_start/2026-06-19T00:00:00.000Z"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-0",
+              "atMonoUs": 25000000
+            },
+            {
+              "type": "capture.request",
+              "requestId": "capture-0",
+              "trigger": "initial",
+              "force": true,
+              "requireFreshPaint": true,
+              "dropWhenBusy": false,
+              "notBeforeMonoUs": 5000000,
+              "context": {
+                "routeEpoch": 0,
+                "boundaryGeneration": 0
+              },
+              "scale": 1.0
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "capture.answer.capture-0",
+              "atMonoUs": 10000000
+            }
+          ]
+        }
+      },
+      {
+        "note": "no answer: reported as a timeout",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5100000,
+            "wallUs": 1781827200100000
+          },
+          "input": {
+            "requestId": "http-0",
+            "outcome": "timeout"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-0",
+                "atMs": 100,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "failed",
+                  "error": "timeout"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-0"
+            }
+          ]
+        }
+      },
+      {
+        "note": "the post is retried",
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 5200000,
+            "wallUs": 1781827200200000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-1",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-1781827200000000",
+              "deliveryKeys": [
+                "session-1781827200000000/l/session_start/2026-06-19T00:00:00.000Z"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-1",
+              "atMonoUs": 25200000
+            }
+          ]
+        }
+      },
+      {
+        "note": "503: the same outage, not reported again",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5300000,
+            "wallUs": 1781827200300000
+          },
+          "input": {
+            "requestId": "http-1",
+            "outcome": "http",
+            "status": 503
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-1"
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 5400000,
+            "wallUs": 1781827200400000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-2",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-1781827200000000",
+              "deliveryKeys": [
+                "session-1781827200000000/l/session_start/2026-06-19T00:00:00.000Z"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-2",
+              "atMonoUs": 25400000
+            }
+          ]
+        }
+      },
+      {
+        "note": "accepted: reported as recovered",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5500000,
+            "wallUs": 1781827200500000
+          },
+          "input": {
+            "requestId": "http-2",
+            "outcome": "http",
+            "status": 202,
+            "body": "{\"accepted\":true,\"sessionId\":\"srv-1\"}"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-1",
+                "atMs": 500,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-2"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-3",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-0\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"failed\",\"error\":\"timeout\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-1\",\"atMs\":500,\"triggeredAt\":\"2026-06-19T00:00:00.500Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/c9278cefbaea220b"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-3",
+              "atMonoUs": 25500000
+            }
+          ]
+        }
+      },
+      {
+        "note": "the report goes out",
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 5600000,
+            "wallUs": 1781827200600000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "note": "a failed events post is a new path: reported",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 5700000,
+            "wallUs": 1781827200700000
+          },
+          "input": {
+            "requestId": "http-3",
+            "outcome": "http",
+            "status": 503
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-2",
+                "atMs": 700,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "failed",
+                  "statusCode": 503
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-3"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-4",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-0\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"failed\",\"error\":\"timeout\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-1\",\"atMs\":500,\"triggeredAt\":\"2026-06-19T00:00:00.500Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/c9278cefbaea220b"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-4",
+              "atMonoUs": 25700000
+            }
+          ]
+        }
+      },
+      {
+        "note": "the retry batch goes out",
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 5800000,
+            "wallUs": 1781827200800000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "note": "no answer for 20 s: the post times out; the pass took more than 10 s: reported as slow, once",
+        "send": {
+          "type": "timer.fired",
+          "at": {
+            "monoUs": 25800000,
+            "wallUs": 1781827220800000
+          },
+          "input": {
+            "timerId": "delivery.answer.http-4"
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-flush-3",
+                "atMs": 20800,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "component": "collector_flush",
+                  "result": "slow",
+                  "durationMs": 20100,
+                  "step": "event_retries",
+                  "stepDurationMs": 20100
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "http.send",
+              "requestId": "http-5",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-0\",\"atMs\":100,\"triggeredAt\":\"2026-06-19T00:00:00.100Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"failed\",\"error\":\"timeout\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-1\",\"atMs\":500,\"triggeredAt\":\"2026-06-19T00:00:00.500Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/c9278cefbaea220b"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-5",
+              "atMonoUs": 45800000
+            }
+          ]
+        }
+      },
+      {
+        "send": {
+          "type": "transport.flush",
+          "at": {
+            "monoUs": 25900000,
+            "wallUs": 1781827220900000
+          },
+          "input": {}
+        },
+        "expect": {
+          "records": [],
+          "effects": []
+        }
+      },
+      {
+        "note": "accepted: the events path recovers",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 25950000,
+            "wallUs": 1781827220950000
+          },
+          "input": {
+            "requestId": "http-5",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-4",
+                "atMs": 20950,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/events/batch",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-5"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-6",
+              "lane": "events",
+              "path": "/v1/events/batch",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-2\",\"atMs\":700,\"triggeredAt\":\"2026-06-19T00:00:00.700Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/events/batch\",\"result\":\"failed\",\"statusCode\":503},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/e/121218bb1105924a"
+              ],
+              "isSessionEnd": false
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-6",
+              "atMonoUs": 45950000
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "expected": {
+    "finalSnapshot": {
+      "schemaVersion": 10,
+      "session": {
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
+        "startedAt": "2026-06-19T00:00:00.000Z",
+        "platform": "android",
+        "viewport": {
+          "x": 0.0,
+          "y": 0.0,
+          "width": 412.0,
+          "height": 915.0
+        },
+        "truncated": false,
+        "appInfo": {
+          "name": "Example App",
+          "version": "2.4.0",
+          "buildNumber": "240",
+          "installationId": "inst-0001",
+          "appId": "com.example.app",
+          "packageName": "com.example.app"
+        }
+      },
+      "frames": [],
+      "events": [
+        {
+          "id": "event-0",
+          "atMs": 0,
+          "type": "session_start",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000"
+        },
+        {
+          "id": "collector-request-0",
+          "atMs": 100,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/sessions",
+            "result": "failed",
+            "error": "timeout"
+          }
+        },
+        {
+          "id": "collector-request-1",
+          "atMs": 500,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/sessions",
+            "result": "recovered"
+          }
+        },
+        {
+          "id": "collector-request-2",
+          "atMs": 700,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "failed",
+            "statusCode": 503
+          }
+        },
+        {
+          "id": "collector-flush-3",
+          "atMs": 20800,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "component": "collector_flush",
+            "result": "slow",
+            "durationMs": 20100,
+            "step": "event_retries",
+            "stepDurationMs": 20100
+          }
+        },
+        {
+          "id": "collector-request-4",
+          "atMs": 20950,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/events/batch",
+            "result": "recovered"
+          }
+        }
+      ]
+    }
+  }
+}

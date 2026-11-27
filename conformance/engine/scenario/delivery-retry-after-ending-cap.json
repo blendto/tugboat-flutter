@@ -2,7 +2,7 @@
   "fixtureFormat": 1,
   "kind": "engine.scenario",
   "name": "delivery-retry-after-ending-cap",
-  "description": "While ending, lifecycle Retry-After waits cap at maxEndingRetryAfterMs: session.end clamps an earlier 60 s wait to 10 s, and a 429 with Retry-After 60 received while ending waits 10 s. When the lifecycle lane timer fires, the whole lifecycle lane drains: session_start, then the session_end queued behind it.",
+  "description": "While ending, lifecycle Retry-After waits cap at maxEndingRetryAfterMs: session.end clamps an earlier 60 s wait to 10 s, and a 429 with Retry-After 60 received while ending waits 10 s. When the lifecycle lane timer fires, the whole lifecycle lane drains: session_start, then the session_end queued behind it. Delivery's own collector_request reports (Dart 0.11.1) are events like any other: they join batches and take request ids, so a step may answer a batch of reports; the step notes name the request each step answers or sends, and the scenario ends with no request in flight.",
   "contract": {
     "sessionSchemaVersion": 10,
     "fingerprintSchemaVersion": 6
@@ -28,8 +28,7 @@
               "height": 915.0
             },
             "platform": "android",
-            "sessionEpoch": 0,
-            "idSeed": "a0c2e4c7b713bfcc093cfd9dcf5b22a02008bd3d5182a2a7b24a83416127bfc1"
+            "sessionEpoch": 0
           }
         },
         "expect": {
@@ -37,11 +36,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-19441ff3-c20c-4756-aeb1-891149a74365",
+                "id": "event-0",
                 "atMs": 0,
                 "type": "session_start",
                 "stream": "semantic",
-                "captureSessionId": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e"
+                "captureSessionId": "session-1781827200000000"
               },
               "userId": "user-configured"
             }
@@ -58,10 +57,10 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-a8dee0c3-069c-452d-8fac-5a3e429e045e\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
-              "sessionId": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e",
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-1781827200000000",
               "deliveryKeys": [
-                "session-a8dee0c3-069c-452d-8fac-5a3e429e045e/l/session_start/2026-06-19T00:00:00.000Z"
+                "session-1781827200000000/l/session_start/2026-06-19T00:00:00.000Z"
               ],
               "isSessionEnd": false
             },
@@ -114,6 +113,7 @@
         }
       },
       {
+        "note": "http-0 (session_start) answered 429",
         "send": {
           "type": "transport.result",
           "at": {
@@ -128,7 +128,25 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-0",
+                "atMs": 2000,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "failed",
+                  "statusCode": 429
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -143,6 +161,7 @@
         }
       },
       {
+        "note": "flush: nothing to send",
         "send": {
           "type": "transport.flush",
           "at": {
@@ -170,11 +189,11 @@
             {
               "kind": "event",
               "event": {
-                "id": "event-14089baa-8f20-4a8d-a6a2-af55d446b61f",
+                "id": "event-3",
                 "atMs": 5000,
                 "type": "session_end",
                 "stream": "semantic",
-                "captureSessionId": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e"
+                "captureSessionId": "session-1781827200000000"
               },
               "userId": "user-configured"
             }
@@ -188,11 +207,17 @@
               "type": "timer.schedule",
               "timerId": "delivery.retryAfter.lifecycle",
               "atMonoUs": 20000000
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.endDrain",
+              "atMonoUs": 15000000
             }
           ]
         }
       },
       {
+        "note": "timer delivery.retryAfter.lifecycle; sends http-1 (session_start)",
         "send": {
           "type": "timer.fired",
           "at": {
@@ -212,10 +237,10 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-a8dee0c3-069c-452d-8fac-5a3e429e045e\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
-              "sessionId": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e",
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-1781827200000000",
               "deliveryKeys": [
-                "session-a8dee0c3-069c-452d-8fac-5a3e429e045e/l/session_start/2026-06-19T00:00:00.000Z"
+                "session-1781827200000000/l/session_start/2026-06-19T00:00:00.000Z"
               ],
               "isSessionEnd": false
             },
@@ -228,6 +253,7 @@
         }
       },
       {
+        "note": "http-1 (session_start) answered 429",
         "send": {
           "type": "transport.result",
           "at": {
@@ -257,6 +283,7 @@
         }
       },
       {
+        "note": "timer delivery.retryAfter.lifecycle; sends http-2 (session_start)",
         "send": {
           "type": "timer.fired",
           "at": {
@@ -276,10 +303,10 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-a8dee0c3-069c-452d-8fac-5a3e429e045e\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
-              "sessionId": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e",
+              "jsonBody": "{\"sessionId\":\"session-1781827200000000\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "sessionId": "session-1781827200000000",
               "deliveryKeys": [
-                "session-a8dee0c3-069c-452d-8fac-5a3e429e045e/l/session_start/2026-06-19T00:00:00.000Z"
+                "session-1781827200000000/l/session_start/2026-06-19T00:00:00.000Z"
               ],
               "isSessionEnd": false
             },
@@ -292,6 +319,7 @@
         }
       },
       {
+        "note": "http-2 (session_start) answered 202; sends http-3 (events report,report)",
         "send": {
           "type": "transport.result",
           "at": {
@@ -306,7 +334,24 @@
           }
         },
         "expect": {
-          "records": [],
+          "records": [
+            {
+              "kind": "event",
+              "event": {
+                "id": "collector-request-1",
+                "atMs": 25200,
+                "type": "capture_diagnostic",
+                "stream": "semantic",
+                "captureSessionId": "session-1781827200000000",
+                "data": {
+                  "component": "collector_request",
+                  "path": "/v1/sessions",
+                  "result": "recovered"
+                }
+              },
+              "userId": "user-configured"
+            }
+          ],
           "effects": [
             {
               "type": "timer.cancel",
@@ -315,15 +360,15 @@
             {
               "type": "http.send",
               "requestId": "http-3",
-              "lane": "lifecycle",
-              "path": "/v1/sessions",
+              "lane": "events",
+              "path": "/v1/events/batch",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"session_end\",\"atMs\":5000,\"triggeredAt\":\"2026-06-19T00:00:05.000Z\",\"userId\":\"user-configured\"}",
+              "jsonBody": "{\"events\":[{\"id\":\"collector-request-0\",\"atMs\":2000,\"triggeredAt\":\"2026-06-19T00:00:02.000Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"failed\",\"statusCode\":429},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"},{\"id\":\"collector-request-1\",\"atMs\":25200,\"triggeredAt\":\"2026-06-19T00:00:25.200Z\",\"userId\":\"user-configured\",\"eventType\":\"capture_diagnostic\",\"stream\":\"semantic\",\"enrichmentCandidate\":false,\"payload\":{\"component\":\"collector_request\",\"path\":\"/v1/sessions\",\"result\":\"recovered\"},\"build\":{\"appId\":\"com.example.app\",\"platform\":\"android\",\"versionName\":\"2.4.0\",\"buildNumber\":\"240\",\"fingerprintSchemaVersion\":6},\"sessionId\":\"srv-1\"}]}",
               "sessionId": "srv-1",
               "deliveryKeys": [
-                "srv-1/l/session_end/2026-06-19T00:00:05.000Z"
+                "srv-1/e/c9278cefbaea220b"
               ],
-              "isSessionEnd": true
+              "isSessionEnd": false
             },
             {
               "type": "timer.schedule",
@@ -334,6 +379,7 @@
         }
       },
       {
+        "note": "http-3 (events report,report) answered 202; sends http-4 (session_end)",
         "send": {
           "type": "transport.result",
           "at": {
@@ -355,6 +401,52 @@
             },
             {
               "type": "timer.cancel",
+              "timerId": "delivery.endDrain"
+            },
+            {
+              "type": "http.send",
+              "requestId": "http-4",
+              "lane": "lifecycle",
+              "path": "/v1/sessions",
+              "timeoutMs": 15000,
+              "jsonBody": "{\"sessionId\":\"srv-1\",\"eventType\":\"session_end\",\"atMs\":5000,\"triggeredAt\":\"2026-06-19T00:00:05.000Z\",\"userId\":\"user-configured\"}",
+              "sessionId": "srv-1",
+              "deliveryKeys": [
+                "srv-1/l/session_end/2026-06-19T00:00:05.000Z"
+              ],
+              "isSessionEnd": true
+            },
+            {
+              "type": "timer.schedule",
+              "timerId": "delivery.answer.http-4",
+              "atMonoUs": 50300000
+            }
+          ]
+        }
+      },
+      {
+        "note": "http-4 (session_end) answered 202",
+        "send": {
+          "type": "transport.result",
+          "at": {
+            "monoUs": 30310000,
+            "wallUs": 1781827225310000
+          },
+          "input": {
+            "requestId": "http-4",
+            "outcome": "http",
+            "status": 202
+          }
+        },
+        "expect": {
+          "records": [],
+          "effects": [
+            {
+              "type": "timer.cancel",
+              "timerId": "delivery.answer.http-4"
+            },
+            {
+              "type": "timer.cancel",
               "timerId": "delivery.flush"
             }
           ]
@@ -366,8 +458,8 @@
     "finalSnapshot": {
       "schemaVersion": 10,
       "session": {
-        "id": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e",
-        "captureSessionId": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e",
+        "id": "session-1781827200000000",
+        "captureSessionId": "session-1781827200000000",
         "startedAt": "2026-06-19T00:00:00.000Z",
         "platform": "android",
         "viewport": {
@@ -389,18 +481,31 @@
       "frames": [],
       "events": [
         {
-          "id": "event-19441ff3-c20c-4756-aeb1-891149a74365",
+          "id": "event-0",
           "atMs": 0,
           "type": "session_start",
           "stream": "semantic",
-          "captureSessionId": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e"
+          "captureSessionId": "session-1781827200000000"
         },
         {
-          "id": "event-14089baa-8f20-4a8d-a6a2-af55d446b61f",
+          "id": "collector-request-0",
+          "atMs": 2000,
+          "type": "capture_diagnostic",
+          "stream": "semantic",
+          "captureSessionId": "session-1781827200000000",
+          "data": {
+            "component": "collector_request",
+            "path": "/v1/sessions",
+            "result": "failed",
+            "statusCode": 429
+          }
+        },
+        {
+          "id": "event-3",
           "atMs": 5000,
           "type": "session_end",
           "stream": "semantic",
-          "captureSessionId": "session-a8dee0c3-069c-452d-8fac-5a3e429e045e"
+          "captureSessionId": "session-1781827200000000"
         }
       ]
     }

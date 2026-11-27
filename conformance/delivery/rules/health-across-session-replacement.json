@@ -1,0 +1,137 @@
+{
+  "fixtureFormat": 1,
+  "kind": "delivery.rules",
+  "name": "health-across-session-replacement",
+  "description": "A session that replaces the live one discards the queued backlog and counts it as dropped, but a request already in flight keeps its items pending until it settles, and counts them as dropped only if the collector left them to retry. A second replacement while the request is still in flight changes none of that. accepted is a running total over sessions, every session_start included.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "collector": {
+      "batchSize": 2
+    },
+    "steps": [
+      {
+        "note": "first event",
+        "do": {
+          "event": "e1"
+        }
+      },
+      {
+        "note": "a batch goes out",
+        "do": {
+          "event": "e2"
+        }
+      },
+      {
+        "note": "queued",
+        "do": {
+          "event": "e3"
+        }
+      },
+      {
+        "note": "a new session replaces the live one: the queued event is discarded, the request in flight is not",
+        "do": {
+          "newSession": true
+        }
+      },
+      {
+        "note": "a second replacement while the request is still out: nothing changes",
+        "do": {
+          "newSession": true
+        }
+      },
+      {
+        "note": "the old request times out: its two events were not delivered and will not be retried",
+        "do": {
+          "answer": {
+            "outcome": "timeout"
+          }
+        }
+      },
+      {
+        "note": "the new session starts its handshake",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "steps": [
+      {
+        "sent": [],
+        "health": {
+          "pending": 1,
+          "accepted": 2,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e1",
+              "e2"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 2,
+          "accepted": 3,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 3,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 2,
+          "accepted": 6,
+          "dropped": 1
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 2,
+          "accepted": 8,
+          "dropped": 1
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "lifecycle",
+            "eventType": "session_start"
+          }
+        ],
+        "health": {
+          "pending": 0,
+          "accepted": 8,
+          "dropped": 3
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 0,
+          "accepted": 8,
+          "dropped": 3
+        }
+      }
+    ]
+  }
+}

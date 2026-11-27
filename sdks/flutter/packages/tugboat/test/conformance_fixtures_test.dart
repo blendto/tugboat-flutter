@@ -9,6 +9,7 @@
 // (helpers/engine_scenario.dart); `engineOnly` scenarios and scenarios
 // whose `runners` exclude `dart` are skipped.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +18,7 @@ import 'package:tugboat/src/markers.dart';
 import 'package:tugboat/src/models.dart';
 
 import 'helpers/conformance_fixture.dart';
+import 'helpers/delivery_rules_fixture.dart';
 import 'helpers/engine_scenario.dart';
 import 'helpers/engine_scenario_replay.dart';
 
@@ -35,7 +37,9 @@ void main() {
       final fixture = loadFixture(root, file);
       test(
         fixture.relativePath,
-        () => _expectFixture(fixture),
+        () => fixture.kind == ConformanceKind.deliveryRules
+            ? _expectDeliveryRules(fixture, root)
+            : _expectFixture(fixture),
         skip: _skipReason(fixture),
       );
     }
@@ -102,6 +106,27 @@ String? _skipReason(ConformanceFixture fixture) {
   }
   if (!fixture.runsOnDart) return 'runners: C++ only';
   return null;
+}
+
+/// `delivery.rules` run against the real collector sink: the rules Dart's
+/// `CollectorHttpSink` and the engine's delivery share.
+Future<void> _expectDeliveryRules(
+  ConformanceFixture fixture,
+  Directory root,
+) async {
+  final name = fixture.relativePath.split('/').last;
+  expect(name, '${fixture.name}.json', reason: 'name must match file name');
+  expect(
+    fixture.relativePath,
+    startsWith('${fixture.kind.directory}/'),
+    reason: 'kind ${fixture.kind.wireName} lives in ${fixture.kind.directory}',
+  );
+  final mismatches = await runDeliveryRulesOnDart(fixture, root);
+  if (mismatches.isEmpty) return;
+  fail(
+    '${fixture.relativePath} does not match the Dart collector sink:\n'
+    '  ${mismatches.join('\n  ')}',
+  );
 }
 
 void _expectFixture(ConformanceFixture fixture) {

@@ -1,0 +1,199 @@
+{
+  "fixtureFormat": 1,
+  "kind": "delivery.rules",
+  "name": "events-hung-endpoint-parks-fresh-events",
+  "description": "When the retry head of the events lane got no response at all (a timeout), a pass sends the head once and parks the fresh events behind it, in retry batches and unsent, so a hung endpoint costs one timeout per pass. Parked events go out in order once the head is accepted. The first failed post of the outage is reported (collector_request failed) and so is its recovery.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "collector": {
+      "batchSize": 2
+    },
+    "steps": [
+      {
+        "note": "first event",
+        "do": {
+          "event": "e1"
+        }
+      },
+      {
+        "note": "a batch goes out",
+        "do": {
+          "event": "e2"
+        }
+      },
+      {
+        "note": "it times out: the batch waits for a retry, and the failure is reported",
+        "do": {
+          "answer": {
+            "outcome": "timeout"
+          }
+        }
+      },
+      {
+        "note": "the new event and the failure report fill a batch: a pass starts with the retry head",
+        "do": {
+          "event": "e3"
+        }
+      },
+      {
+        "note": "the head times out again: the fresh events are parked, not sent",
+        "do": {
+          "answer": {
+            "outcome": "timeout"
+          }
+        }
+      },
+      {
+        "note": "flush: the head is tried again",
+        "do": {
+          "flush": true
+        }
+      },
+      {
+        "note": "the head is accepted: the parked batch follows",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      },
+      {
+        "note": "the parked batch is accepted: the recovery report is next",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      },
+      {
+        "note": "delivered",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "steps": [
+      {
+        "sent": [],
+        "health": {
+          "pending": 1,
+          "accepted": 2,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e1",
+              "e2"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 2,
+          "accepted": 3,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 3,
+          "accepted": 3,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e1",
+              "e2"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 4,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 4,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e1",
+              "e2"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 4,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "diag:collector_request:failed",
+              "e3"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 3,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "diag:collector_request:recovered"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 1,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 0,
+          "accepted": 4,
+          "dropped": 0
+        }
+      }
+    ]
+  }
+}

@@ -7,6 +7,14 @@ import android.util.Log
 import com.tugboat.android.engine.EngineResponse
 import com.tugboat.android.engine.EngineStatus
 import com.tugboat.android.engine.EngineTransport
+import org.json.JSONObject
+
+/**
+ * What the collector sink holds and has lost, with the fields of Dart's
+ * `TugboatSinkHealth`: [pending] events and frames queued, waiting for a retry,
+ * or in a request; [accepted] and [dropped] running totals over every session.
+ */
+internal data class SinkHealth(val pending: Long, val accepted: Long, val dropped: Long)
 
 /**
  * Owns one engine handle ([transport]) and drives it from one thread, the
@@ -87,6 +95,27 @@ internal class EngineHost(
                 }
             }
         }
+    }
+
+    /**
+     * Reads the collector sink's health from the engine, on the engine
+     * thread, after already-posted work: [onResult] gets it there, or null
+     * when the host is closed or the engine does not answer. Nothing here is
+     * sent to the collector.
+     */
+    fun readSinkHealth(onResult: (SinkHealth?) -> Unit) {
+        val queued = accepting && handler.post {
+            val health = if (active) guarded("health") { querySinkHealth() } else null
+            guarded("health callback") { onResult(health) }
+        }
+        if (!queued) guarded("health callback") { onResult(null) }
+    }
+
+    private fun querySinkHealth(): SinkHealth? {
+        val response = transport.submit("""{"type":"engine.health","input":{}}""".toByteArray(Charsets.UTF_8))
+        if (response.status != EngineStatus.OK) return null
+        val sinks = JSONObject(response.text()).getJSONObject("result").getJSONObject("health").getJSONObject("sinks")
+        return SinkHealth(sinks.getLong("pending"), sinks.getLong("accepted"), sinks.getLong("dropped"))
     }
 
     /**

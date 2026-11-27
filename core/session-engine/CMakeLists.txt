@@ -156,6 +156,7 @@ if(TB_SESSION_ENGINE_BUILD_TESTS AND NOT TB_SESSION_ENGINE_FUZZ)
   add_executable(tb_session_engine_conformance
     tests/tb_session_engine_conformance.cpp
     tests/conformance/conformance_json.cpp
+    tests/conformance/delivery_rules_runner.cpp
     tests/conformance/evidence_runner.cpp
     tests/conformance/presets.cpp
     tests/conformance/scenario_runner.cpp)

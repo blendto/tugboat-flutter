@@ -43,6 +43,8 @@ conformance/
   engine/
     presets.json                    shared scenario configuration (not a fixture; see Presets)
     scenario/<name>.json            kind engine.scenario
+  delivery/
+    rules/<name>.json               kind delivery.rules
   evidence/
     external_event/<name>.json      kind evidence.externalEvent
     network_call/<name>.json        kind evidence.networkCall
@@ -273,6 +275,44 @@ only when `true`. `network_call` uses `method`, `route`, `statusCode`,
 `outcome`, `durationMs`, `attemptCount`, and `errorResponseBody`. Each one is
 kept only when it passes the mapper's type and range checks. For any other
 type, `data` is copied into `payload` as-is.
+
+### `delivery.rules`
+
+The collector delivery rules that Dart's `CollectorHttpSink` and the engine
+share (Flutter 0.11.1 and 0.11.2: stalled uploads, bounded frame backlog,
+real backlog and drops in health). Both runners pass every fixture, which is
+what holds the two together while the engine's other kinds are re-pinned
+(BLE-670). Actions, not engine messages, so the same file drives both.
+
+| Input | Meaning |
+| --- | --- |
+| `collector` | Settings, any of `batchSize`, `maxPendingEvents`, `maxPendingBatches`, `maxPendingFrames`, `maxPendingFrameBytes`. Others keep the defaults. |
+| `steps` | Non-empty array of `{note?, do}`. |
+
+The session starts and the collector handshake completes before the first
+step. `do` is one of:
+
+| Action | Meaning |
+| --- | --- |
+| `{"event": name}` | An `external_event` named `name` is recorded. |
+| `{"frame": {"bytes"?}}` | A swipe: a frame (default 48000 bytes), then the interaction event that references it. |
+| `{"initialFrame": {"bytes"?}}` | A frame no event references. Only as the first step. |
+| `{"lifecycleFrame": {"bytes"?}}` | The app is backgrounded and resumed: `app_backgrounded` and `app_foregrounded` events, then the lifecycle capture's frame, which no event references. |
+| `{"newSession": true}` | A new session replaces the live one. The old session records `session_end` and the new one `session_start`. A request of the old session still in flight keeps the slot until answered. |
+| `{"flush": true}` | A flush trigger. |
+| `{"answer": {"outcome", "status"?}}` | Answers the one request in flight: `http` (with `status`), `timeout`, or `error`. |
+
+Frames are numbered 1, 2, ... in arrival order. `expected.steps` has one
+entry per step: `sent`, the requests that went out during the step, in order
+(`{"lane": "events", "events": [...]}` with each event's name, `interaction`,
+or `diag:<component>:<result>` for delivery's own reports;
+`{"lane": "frames", "frames": [numbers]}`), and `health`, the sink's
+`{pending, accepted, dropped}` afterwards: events and frames held (in flight
+included), events and frames recorded (every session's `session_start`
+included), and events and frames discarded. The C++ runner reads them from
+`http.send` effects and `engine.health`; the Dart runner from the sink's
+requests and the counters of a real `TugboatCaptureSinkHub` in front of the sink
+(`pendingCount`, `acceptCount`, `dropCount`).
 
 ### `evidence.externalEvent` and `evidence.networkCall`
 

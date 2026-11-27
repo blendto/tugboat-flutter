@@ -94,6 +94,54 @@ class EngineHostTest {
     }
 
     @Test
+    fun sinkHealthIsReadOnTheEngineThreadAfterPostedWork() {
+        post("a")
+        transport.enqueue(ok())
+        transport.enqueue(
+            response(
+                EngineStatus.OK,
+                """{"type":"engine.health","result":{"health":{"sinks":{"pending":3,"accepted":9,"dropped":2}}},"effects":[]}""",
+            ),
+        )
+        var health: SinkHealth? = null
+        var readOn: Thread? = null
+        host.readSinkHealth {
+            health = it
+            readOn = Thread.currentThread()
+        }
+        assertNull("nothing runs on the caller's thread", health)
+
+        looper.idle()
+        assertEquals(SinkHealth(pending = 3, accepted = 9, dropped = 2), health)
+        assertEquals(Looper.getMainLooper().thread, readOn)
+        assertEquals("""{"type":"engine.health","input":{}}""", transport.submitted.last())
+    }
+
+    @Test
+    fun sinkHealthIsNullWhenTheEngineDoesNotAnswerOrTheHostIsClosed() {
+        transport.enqueue(failure(EngineStatus.UNSUPPORTED_MESSAGE))
+        var health: SinkHealth? = SinkHealth(1, 1, 1)
+        host.readSinkHealth { health = it }
+        looper.idle()
+        assertNull(health)
+
+        host.close()
+        looper.idleFor(Duration.ofSeconds(1))
+        var afterClose: SinkHealth? = SinkHealth(1, 1, 1)
+        host.readSinkHealth { afterClose = it }
+        assertNull(afterClose)
+    }
+
+    @Test
+    fun aThrowingSinkHealthCallbackDoesNotReachTheEngineThread() {
+        host.readSinkHealth { error("callback failed") }
+        looper.idle()
+        post("after")
+        looper.idle()
+        assertTrue(transport.submitted.last().contains("\"after\""))
+    }
+
+    @Test
     fun postsFromManyThreadsAreSerialized() {
         val threads = (0 until 4).map { t ->
             Thread { repeat(25) { i -> host.post("t$t", """{"i":$i}""", factAt) } }

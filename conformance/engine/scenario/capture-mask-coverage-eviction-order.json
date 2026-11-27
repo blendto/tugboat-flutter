@@ -312,7 +312,8 @@
                   "component": "collector_frame_upload",
                   "result": "dropped",
                   "frameCount": 1,
-                  "droppedFrameCount": 1
+                  "droppedFrameCount": 1,
+                  "droppedReferencedFrameCount": 1
                 }
               },
               "userId": null
@@ -448,7 +449,8 @@
             "component": "collector_frame_upload",
             "result": "dropped",
             "frameCount": 1,
-            "droppedFrameCount": 1
+            "droppedFrameCount": 1,
+            "droppedReferencedFrameCount": 1
           }
         },
         {

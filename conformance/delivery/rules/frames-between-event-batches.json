@@ -1,0 +1,244 @@
+{
+  "fixtureFormat": 1,
+  "kind": "delivery.rules",
+  "name": "frames-between-event-batches",
+  "description": "A pass uploads frames between event batches, and drains only the events queued when it reached them. A frame captured while the first of two batches is in flight goes out before the second batch, not at the start of a pass; the interaction event that references it waits for the next pass.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "collector": {
+      "batchSize": 2
+    },
+    "steps": [
+      {
+        "note": "first event",
+        "do": {
+          "event": "e1"
+        }
+      },
+      {
+        "note": "a batch goes out",
+        "do": {
+          "event": "e2"
+        }
+      },
+      {
+        "note": "queued while it is in flight",
+        "do": {
+          "event": "e3"
+        }
+      },
+      {
+        "note": "queued",
+        "do": {
+          "event": "e4"
+        }
+      },
+      {
+        "note": "queued",
+        "do": {
+          "event": "e5"
+        }
+      },
+      {
+        "note": "queued: four events wait",
+        "do": {
+          "event": "e6"
+        }
+      },
+      {
+        "note": "the batch is delivered: the next pass takes the four events, two per batch",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      },
+      {
+        "note": "a frame arrives during the first batch, with the interaction event that references it",
+        "do": {
+          "frame": {
+            "bytes": 48000
+          }
+        }
+      },
+      {
+        "note": "the first batch is delivered: the frame goes before the second batch",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      },
+      {
+        "note": "the frame is delivered: the second batch follows",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      },
+      {
+        "note": "the pass is done: the interaction event is next",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      },
+      {
+        "note": "delivered",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "steps": [
+      {
+        "sent": [],
+        "health": {
+          "pending": 1,
+          "accepted": 2,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e1",
+              "e2"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 2,
+          "accepted": 3,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 3,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 4,
+          "accepted": 5,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 5,
+          "accepted": 6,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 6,
+          "accepted": 7,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e3",
+              "e4"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 4,
+          "accepted": 7,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 6,
+          "accepted": 9,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "frames",
+            "frames": [
+              1
+            ]
+          }
+        ],
+        "health": {
+          "pending": 4,
+          "accepted": 9,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e5",
+              "e6"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 3,
+          "accepted": 9,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "interaction"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 1,
+          "accepted": 9,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 0,
+          "accepted": 9,
+          "dropped": 0
+        }
+      }
+    ]
+  }
+}

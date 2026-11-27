@@ -422,7 +422,7 @@ again between sessions.
 | `interaction` | claimWindowMs 1250, settleDelayMs 1000, maxReleased 8, scrollEndCaptureDelayMs 0, captureScrollSamples false, scrollCaptureIntervalMs 2000, factGraceMs |
 | `navigation` | routeBarrierTimeoutMs 5000, routeStackLimit 16 |
 | `capture` | budgetMs 60, budgetWindowMs 5000, degradedScale, answerTimeoutMs 5000 (change C18) |
-| `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 20, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs 5000 (change C5), reportEventLaneGaps false (change C6), answerGraceMs 5000 (change C15), maxRetryAfterMs 60000, maxEndingRetryAfterMs 10000 |
+| `collector` | enabled, batchSize 10, flushIntervalMs 3000, maxPendingBatches 20, maxPendingEvents 60, maxPendingFrames 400, maxPendingFrameBytes 8388608, frameChunk 20, frameTimeoutMs 15000, jsonTimeoutMs 15000 (change C3), identityDebounceMs 3000, backgroundFlushDelayMs 500, endDrainTimeoutMs 5000 (change C5), reportEventLaneGaps false (change C6), answerGraceMs 5000 (change C15), maxRetryAfterMs 60000, maxEndingRetryAfterMs 10000 |
 | `capabilities` | the `TugboatReplayConfig` evidence switches (inventory, semantic map, focus, system input, …) |
 
 The defaults are defined once, in `src/config.h`. The `engine.config` query
@@ -493,8 +493,9 @@ Triggers:
 - `transport.flush` from the host, for example before process exit.
 
 A trigger that fires during a pass sets `followUp`, which runs another pass
-when this one ends (change C2). Dart drops these triggers, so late work waits
-up to 3 s.
+when this one ends (change C2). Dart 0.11.1 does the same for `flush()`
+calls (one shared follow-up pass); the triggers that are not `flush()` calls
+are covered by this rule too.
 
 ### 7.4 Response classification
 

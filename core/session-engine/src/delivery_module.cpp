@@ -66,6 +66,32 @@ std::unique_ptr<Command> decode_transport_flush(const CommandInput& in,
   return std::make_unique<TransportFlush>(*in.at);
 }
 
+// `engine.health {}` -> `{"health": {"sinks": {pending, accepted, dropped}}}`:
+// the collector sink's real backlog and drops, with the fields and meaning of
+// Dart's `TugboatHealth.sinks`. `pending` is what delivery holds now, in a
+// request included; `accepted` and `dropped` are running totals over every
+// session of the engine, and `dropped` counts events and frames discarded at
+// the bounds, backlog a new session or `engine.dispose` cleared, and requests
+// of a replaced session the collector left to retry. Nothing here is sent to
+// the collector.
+bool run_health(const EngineState& state, const Value& input,
+                const std::string& path, Value* result, Error* error) {
+  const ObjectReader r(input, path, error);
+  if (!r.check_keys({})) {
+    return false;
+  }
+  const DeliveryState& d = state.delivery;
+  Value sinks = Value::object();
+  sinks.set("pending", Value::integer(delivery_pending_count(d)));
+  sinks.set("accepted", Value::integer(d.accepted_total));
+  sinks.set("dropped", Value::integer(d.dropped_total));
+  Value health = Value::object();
+  health.set("sinks", std::move(sinks));
+  *result = Value::object();
+  result->set("health", std::move(health));
+  return true;
+}
+
 }  // namespace
 
 void register_delivery_module(ModuleRegistry* registry) {
@@ -75,6 +101,7 @@ void register_delivery_module(ModuleRegistry* registry) {
   registry->add_command("transport.flush",
                         {AtRule::kMono, SessionPolicy::kAny,
                          decode_transport_flush});
+  registry->add_query("engine.health", run_health);
   registry->add_timers(kDeliveryTimerPrefix, delivery_timer_fired);
   registry->on_session_started(delivery_session_started);
   registry->on_backgrounded(delivery_backgrounded);

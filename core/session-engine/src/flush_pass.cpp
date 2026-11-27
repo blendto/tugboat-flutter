@@ -24,11 +24,16 @@ namespace engine {
 namespace {
 
 void enter_lifecycle(DeliveryContext& ctx);
-void enter_frames(DeliveryContext& ctx);
+void begin_frames_step(DeliveryContext& ctx, bool between_events);
 void enter_retry_batches(DeliveryContext& ctx);
-void enter_fresh_events(DeliveryContext& ctx);
-void send_frame_chunk(DeliveryContext& ctx);
+void begin_event_drain(DeliveryContext& ctx);
+void next_event_batch(DeliveryContext& ctx);
+void send_frame_batch(DeliveryContext& ctx);
 void send_isolated_frame(DeliveryContext& ctx);
+
+// A pass at least this long records a `collector_flush` diagnostic (Dart's
+// slow flush threshold).
+constexpr int64_t kSlowFlushMs = 10000;
 
 FlushCursor& cursor(DeliveryContext& ctx) { return ctx.delivery().pass; }
 
@@ -47,6 +52,7 @@ void send(DeliveryContext& ctx, HttpLane lane, const char* path,
           InFlight flight) {
   DeliveryState& d = ctx.delivery();
   flight.request_id = "http-" + std::to_string(d.next_request++);
+  flight.sent_mono_us = ctx.at.mono_us;
   const int64_t timeout_ms = lane == HttpLane::kFrames
                                  ? d.config.frame_timeout_ms
                                  : d.config.json_timeout_ms;  // change C3
@@ -62,11 +68,93 @@ void send(DeliveryContext& ctx, HttpLane lane, const char* path,
   cursor(ctx).in_flight = std::move(flight);
 }
 
+const char* step_name(PassStep step) {
+  switch (step) {
+    case PassStep::kSessions:
+      return "sessions";
+    case PassStep::kFrames:
+      return "frames";
+    case PassStep::kEventRetries:
+      return "event_retries";
+    case PassStep::kEvents:
+      return "events";
+  }
+  return "none";
+}
+
+PassStep step_of(RequestKind kind) {
+  switch (kind) {
+    case RequestKind::kLifecycle:
+      return PassStep::kSessions;
+    case RequestKind::kFrameChunk:
+    case RequestKind::kFrameSingle:
+      return PassStep::kFrames;
+    case RequestKind::kRetryBatch:
+      return PassStep::kEventRetries;
+    case RequestKind::kFreshBatch:
+      return PassStep::kEvents;
+  }
+  return PassStep::kSessions;
+}
+
+// Marks `step` as run in this pass (Dart `_FlushTiming.step`).
+void mark_step(DeliveryContext& ctx, PassStep step) {
+  int64_t& us = cursor(ctx).step_us[static_cast<size_t>(step)];
+  us = std::max<int64_t>(us, 0);
+}
+
+// Whether any lane still holds work the collector has not accepted (Dart
+// `_awaitingRetry`).
+bool awaiting_retry(const DeliveryState& d) {
+  return d.frames_need_retry || d.events.has_retry() || !d.lifecycle.empty();
+}
+
+// Dart `_reportSlowFlush`.
+void report_slow_flush(DeliveryContext& ctx) {
+  DeliveryState& d = ctx.delivery();
+  const FlushCursor& pass = d.pass;
+  const int64_t elapsed_ms =
+      std::max<int64_t>(ctx.at.mono_us - pass.started_mono_us, 0) / 1000;
+  PassStep slowest = PassStep::kSessions;
+  int64_t slowest_us = -1;
+  for (size_t i = 0; i < pass.step_us.size(); ++i) {
+    if (pass.step_us[i] > slowest_us) {
+      slowest_us = pass.step_us[i];
+      slowest = static_cast<PassStep>(i);
+    }
+  }
+  record_gap(ctx, d.frame_gaps.flush_pass(
+                      elapsed_ms >= kSlowFlushMs, awaiting_retry(d),
+                      elapsed_ms, slowest_us < 0 ? "none" : step_name(slowest),
+                      std::max<int64_t>(slowest_us, 0) / 1000));
+}
+
 void end_pass(DeliveryContext& ctx) {
   FlushCursor& pass = cursor(ctx);
   pass.running = false;
   pass.frames = FrameCursor();
+  pass.frames_between_events = false;
+  pass.events_remaining = 0;
+  report_slow_flush(ctx);
   on_pass_finished(ctx);
+}
+
+// Dart `_noteRequestOutcome` and `_noteRequestError` for a `/v1/sessions` or
+// `/v1/events/batch` post.
+void note_request(DeliveryContext& ctx, const char* path,
+                  const TransportResult& result) {
+  FrameGaps& gaps = ctx.delivery().frame_gaps;
+  if (result.outcome != TransportOutcome::kHttp) {
+    record_gap(ctx, gaps.request_failed(
+                        path, std::nullopt,
+                        result.outcome == TransportOutcome::kTimeout
+                            ? "timeout"
+                            : "transport"));
+  } else if (classify(result) == Verdict::kAccepted) {
+    record_gap(ctx, gaps.request_accepted(path));
+  } else {
+    record_gap(ctx, gaps.request_failed(path, result.status, nullptr));
+  }
 }
 
 bool has_collector_session_id(const DeliveryState& d) {
@@ -116,7 +204,7 @@ LifecycleBody lifecycle_body(const DeliveryContext& ctx,
 void after_lifecycle(DeliveryContext& ctx) {
   // Events and frames never go out before the collector session id is known.
   if (has_collector_session_id(ctx.delivery())) {
-    enter_frames(ctx);
+    begin_frames_step(ctx, false);
   } else {
     end_pass(ctx);
   }
@@ -149,9 +237,17 @@ void enter_lifecycle(DeliveryContext& ctx) {
 
 void on_lifecycle_result(DeliveryContext& ctx, const TransportResult& result) {
   DeliveryState& d = ctx.delivery();
-  if (classify(result) == Verdict::kAccepted) {
-    apply_lifecycle_response(d.lifecycle.head().kind, result.body,
-                             ctx.session().id(), &d.ids);
+  const Verdict verdict = classify(result);
+  const LifecycleKind kind = d.lifecycle.head().kind;
+  note_request(ctx, "/v1/sessions", result);
+  if (verdict == Verdict::kAccepted) {
+    apply_lifecycle_response(kind, result.body, ctx.session().id(), &d.ids);
+    d.lifecycle.pop();
+  } else if (verdict == Verdict::kDrop && kind != LifecycleKind::kSessionStart) {
+    // A post the collector rejects would be rejected again, and at the head
+    // it would hold every later post, `session_end` included. A
+    // `session_start` stays until accepted: events and frames wait for the
+    // collector session id it returns.
     d.lifecycle.pop();
   }
   after_lifecycle(ctx);
@@ -159,19 +255,34 @@ void on_lifecycle_result(DeliveryContext& ctx, const TransportResult& result) {
 
 // ---------------------------------------------------------------- frames
 
-void enter_frames(DeliveryContext& ctx) {
+// The frames step ends: on to the retry batches, or, between two event
+// batches, to the next one.
+void after_frames(DeliveryContext& ctx) {
+  FlushCursor& pass = cursor(ctx);
+  pass.frames = FrameCursor();
+  if (pass.frames_between_events) {
+    pass.frames_between_events = false;
+    next_event_batch(ctx);
+  } else {
+    enter_retry_batches(ctx);
+  }
+}
+
+// Dart `_flushFrames`: uploads one batch at a time, only the frames pending
+// now. The rest stay pending under the bounds, so at most one batch is held
+// beyond them, and frames captured meanwhile wait for the next pass.
+void begin_frames_step(DeliveryContext& ctx, bool between_events) {
   DeliveryState& d = ctx.delivery();
-  if (d.frames.empty()) {
-    enter_retry_batches(ctx);
+  FlushCursor& pass = cursor(ctx);
+  pass.frames_between_events = between_events;
+  if (d.frames.empty() || lane_send_blocked(ctx, HttpLane::kFrames)) {
+    after_frames(ctx);
     return;
   }
-  if (lane_send_blocked(ctx, HttpLane::kFrames)) {
-    enter_retry_batches(ctx);
-    return;
-  }
-  cursor(ctx).frames = FrameCursor();
-  cursor(ctx).frames.uploads = d.frames.take_sorted();
-  send_frame_chunk(ctx);
+  mark_step(ctx, PassStep::kFrames);
+  pass.frames = FrameCursor();
+  pass.frames.remaining = d.frames.size();
+  send_frame_batch(ctx);
 }
 
 void send_uploads(DeliveryContext& ctx, RequestKind kind, size_t begin,
@@ -192,46 +303,46 @@ void send_uploads(DeliveryContext& ctx, RequestKind kind, size_t begin,
        std::move(flight));
 }
 
-// Every chunk went out without a retry outcome.
+// Every batch went out without a retry outcome.
 void frames_flushed(DeliveryContext& ctx) {
   DeliveryState& d = ctx.delivery();
   d.frames_need_retry = false;
   record_gap(ctx, d.frame_gaps.flushed(cursor(ctx).frames.dropped_batch));
-  cursor(ctx).frames = FrameCursor();
-  enter_retry_batches(ctx);
+  after_frames(ctx);
 }
 
 // A retry outcome: `uploads[from..]` go back to the front of the queue and
-// the frames stage ends (section 7.6).
+// the frames step ends (section 7.6).
 void requeue_from(DeliveryContext& ctx, size_t from) {
   DeliveryState& d = ctx.delivery();
   FrameUploads& uploads = cursor(ctx).frames.uploads;
   d.frames_need_retry = true;
   FrameUploads retry(std::make_move_iterator(uploads.begin() + from),
                      std::make_move_iterator(uploads.end()));
-  cursor(ctx).frames = FrameCursor();
-  const size_t limit = bound(ctx.config().max_pending_frames);
-  evicted_frames(ctx, d.frames.requeue_front(std::move(retry), limit));
-  enter_retry_batches(ctx);
+  cursor(ctx).frames.uploads.clear();
+  evicted_frames(ctx, d.frames.requeue_front(std::move(retry),
+                                             frame_bounds(ctx),
+                                             d.frame_references));
+  after_frames(ctx);
 }
 
-void send_frame_chunk(DeliveryContext& ctx) {
+void send_frame_batch(DeliveryContext& ctx) {
+  DeliveryState& d = ctx.delivery();
   FrameCursor& frames = cursor(ctx).frames;
-  if (frames.chunk_begin >= frames.uploads.size()) {
+  if (frames.remaining == 0 || d.frames.empty()) {
     frames_flushed(ctx);
     return;
   }
-  const size_t chunk = bound(ctx.config().frame_chunk);
-  frames.chunk_end =
-      std::min(frames.chunk_begin + chunk, frames.uploads.size());
-  send_uploads(ctx, RequestKind::kFrameChunk, frames.chunk_begin,
-               frames.chunk_end);
+  frames.uploads = d.frames.take_batch(bound(ctx.config().frame_chunk));
+  frames.remaining -= std::min(frames.remaining, frames.uploads.size());
+  frames.chunk_begin = 0;
+  frames.chunk_end = frames.uploads.size();
+  send_uploads(ctx, RequestKind::kFrameChunk, 0, frames.chunk_end);
 }
 
 void next_chunk(DeliveryContext& ctx) {
-  FrameCursor& frames = cursor(ctx).frames;
-  frames.chunk_begin = frames.chunk_end;
-  send_frame_chunk(ctx);
+  cursor(ctx).frames.uploads.clear();
+  send_frame_batch(ctx);
 }
 
 void on_frame_chunk_result(DeliveryContext& ctx,
@@ -300,16 +411,36 @@ Keys event_keys(const std::string& session_id, const EventBatch& batch) {
   return keys;
 }
 
+// Dart `_sendEventBatch`'s bookkeeping: whether the post got an answer at
+// all, and the request diagnostics.
+void note_event_post(DeliveryContext& ctx, const TransportResult& result) {
+  ctx.delivery().last_event_post_unanswered =
+      result.outcome != TransportOutcome::kHttp;
+  note_request(ctx, "/v1/events/batch", result);
+}
+
+// Moves `count` pending events into retry batches unsent (Dart
+// `_parkPendingEvents`).
+void park_pending_events(DeliveryContext& ctx, size_t count) {
+  DeliveryState& d = ctx.delivery();
+  const size_t evicted =
+      d.events.park(count, bound(ctx.config().batch_size),
+                    bound(ctx.config().max_pending_batches));
+  d.dropped_total += static_cast<int64_t>(evicted);
+  report_event_drop(ctx, EventDropReason::kEvicted, evicted, std::nullopt);
+}
+
 void enter_retry_batches(DeliveryContext& ctx) {
   DeliveryState& d = ctx.delivery();
   if (!d.events.has_retry()) {
-    enter_fresh_events(ctx);
+    begin_event_drain(ctx);
     return;
   }
   if (lane_send_blocked(ctx, HttpLane::kEvents)) {
     end_pass(ctx);
     return;
   }
+  mark_step(ctx, PassStep::kEventRetries);
   InFlight flight;
   flight.kind = RequestKind::kRetryBatch;
   std::string body = stamp_event_batch(&d.events.retry_head(),
@@ -323,9 +454,10 @@ void on_retry_batch_result(DeliveryContext& ctx,
                            const TransportResult& result) {
   DeliveryState& d = ctx.delivery();
   const Verdict verdict = classify(result);
+  note_event_post(ctx, result);
   if (verdict == Verdict::kRetry) {
-    // Head-of-line: the retry head stays; fresh events still go out.
-    enter_fresh_events(ctx);
+    // Head-of-line: the retry head stays; the pass moves on to fresh events.
+    begin_event_drain(ctx);
     return;
   }
   const size_t count = d.events.retry_head().size();
@@ -337,19 +469,37 @@ void on_retry_batch_result(DeliveryContext& ctx,
   enter_retry_batches(ctx);
 }
 
-void enter_fresh_events(DeliveryContext& ctx) {
+// The pass reaches the fresh events (Dart `_flushFramesAndEvents`).
+void begin_event_drain(DeliveryContext& ctx) {
   DeliveryState& d = ctx.delivery();
-  if (d.events.pending() == 0) {
+  if (d.events.has_retry() && d.last_event_post_unanswered) {
+    // The retry head got no response at all, so the endpoint is down or
+    // hung and a fresh batch would only wait out another timeout. A batch the
+    // collector rejects gets a status back, so fresh events still go out
+    // behind it; one that hangs the collector holds them in the retry queue
+    // until it is evicted.
+    park_pending_events(ctx, d.events.pending());
     end_pass(ctx);
     return;
   }
-  if (lane_send_blocked(ctx, HttpLane::kEvents)) {
+  cursor(ctx).events_remaining = d.events.pending();
+  next_event_batch(ctx);
+}
+
+// Dart `_drainPendingEvents`: only the events queued when the drain began.
+void next_event_batch(DeliveryContext& ctx) {
+  DeliveryState& d = ctx.delivery();
+  FlushCursor& pass = cursor(ctx);
+  if (pass.events_remaining == 0 || d.events.pending() == 0 ||
+      lane_send_blocked(ctx, HttpLane::kEvents)) {
     end_pass(ctx);
     return;
   }
+  mark_step(ctx, PassStep::kEvents);
   InFlight flight;
   flight.kind = RequestKind::kFreshBatch;
   flight.batch = d.events.take(bound(ctx.config().batch_size));
+  pass.events_remaining -= std::min(pass.events_remaining, flight.batch.size());
   std::string body =
       stamp_event_batch(&flight.batch, *d.ids.session_id, d.ids.traits_id);
   Keys keys = event_keys(*d.ids.session_id, flight.batch);
@@ -360,22 +510,42 @@ void enter_fresh_events(DeliveryContext& ctx) {
 void on_fresh_batch_result(DeliveryContext& ctx, InFlight flight,
                            const TransportResult& result) {
   DeliveryState& d = ctx.delivery();
+  FlushCursor& pass = cursor(ctx);
   const Verdict verdict = classify(result);
   const size_t count = flight.batch.size();
+  note_event_post(ctx, result);
   if (verdict == Verdict::kRetry) {
     const size_t limit = bound(ctx.config().max_pending_batches);
     const size_t evicted = d.events.push_retry(std::move(flight.batch), limit);
+    d.dropped_total += static_cast<int64_t>(evicted);
     report_event_drop(ctx, EventDropReason::kEvicted, evicted, std::nullopt);
-  } else if (verdict == Verdict::kDrop) {
+    // The endpoint is failing or hung, so every further batch would wait out
+    // its own timeout: park what is left of this pass's events instead.
+    park_pending_events(ctx, pass.events_remaining);
+    end_pass(ctx);
+    return;
+  }
+  if (verdict == Verdict::kDrop) {
     report_event_drop(ctx, EventDropReason::kRejected, count,
                       result.status);
   }
-  enter_fresh_events(ctx);
+  // Frames captured while that batch was in flight go before the next batch,
+  // which may reference them. A failing frame lane waits for the next pass
+  // instead of stalling every batch behind its timeout.
+  if (d.frames_need_retry) {
+    next_event_batch(ctx);
+  } else {
+    begin_frames_step(ctx, true);
+  }
 }
 
 void begin_pass(DeliveryContext& ctx) {
-  cursor(ctx).running = true;
-  cursor(ctx).follow_up = false;
+  FlushCursor& pass = cursor(ctx);
+  pass.running = true;
+  pass.follow_up = false;
+  pass.started_mono_us = ctx.at.mono_us;
+  pass.step_us = {-1, -1, -1, -1};
+  mark_step(ctx, PassStep::kSessions);
   enter_lifecycle(ctx);
 }
 
@@ -387,7 +557,9 @@ void request_pass(DeliveryContext& ctx) {
     return;
   }
   if (pass.in_flight || pass.running) {
-    pass.follow_up = true;  // change C2: Dart drops this trigger
+    // Change C2. Dart 0.11.1 also queues one follow-up pass for a `flush()`
+    // during a pass, but not for the triggers that are not `flush()` calls.
+    pass.follow_up = true;
     return;
   }
   begin_pass(ctx);
@@ -411,12 +583,21 @@ void apply_transport_result(DeliveryContext& ctx,
   pass.in_flight.reset();
   ctx.state->timers.cancel(kAnswerTimerPrefix + flight.request_id, ctx.out);
   if (flight.orphaned) {
+    // Its session was replaced: the answer settles what it held.
+    ctx.delivery().dropped_total += classify(result) == Verdict::kRetry
+                                        ? flight.lost_on_retry
+                                        : flight.lost_otherwise;
     for (const std::string& frame_id : flight.frame_ids) {
       ctx.state->frame_retention.release(frame_id, FrameOwner::kDelivery,
                                          ctx.out);
     }
     on_pass_finished(ctx);
     return;
+  }
+  {
+    int64_t& us = pass.step_us[static_cast<size_t>(step_of(flight.kind))];
+    us = std::max<int64_t>(us, 0) +
+         std::max<int64_t>(ctx.at.mono_us - flight.sent_mono_us, 0);
   }
   maybe_arm_lane_retry_after(ctx, http_lane_for_request(flight.kind), result);
   switch (flight.kind) {
@@ -442,9 +623,35 @@ void abandon_pass(DeliveryContext& ctx) {
   FlushCursor& pass = cursor(ctx);
   std::set<std::string> uploading;
   if (pass.in_flight) {
-    pass.in_flight->orphaned = true;
-    uploading.insert(pass.in_flight->frame_ids.begin(),
-                     pass.in_flight->frame_ids.end());
+    InFlight& flight = *pass.in_flight;
+    uploading.insert(flight.frame_ids.begin(), flight.frame_ids.end());
+    const auto batch = static_cast<int64_t>(pass.frames.uploads.size());
+    // A request orphaned by an earlier reset keeps the counts taken then: the
+    // pass cursor and queues belong to the newer session now.
+    const bool first_reset = !flight.orphaned;
+    flight.orphaned = true;
+    switch (first_reset ? flight.kind : RequestKind::kLifecycle) {
+      case RequestKind::kLifecycle:
+        break;
+      case RequestKind::kFreshBatch:
+        flight.orphan_pending = flight.lost_on_retry =
+            static_cast<int64_t>(flight.batch.size());
+        break;
+      case RequestKind::kRetryBatch:  // already out of the retry queue
+        flight.orphan_pending = flight.lost_on_retry =
+            static_cast<int64_t>(ctx.delivery().events.retry_head_size());
+        break;
+      case RequestKind::kFrameChunk:
+        flight.orphan_pending = flight.lost_on_retry = batch;
+        break;
+      case RequestKind::kFrameSingle: {
+        const auto unsent = batch - static_cast<int64_t>(pass.frames.isolate_index);
+        flight.orphan_pending = batch;
+        flight.lost_on_retry = unsent;
+        flight.lost_otherwise = unsent - 1;
+        break;
+      }
+    }
   }
   for (const PendingFrame& frame : pass.frames.uploads) {
     if (uploading.count(frame.frame_id) == 0) {
@@ -454,6 +661,8 @@ void abandon_pass(DeliveryContext& ctx) {
   }
   pass.running = false;
   pass.frames = FrameCursor();
+  pass.frames_between_events = false;
+  pass.events_remaining = 0;
   pass.follow_up = false;
   pass.drain_head.reset();
 }

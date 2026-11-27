@@ -6,9 +6,11 @@
 // | -------------- | --------------------------- | -------------------------- |
 // | Pending events | `maxPendingEvents` (60)     | drop oldest                |
 // | Retry batches  | `maxPendingBatches` (20)    | drop oldest batch          |
-// | Pending frames | `maxPendingFrames` (20)     | drop oldest; failed frames |
-// |                |                             | are requeued at the front, |
-// |                |                             | so they go first           |
+// | Pending frames | `maxPendingFrames` (400),   | drop the oldest frame no   |
+// |                | `maxPendingFrameBytes` (8   | event references, else the |
+// |                | MiB)                        | oldest (frame_lane.cpp);   |
+// |                |                             | failed frames are requeued |
+// |                |                             | at the front               |
 //
 // Fresh event batches hold at most `batchSize` (10) events and frame uploads
 // at most `frameChunk` (20) frames. Not part of the C ABI.

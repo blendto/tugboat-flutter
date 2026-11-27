@@ -32,6 +32,17 @@ wiring, window capture, and the Android Views adapter.
   `explorationRunId` is in the event schema and a frame's `trigger` is free
   text. There is no WebSocket transport.
 
+- Delivery under stalled uploads (contract change: sink behaviour; matches
+  Flutter 0.11.1 and 0.11.2, engine rules in `core/session-engine`):
+  frames wait under 400 frames and 8 MiB and evict unreferenced frames
+  first; a pass uploads frames between event batches and drains only the
+  events queued when it began; a hung or failing events endpoint holds fresh
+  events in retry batches unsent; a rejected lifecycle post other than
+  `session_start` is dropped; `collector_request` and `collector_flush`
+  diagnostics and the final frame drop count are recorded; lifecycle `atMs`
+  stays on the monotonic clock. The engine reports the sink's real `pending`,
+  `accepted` and `dropped` (`engine.health`), SDK-local, never sent to the
+  collector.
 - Frame backend name (contract change: `frameMetadata` values):
   `requestedBackend` and `resolvedBackend` are `androidPixelCopy`, no
   longer `nativeCpuExperimental`. Needs a collector that accepts the native

@@ -53,6 +53,19 @@ struct DeliveryState {
   bool frames_need_retry = false;
   FrameGaps frame_gaps;
   EventGaps event_gaps;
+  FrameReferences frame_references;
+  // The last event post got no response (timeout or transport error), as
+  // opposed to a status: the endpoint is down or hung (Dart
+  // `_lastEventPostUnanswered`).
+  bool last_event_post_unanswered = false;
+  // A gap diagnostic is being recorded: the event is delivery's own and is
+  // not an accepted capture.
+  bool recording_gap = false;
+
+  // Process-wide health totals (Dart `TugboatSinkLedger`): they survive
+  // sessions, so a reset does not hide what it discarded.
+  int64_t accepted_total = 0;
+  int64_t dropped_total = 0;
 
   FlushCursor pass;
   int64_t next_request = 0;  // `http-N`, per engine handle, never reset

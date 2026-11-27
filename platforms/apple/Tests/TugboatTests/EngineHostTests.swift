@@ -56,6 +56,44 @@ final class EngineHostTests: XCTestCase {
     SystemHostClock().now().monoUs + ms * 1000
   }
 
+  func testSinkHealthIsReadOnTheEngineQueueAfterPostedWork() {
+    transport.enqueue(ok())
+    transport.enqueue(
+      response(
+        TB_SESSION_OK,
+        "{\"type\":\"engine.health\",\"result\":{\"health\":{\"sinks\":{\"pending\":3,\"accepted\":9,\"dropped\":2}}},\"effects\":[]}"))
+    post("a")
+    let read = expectation(description: "health")
+    var health: SinkHealth?
+    host.readSinkHealth {
+      health = $0
+      read.fulfill()
+    }
+    wait(for: [read], timeout: 5)
+    XCTAssertEqual(health, SinkHealth(pending: 3, accepted: 9, dropped: 2))
+    XCTAssertEqual(transport.submitted.last, "{\"type\":\"engine.health\",\"input\":{}}")
+  }
+
+  func testSinkHealthIsNilOnAClosedHost() {
+    host.close()
+    drain()
+    var health: SinkHealth? = SinkHealth(pending: 1, accepted: 1, dropped: 1)
+    host.readSinkHealth { health = $0 }
+    XCTAssertNil(health, "a closed host answers at once, without the engine")
+  }
+
+  func testSinkHealthIsNilWhenTheEngineDoesNotAnswer() {
+    transport.enqueue(failure(TB_SESSION_UNSUPPORTED_MESSAGE))
+    let read = expectation(description: "health")
+    var health: SinkHealth? = SinkHealth(pending: 1, accepted: 1, dropped: 1)
+    host.readSinkHealth {
+      health = $0
+      read.fulfill()
+    }
+    wait(for: [read], timeout: 5)
+    XCTAssertNil(health)
+  }
+
   func testPostsAreSubmittedInOrderOnTheEngineQueue() {
     queue.suspend()
     post("a")

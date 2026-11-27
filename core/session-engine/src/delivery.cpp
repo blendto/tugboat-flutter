@@ -92,17 +92,33 @@ void report_unconfirmed(DeliveryContext& ctx) {
                     {"inFlightFrames", in_flight.frames}}});
 }
 
+// Dart `_discardBacklog`: the events and frames still queued are lost, and
+// counted. A retry head in a request is not queued (Dart takes it out while
+// it is sent): its request may still deliver it.
+void count_discarded_backlog(DeliveryContext& ctx) {
+  DeliveryState& d = ctx.delivery();
+  size_t discarded = d.events.event_count() + d.frames.size();
+  if (d.pass.in_flight && !d.pass.in_flight->orphaned &&
+      d.pass.in_flight->kind == RequestKind::kRetryBatch) {
+    discarded -= d.events.retry_head_size();
+  }
+  d.dropped_total += count(discarded);
+}
+
 // Dart `startSession`'s reset. The traits bag and traits id survive.
 void reset(DeliveryContext& ctx) {
   DeliveryState& d = ctx.delivery();
   if (d.phase != DeliveryPhase::kOff) {
     report_unconfirmed(ctx);
+    count_discarded_backlog(ctx);
   }
   abandon_pass(ctx);
   for (const PendingFrame& frame : d.frames.take_all()) {
     ctx.state->frame_retention.release(frame.frame_id, FrameOwner::kDelivery,
                                        ctx.out);
   }
+  d.frame_references.clear();
+  d.last_event_post_unanswered = false;
   cancel_timers(ctx);
   cancel_lane_retry_after_timers(ctx);
   d.ids.session_id.reset();
@@ -118,8 +134,26 @@ void reset(DeliveryContext& ctx) {
 
 // Change C5: the drain is over (lanes empty or timed out), so `session_end`
 // joins the lifecycle lane. Delivery keeps retrying from here on.
+void finish_drain(DeliveryContext& ctx);
+
+// The lanes are empty: send the session's final frame drop count first when
+// the sampled diagnostics left it out (Dart `_flushFinalDropCount`), which
+// takes another pass. Otherwise finish the drain.
+void finish_drain_when_empty(DeliveryContext& ctx) {
+  DeliveryState& d = ctx.delivery();
+  if (const std::optional<GapReport> drops = d.frame_gaps.final_drops()) {
+    record_gap(ctx, drops);
+    request_pass(ctx);
+    return;
+  }
+  finish_drain(ctx);
+}
+
 void finish_drain(DeliveryContext& ctx) {
   DeliveryState& d = ctx.delivery();
+  // A drain that timed out still records the final drop count (Dart does so
+  // whether or not the flush delivered); a drain that emptied reported it.
+  record_gap(ctx, d.frame_gaps.final_drops());
   ctx.state->timers.cancel(kEndDrainTimer, ctx.out);
   d.lifecycle.push(LifecycleKind::kSessionEnd, *d.held_session_end,
                    std::nullopt);
@@ -186,7 +220,7 @@ void on_pass_finished(DeliveryContext& ctx) {
     return;
   }
   if (d.phase == DeliveryPhase::kDraining && lanes_empty(d)) {
-    finish_drain(ctx);
+    finish_drain_when_empty(ctx);
   } else if (d.phase == DeliveryPhase::kEnded && delivery_complete(d)) {
     ctx.state->timers.cancel(kFlushTimer, ctx.out);
   }
@@ -244,8 +278,10 @@ void delivery_session_ending(const At& at, EngineState* state, Output* out) {
   d.phase = DeliveryPhase::kDraining;
   clamp_lifecycle_retry_after_on_draining(ctx);
   if (lanes_empty(d) && !d.pass.in_flight) {
-    finish_drain(ctx);  // nothing to drain
-    return;
+    finish_drain_when_empty(ctx);  // nothing to drain
+    if (d.phase != DeliveryPhase::kDraining) {
+      return;
+    }
   }
   state->timers.schedule(kEndDrainTimer,
                          after_ms(at, d.config.end_drain_timeout_ms), out);
@@ -303,6 +339,20 @@ void delivery_traits_changed(const At& at, EngineState* state,
                              Output* out) {
   DeliveryContext ctx{state, at, out};
   identity_changed(ctx, false);
+}
+
+int64_t delivery_pending_count(const DeliveryState& d) {
+  int64_t pending = count(d.events.event_count() + d.frames.size() +
+                          d.pass.frames.uploads.size());
+  if (d.pass.in_flight) {
+    const InFlight& flight = *d.pass.in_flight;
+    if (flight.orphaned) {
+      pending += flight.orphan_pending;
+    } else if (flight.kind == RequestKind::kFreshBatch) {
+      pending += count(flight.batch.size());
+    }
+  }
+  return pending;
 }
 
 void delivery_dispose(const At& at, EngineState* state, Output* out) {

@@ -1,0 +1,160 @@
+{
+  "fixtureFormat": 1,
+  "kind": "delivery.rules",
+  "name": "events-rejected-batch-lets-fresh-events-through",
+  "description": "A retry head that got a status back (here 503) does not park fresh events: the endpoint answers, so fresh events still go out behind it. The pass drains the events queued when it reached them, those that arrived during it included, in batches of batchSize.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "collector": {
+      "batchSize": 2
+    },
+    "steps": [
+      {
+        "note": "first event",
+        "do": {
+          "event": "e1"
+        }
+      },
+      {
+        "note": "a batch goes out",
+        "do": {
+          "event": "e2"
+        }
+      },
+      {
+        "note": "503: the batch waits for a retry",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 503
+          }
+        }
+      },
+      {
+        "note": "the new event and the failure report fill a batch: a pass starts with the retry head",
+        "do": {
+          "event": "e3"
+        }
+      },
+      {
+        "note": "another event arrives during the pass",
+        "do": {
+          "event": "e4"
+        }
+      },
+      {
+        "note": "503 again, an answer: fresh events still go out behind the head",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 503
+          }
+        }
+      },
+      {
+        "note": "delivered: the pass drains the rest, e4 and the recovery report",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 202
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "steps": [
+      {
+        "sent": [],
+        "health": {
+          "pending": 1,
+          "accepted": 2,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e1",
+              "e2"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 2,
+          "accepted": 3,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 3,
+          "accepted": 3,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e1",
+              "e2"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 4,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 5,
+          "accepted": 5,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "diag:collector_request:failed",
+              "e3"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 5,
+          "accepted": 5,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e4",
+              "diag:collector_request:recovered"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 4,
+          "accepted": 5,
+          "dropped": 0
+        }
+      }
+    ]
+  }
+}

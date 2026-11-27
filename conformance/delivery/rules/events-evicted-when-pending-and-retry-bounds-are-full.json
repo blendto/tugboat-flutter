@@ -1,0 +1,218 @@
+{
+  "fixtureFormat": 1,
+  "kind": "delivery.rules",
+  "name": "events-evicted-when-pending-and-retry-bounds-are-full",
+  "description": "Retry batches beyond maxPendingBatches and pending events beyond maxPendingEvents evict the oldest, and every evicted event counts as dropped in health.",
+  "contract": {
+    "sessionSchemaVersion": 10,
+    "fingerprintSchemaVersion": 6
+  },
+  "input": {
+    "collector": {
+      "batchSize": 2,
+      "maxPendingEvents": 3,
+      "maxPendingBatches": 1
+    },
+    "steps": [
+      {
+        "note": "first event",
+        "do": {
+          "event": "e1"
+        }
+      },
+      {
+        "note": "a batch goes out",
+        "do": {
+          "event": "e2"
+        }
+      },
+      {
+        "note": "503: the batch is the one retry batch the bound allows",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 503
+          }
+        }
+      },
+      {
+        "note": "the new event and the failure report fill a batch: a pass starts with the retry head",
+        "do": {
+          "event": "e3"
+        }
+      },
+      {
+        "note": "503: fresh events go out behind the head",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 503
+          }
+        }
+      },
+      {
+        "note": "503: the new retry batch evicts the old one (2 events)",
+        "do": {
+          "answer": {
+            "outcome": "http",
+            "status": 503
+          }
+        }
+      },
+      {
+        "note": "flush: the retry head goes out",
+        "do": {
+          "flush": true
+        }
+      },
+      {
+        "note": "pending",
+        "do": {
+          "event": "e4"
+        }
+      },
+      {
+        "note": "pending",
+        "do": {
+          "event": "e5"
+        }
+      },
+      {
+        "note": "pending",
+        "do": {
+          "event": "e6"
+        }
+      },
+      {
+        "note": "over maxPendingEvents (3): the oldest is dropped",
+        "do": {
+          "event": "e7"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "steps": [
+      {
+        "sent": [],
+        "health": {
+          "pending": 1,
+          "accepted": 2,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e1",
+              "e2"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 2,
+          "accepted": 3,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 3,
+          "accepted": 3,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "e1",
+              "e2"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 4,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "diag:collector_request:failed",
+              "e3"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 4,
+          "accepted": 4,
+          "dropped": 0
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 2,
+          "accepted": 4,
+          "dropped": 2
+        }
+      },
+      {
+        "sent": [
+          {
+            "lane": "events",
+            "events": [
+              "diag:collector_request:failed",
+              "e3"
+            ]
+          }
+        ],
+        "health": {
+          "pending": 2,
+          "accepted": 4,
+          "dropped": 2
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 3,
+          "accepted": 5,
+          "dropped": 2
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 4,
+          "accepted": 6,
+          "dropped": 2
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 5,
+          "accepted": 7,
+          "dropped": 2
+        }
+      },
+      {
+        "sent": [],
+        "health": {
+          "pending": 5,
+          "accepted": 8,
+          "dropped": 3
+        }
+      }
+    ]
+  }
+}
