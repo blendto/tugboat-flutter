@@ -135,6 +135,156 @@ same synchronous mask walk. The Compose mark adds no semantics node. It
 only adds rects, never removes one, and is not an identity input
 ([tagging](../integration/tagging.md#sensitive-content-always-masked)).
 
+## Privacy model
+
+One model, written once here. Every toolkit adapter maps its own API onto
+it ([ADR 0009](../decisions/0009-shared-session-engine.md), amendment rule
+1). The model decides *what is masked*. Masks are always filled on the
+device, before encoding, as in [Masks](#masks).
+
+### Dimensions
+
+What a mask can cover. A level (below) selects dimensions for the whole
+capture; an override selects them for one subtree.
+
+| Dimension | Covers |
+| --- | --- |
+| `text` | Rendered text and editable fields, including secure and obscured inputs |
+| `media` | Images, video, and surfaces the SDK cannot see into (web views, `SurfaceView`, `TextureView`, interop hosts, renderers) |
+| `region` | The whole box of a subtree, whatever it draws |
+
+There is no `touch` dimension, unlike Datadog's model. Tugboat taps are
+target-identity evidence, not pixels, and no mask changes them
+([tagging](../integration/tagging.md#sensitive-content-always-masked)). There
+is no `hide` dimension either: a fill hides, and no adapter removes a view
+from the app.
+
+### Levels
+
+`MaskLevel` is the session-wide default. Its names are the wire names; they
+equal the Dart `TugboatScreenshotMaskLevel` names.
+
+| Level | Dimensions masked |
+| --- | --- |
+| `explicitOnly` | none (overrides still apply) |
+| `allTextAndMedia` | `text`, `media`. **The default.** |
+| `allText` | `text` |
+| `allTextExceptActionable` | secure inputs, and `text` not inside an actionable control |
+| `sensitiveInputsOnly` | secure inputs |
+| `nonAssetImagesOnly` | secure inputs, and images that are not bundled assets |
+
+Only `allTextAndMedia` is implemented outside Flutter today (the Kotlin and
+Swift `MaskLevel` enums have that one case). A new level reaches a native
+SDK only through a contract change that names it here first. An unknown or
+unsupported level resolves to `allTextAndMedia`, never to a narrower one.
+
+### Overrides and inheritance
+
+`MaskOverride` is set on one node: `inherit` (the default) or `sensitive`.
+`sensitive` masks the node's `region`, and every descendant at its own
+bounds, at every level.
+
+The effective mask of a node is the level's dimensions for that node, plus
+its `region` when the node or any ancestor is `sensitive`. The nearest
+ancestor with a non-`inherit` value decides, and the only non-`inherit` value
+is `sensitive`, so:
+
+- An override is add-only. It never removes a mask the level gives. This is
+  the rule `tugboatSensitive` already has.
+- A descendant cannot loosen an ancestor. There is no un-mark, and no
+  `reveal` override that would make content visible under a level that
+  masks it. Adding one is a privacy-loosening contract change: it needs its
+  own ADR, an explicit opt-in per app, and a decision on whether it ever
+  applies to secure inputs. This model is what React Native's mask component
+  ([BLE-644](https://linear.app/blendto/issue/BLE-644)) implements.
+- An override is not an identity input: tags, paths and fingerprints are the
+  same with or without it.
+
+### Unplaceable masks fail closed
+
+An adapter that cannot place a mask masks more, never less. Coarser
+coverage is the allowed answer, in this order: the element at its own
+bounds, then its region host, then the whole frame. Never an unmasked
+frame, a skipped mask, or a mask that is silently dropped.
+
+The coverage actually applied is reported per frame as `MaskCoverage`
+(`mode`: `precise`, `wholeHost`, `wholeFrame`; `reasons`: the closed list in
+the engine's `capture_types`). The engine only carries it
+(`capture_masking` diagnostic). It never sees a view tree.
+
+### Where the contract lives
+
+- **Host API owns the input**: `MaskLevel` and the override marks, because
+  only the host and its toolkit adapters can see the view tree and decide
+  where a mask goes. `TugboatConfig.maskLevel` exists in Kotlin and Swift;
+  the Flutter equivalent is `screenshotMaskLevel`. The shared engine is
+  I/O-free and sees rectangles and coverage, not trees (ADR 0009), so
+  putting the level in the engine ABI would add an input the engine cannot
+  act on.
+- **Engine owns the outcome**: `MaskCoverage` and its closed vocabulary.
+- **This file owns the rules**: levels, dimensions, inheritance and
+  fail-closed. Adapter docs link here and do not restate them.
+
+### Adapter mapping
+
+| Model | Flutter | Views | Compose | SwiftUI |
+| --- | --- | --- | --- | --- |
+| `MaskLevel` | `TugboatReplayConfig.screenshotMaskLevel`, all six levels | `TugboatConfig.maskLevel`, `AllTextAndMedia` only | same config as Views | `TugboatConfig.maskLevel`, `.allTextAndMedia` only |
+| `text`, `media` at `allTextAndMedia` | `RenderParagraph`, `EditableText`, `RenderImage` | every text view, `ImageView`, `VideoView` | `WholeHost`: whole host. `SemanticsBestEffort`: text, editable text, `Role.Image`, content descriptions | text layers, UIKit text, images; allowlisted layers |
+| surfaces the SDK cannot see into | not classified (wrap in `TugboatSensitive`) | `WebView`, `SurfaceView`, `TextureView` boxed | `AndroidView` interop bounds | web views, representables, renderers boxed |
+| `sensitive` override | `TugboatSensitive`, `.tugboatSensitive()` | `View.tugboatSensitive()` | `Modifier.tugboatSensitive()` | `.tugboatSensitive()` |
+| `sensitive` region | the subtree's render boxes | the view and every view below, each at its own bounds | the element's bounds and every semantics node inside, each at its own bounds | the view's layout frame |
+| unplaceable | see Differences 1 | whole frame (`noDecor`, `treeUnreadable`, `animating`) | whole host (`composeVersionUnverified`, `composeOwnerUnavailable`) | whole frame (`noWindowSize`, `unverifiedLayerAllowlist`, `walkExhausted`, `animating`) |
+
+### Differences
+
+Each is a place an adapter does not match the model as written. None is
+introduced by this section.
+
+1. **Flutter drops masks it cannot place.** The mask walk skips subtrees
+   under an excluding `ExcludeSemantics`, so text, images and
+   `TugboatSensitive` inside one are not masked at any level. A render
+   object whose transform fails mid-capture has its mask omitted, and a
+   walk with no root returns no masks. All three mask less, against the
+   rule above. Fix for every SDK, not a divergence:
+   mask what the walk skips, and fail the capture (`maskFailed`) or mask
+   the whole boundary when a mask cannot be placed. This changes pixels in
+   existing Flutter apps (more is masked), so it is its own change, not
+   part of the contract write-up. Tracked by the skipped Flutter tests below.
+2. **Levels.** Flutter has six; Views, Compose and SwiftUI have
+   `allTextAndMedia`. Flutter's other five are narrower and are opt-in.
+3. **Compose `SemanticsBestEffort`** masks less than `allTextAndMedia`
+   promises: drawn content with no semantics (`Canvas`, `drawBehind`,
+   `Image` with a null description) is visible. It is an opt-in the host
+   chooses and it is documented as a residual leak. `WholeHost` is the
+   default and masks more. Outside the tested Compose range it falls back to
+   `WholeHost`.
+4. **Reach of the mark.** Flutter and Views mask each descendant at its own
+   bounds, even outside the marked bounds. SwiftUI masks the layout frame
+   only, so an offset overlay or a shadow drawn outside it is not covered.
+   Compose covers semantics nodes laid out inside, but drawing with no
+   semantics node outside the marked bounds is not. Under the model the
+   mark covers the subtree's drawing, so SwiftUI and Compose are the
+   narrower cases.
+5. **Removing a mark.** Views has no un-mark: a marked view stays marked,
+   including a recycled row (it over-masks). Flutter, Compose and SwiftUI
+   stop masking when the mark leaves the tree.
+6. **Secure inputs** are a level dimension in Flutter. Native adapters mask
+   them as `text` at the single native level (`secureText` is a coverage
+   reason).
+
+### Tests
+
+Each adapter has tests that an unplaceable mask masks more, and that a mark
+adds and never removes.
+
+| Adapter | Where | Run |
+| --- | --- | --- |
+| Flutter | `sdks/flutter/packages/tugboat/test/replay/privacy_model_contract_test.dart`: a mark adds its subtree and never removes a mask at every level, inherits down; two skipped tests for Difference 1 | `dart run melos run test:sdk` |
+| Views | `ViewSensitiveMasksTest`, `MaskCoverageTest`, `WindowMasksTest.anUnreadableWindowFailsClosed` in `tugboat-android` | Gradle unit tests |
+| Compose | `SensitiveMarkersTest`, `ComposeMasksTest`, `ComposeRegionTest` (unverified Compose version is a whole host) | Gradle unit tests |
+| SwiftUI | `SwiftUISensitiveTests`, `WindowMaskFailClosedTests`, `MaskCoverageTests` | `swift test` on a Mac |
+
 ## Coverage
 
 Closed: `engineSurface | windowComposite | viewHierarchy`.

@@ -1079,7 +1079,10 @@ Hosts can select a stricter or narrower explicit mask policy. Evidence
 capabilities never change the mask.
 
 The public mask levels are `explicitOnly`, `allTextAndMedia`, `allText`,
-`allTextExceptActionable`, and `sensitiveInputsOnly`.
+`allTextExceptActionable`, `sensitiveInputsOnly`, and `nonAssetImagesOnly`.
+The levels, the `TugboatSensitive` override and the rule that an adapter
+that cannot place a mask masks more are defined once for every SDK in
+[Privacy model](../architecture/native-capture-contracts.md#privacy-model).
 
 Capture computes a 9x8 perceptual dHash from the masked RGBA buffer inside the
 encode isolate and skips JPEG encoding when the Hamming distance to the

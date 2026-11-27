@@ -148,7 +148,8 @@ tag.
 Use `tugboatSensitive` when pixels must be hidden in every screenshot mask
 level, including the most permissive: Compose `SemanticsBestEffort`, and
 SwiftUI's verified layer allowlist, where plain colour fills stay visible.
-A mark only adds mask coverage; it never removes any. It is not a tag:
+A mark only adds mask coverage; it never removes any (the shared
+[privacy model](../architecture/native-capture-contracts.md#privacy-model)). It is not a tag:
 it masks pixels only, and taps, canonical paths and fingerprints are the
 same with or without it.
 
