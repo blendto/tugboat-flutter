@@ -56,7 +56,9 @@ class NavigatorRegistry {
   int64_t replace_top(const std::string& navigator_id,
                       const std::string& instance_id);
   // Removes `departing` (its last occurrence) or else the top.
-  int64_t pop(const std::string& navigator_id, const OptString& departing);
+  // `skipped` (route-N ids) leave with it: a pop back several screens.
+  int64_t pop(const std::string& navigator_id, const OptString& departing,
+              const std::vector<std::string>& skipped = {});
   OptString top(const std::string& navigator_id) const;
   bool has_stack(const std::string& navigator_id) const;
 

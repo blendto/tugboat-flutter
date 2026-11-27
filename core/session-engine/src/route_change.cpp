@@ -52,14 +52,21 @@ RouteSurface resolve_surface(NavigatorRegistry* registry,
       }
       break;
     case NavigationKind::kPop:
-    case NavigationKind::kRemove:
+    case NavigationKind::kRemove: {
       surface.from_route_instance_id =
           departing ? departing : visible.route_instance_id;
+      std::vector<std::string> skipped;
+      for (const std::string& id : fact.skipped_instance_ids) {
+        if (const OptString known = registry->peek_route_instance(id)) {
+          skipped.push_back(*known);
+        }
+      }
       surface.stack_revision = registry->pop(
-          surface.navigator_id, surface.from_route_instance_id);
+          surface.navigator_id, surface.from_route_instance_id, skipped);
       surface.route_instance_id =
           destination ? destination : registry->top(surface.navigator_id);
       break;
+    }
     case NavigationKind::kSessionStart:
       // Handled by `resolve_session_start_route_change`, not live surfaces.
       break;

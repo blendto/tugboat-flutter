@@ -60,6 +60,9 @@ struct NavigationFact {
   OptString parent_navigator_id;
   std::optional<FactRoute> route;
   OptString departing_instance_id;
+  // `pop` only: the routes between the target and `departing`, which leave
+  // with it (a pop back several screens in one step). Top first.
+  std::vector<std::string> skipped_instance_ids;
   // `session_start` only: bottom to top; each `transitionMs` must be 0.
   std::vector<FactRoute> routes;
   // `session_start` only: a recorded seed takes a frame of the seeded route

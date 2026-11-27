@@ -75,8 +75,13 @@ int64_t NavigatorRegistry::replace_top(const std::string& navigator_id,
 }
 
 int64_t NavigatorRegistry::pop(const std::string& navigator_id,
-                               const OptString& departing) {
+                               const OptString& departing,
+                               const std::vector<std::string>& skipped) {
   std::vector<std::string>& stack = stacks_[navigator_id];
+  for (const std::string& id : skipped) {
+    const auto it = std::find(stack.rbegin(), stack.rend(), id);
+    if (it != stack.rend()) stack.erase(std::next(it).base());
+  }
   if (departing) {
     const auto it = std::find(stack.rbegin(), stack.rend(), *departing);
     if (it != stack.rend()) {
