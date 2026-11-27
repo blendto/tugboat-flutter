@@ -287,6 +287,7 @@ void add_session_start_metadata(const Host& host,
   Value app = Value::object();
   app.set("version", str(host.app.version));
   app.set("buildNumber", str(host.app.build_number));
+  app.set("installationId", str(host.app.installation_id));
   app.set("appId", str(host.app.app_id));
   app.set("packageName", str(host.app.app_id));
 

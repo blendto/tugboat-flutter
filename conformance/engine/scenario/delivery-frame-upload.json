@@ -59,7 +59,7 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-e58d2a43-892b-4e47-ac7c-4fd519d4b3b3\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "jsonBody": "{\"sessionId\":\"session-e58d2a43-892b-4e47-ac7c-4fd519d4b3b3\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":\"user-configured\",\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"installationId\":\"inst-0001\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
               "sessionId": "session-e58d2a43-892b-4e47-ac7c-4fd519d4b3b3",
               "deliveryKeys": [
                 "session-e58d2a43-892b-4e47-ac7c-4fd519d4b3b3/l/session_start/2026-06-19T00:00:00.000Z"
@@ -487,7 +487,7 @@
                   ],
                   [
                     "frameMetadata",
-                    "[{\"id\":\"frame-3\",\"atMs\":140,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-2\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-e58d2a43-892b-4e47-ac7c-4fd519d4b3b3\"},{\"id\":\"frame-6\",\"atMs\":240,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-5\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-e58d2a43-892b-4e47-ac7c-4fd519d4b3b3\",\"requestedBackend\":\"nativeCpuExperimental\",\"resolvedBackend\":\"flutterRepaintBoundary\",\"fallbackReason\":\"native_unavailable\"}]"
+                    "[{\"id\":\"frame-3\",\"atMs\":140,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-2\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-e58d2a43-892b-4e47-ac7c-4fd519d4b3b3\",\"triggeredAt\":\"2026-06-19T00:00:00.140Z\"},{\"id\":\"frame-6\",\"atMs\":240,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-5\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-e58d2a43-892b-4e47-ac7c-4fd519d4b3b3\",\"requestedBackend\":\"nativeCpuExperimental\",\"resolvedBackend\":\"flutterRepaintBoundary\",\"fallbackReason\":\"native_unavailable\",\"triggeredAt\":\"2026-06-19T00:00:00.240Z\"}]"
                   ]
                 ],
                 "frames": [
@@ -741,7 +741,7 @@
                   ],
                   [
                     "frameMetadata",
-                    "[{\"id\":\"frame-9\",\"atMs\":540,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-9\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-e58d2a43-892b-4e47-ac7c-4fd519d4b3b3\"}]"
+                    "[{\"id\":\"frame-9\",\"atMs\":540,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-capture_request-9\",\"masked\":true,\"trigger\":\"interaction\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-e58d2a43-892b-4e47-ac7c-4fd519d4b3b3\",\"triggeredAt\":\"2026-06-19T00:00:00.540Z\"}]"
                   ]
                 ],
                 "frames": [

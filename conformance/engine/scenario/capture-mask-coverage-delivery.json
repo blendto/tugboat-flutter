@@ -64,7 +64,7 @@
               "lane": "lifecycle",
               "path": "/v1/sessions",
               "timeoutMs": 15000,
-              "jsonBody": "{\"sessionId\":\"session-7ce945b6-1931-476b-86a5-dc80ecd89456\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":null,\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
+              "jsonBody": "{\"sessionId\":\"session-7ce945b6-1931-476b-86a5-dc80ecd89456\",\"eventType\":\"session_start\",\"atMs\":0,\"triggeredAt\":\"2026-06-19T00:00:00.000Z\",\"userId\":null,\"appInfo\":{\"version\":\"2.4.0\",\"buildNumber\":\"240\",\"installationId\":\"inst-0001\",\"appId\":\"com.example.app\",\"packageName\":\"com.example.app\"},\"device\":{\"id\":\"device-0001\",\"platform\":\"android\",\"manufacturer\":\"Google\",\"model\":\"Pixel 8\",\"osVersion\":\"15\",\"networkType\":\"wifi\",\"screenSize\":{\"width\":412.0,\"height\":915.0},\"screenDensity\":2.625,\"screenDpi\":420,\"screenPixelDensity\":2.625},\"ipInfo\":{\"ip\":\"203.0.113.7\"},\"locale\":{\"language\":\"en\",\"country\":\"US\",\"timezone\":\"Europe/Lisbon\"}}",
               "sessionId": "session-7ce945b6-1931-476b-86a5-dc80ecd89456",
               "deliveryKeys": [
                 "session-7ce945b6-1931-476b-86a5-dc80ecd89456/l/session_start/2026-06-19T00:00:00.000Z"
@@ -250,7 +250,7 @@
                   ],
                   [
                     "frameMetadata",
-                    "[{\"id\":\"frame-1\",\"atMs\":50,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-h-compose\",\"masked\":true,\"trigger\":\"initial\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-7ce945b6-1931-476b-86a5-dc80ecd89456\",\"requestedBackend\":\"nativeCpuExperimental\",\"resolvedBackend\":\"nativeCpuExperimental\"}]"
+                    "[{\"id\":\"frame-1\",\"atMs\":50,\"width\":1080,\"height\":2400,\"contentHash\":\"hash-h-compose\",\"masked\":true,\"trigger\":\"initial\",\"byteLength\":48000,\"captureMicros\":12000,\"captureSessionId\":\"session-7ce945b6-1931-476b-86a5-dc80ecd89456\",\"requestedBackend\":\"nativeCpuExperimental\",\"resolvedBackend\":\"nativeCpuExperimental\",\"triggeredAt\":\"2026-06-19T00:00:00.050Z\"}]"
                   ]
                 ],
                 "frames": [

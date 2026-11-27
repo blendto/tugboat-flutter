@@ -149,9 +149,18 @@ void delivery_frame_accepted(const Frame& frame, const std::string& handle,
   DeliveryContext ctx{state, state->applying.at.value_or(At()), out};
   state->frame_retention.retain(frame.id, handle, FrameOwner::kDelivery);
   ++d.accepted_total;
+  // The upload's `frameMetadata` is the frame's JSON plus a UTC
+  // `triggeredAt`, the session start plus the frame's `atMs` (Dart 0.12.3),
+  // so the collector can date a late upload.
+  Value metadata = frame_json(frame);
+  int64_t triggered_at_us = 0;
+  if (dart_add_ms_to_us(ctx.session().header().started_at_wall_us, frame.at_ms,
+                        &triggered_at_us)) {
+    metadata.set("triggeredAt", Value::string(dart_iso8601_utc(triggered_at_us)));
+  }
   evicted_frames(ctx, d.frames.push(
                           PendingFrame{frame.number, frame.id, handle,
-                                       frame_json(frame), frame.byte_length},
+                                       std::move(metadata), frame.byte_length},
                           frame_bounds(ctx), d.frame_references));
   // While frames are retrying, the periodic timer paces them.
   if (!d.frames_need_retry) {
