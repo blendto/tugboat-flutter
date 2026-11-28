@@ -59,6 +59,7 @@ Future<void> _exerciseScrollCallbackOrder(
             event.data['trigger'] == 'interaction',
       )
       .length;
+  final moved = metrics.copyWith(pixels: 60);
   controller.recordPointerDown(const Offset(20, 20));
   controller.markPendingTapAsSwipe(0);
   controller.recordScrollStart(
@@ -66,12 +67,13 @@ Future<void> _exerciseScrollCallbackOrder(
     metrics: metrics,
     depth: 0,
   );
+  controller.recordScrollUpdate(scrollContext: listContext, metrics: moved);
   if (endBeforePointerUp) {
-    controller.recordScrollEnd(scrollContext: listContext, metrics: metrics);
+    controller.recordScrollEnd(scrollContext: listContext, metrics: moved);
     controller.recordPointerUp(const Offset(20, -100));
   } else {
     controller.recordPointerUp(const Offset(20, -100));
-    controller.recordScrollEnd(scrollContext: listContext, metrics: metrics);
+    controller.recordScrollEnd(scrollContext: listContext, metrics: moved);
   }
   await tester.pump();
   await _waitForCaptures(tester);
@@ -378,9 +380,16 @@ void main() {
       metrics: metrics,
       depth: 0,
     );
+    controller.recordScrollUpdate(
+      scrollContext: listContext,
+      metrics: metrics.copyWith(pixels: 60),
+    );
     controller.recordPointerUp(const Offset(20, 20), pointer: 1);
     controller.recordPointerUp(const Offset(40, 20), pointer: 2);
-    controller.recordScrollEnd(scrollContext: listContext, metrics: metrics);
+    controller.recordScrollEnd(
+      scrollContext: listContext,
+      metrics: metrics.copyWith(pixels: 60),
+    );
     await _waitForCaptures(tester);
     await _waitForCaptures(tester);
 

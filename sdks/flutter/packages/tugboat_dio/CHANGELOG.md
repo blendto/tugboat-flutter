@@ -1,3 +1,10 @@
+## 0.12.13
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.13 (a cross-axis drag is a swipe).
+  No `tugboat_dio` change; its `tugboat` floor is now `^0.12.13`.
+
 ## 0.12.12
 
 ### Changed

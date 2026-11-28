@@ -69,6 +69,7 @@ class _ScrollTracker {
   bool pointerLinked;
   int overscrollCount = 0;
   bool atEdge = false;
+  late double lastPixels = startOffset;
   DateTime? lastSampleAt;
   DateTime? lastScreenshotAt;
 }
@@ -3155,7 +3156,8 @@ class TugboatReplayController extends ChangeNotifier {
       explorationRunId: _activeExplorationRunId ?? config.explorationRunId,
       actionId: _activeActionId,
     );
-    final tx = InteractionTransaction(origin: origin, pointerId: pointer);
+    final tx = InteractionTransaction(origin: origin, pointerId: pointer)
+      ..scrollMovesAtDown = _scrollMoves;
     _interactions.register(tx);
     if (config.sceneInventoryEmissionEnabled && isPrimaryPointer) {
       _captureExplorationPreTapEvidence(tx);
@@ -4491,6 +4493,15 @@ class TugboatReplayController extends ChangeNotifier {
     // Final scroll facts are independent from the delayed screenshot. Apply
     // them before any cancellation or replacement path can publish the event.
     completion.applyTo(interaction);
+    if (interaction.scrollMovesAtDown == _scrollMoves) {
+      // Like Android: a drag during which no scrollable moved and none hit an
+      // edge (for example a cross-axis drag over a list) is a swipe.
+      interaction
+        ..gesture = InteractionGesture.swipe
+        ..scrollStartOffset = null
+        ..scrollEndOffset = null
+        ..scrollTargetAnchor = null;
+    }
     _activeCompletedGestureCaptures.add(interaction);
     final task = () async {
       final resolution = completion.captureResolution;
@@ -4687,6 +4698,10 @@ class TugboatReplayController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  /// Counts scrollable movements and edge hits; a drag during which it did
+  /// not change moved no scrollable (BLE-717).
+  int _scrollMoves = 0;
+
   void recordScrollUpdate({
     required BuildContext? scrollContext,
     required ScrollMetrics metrics,
@@ -4695,6 +4710,10 @@ class TugboatReplayController extends ChangeNotifier {
     if (scrollableElement == null) return;
     final tracker = _scrollTrackers[scrollableElement];
     if (tracker == null) return;
+    if (metrics.pixels != tracker.lastPixels) {
+      tracker.lastPixels = metrics.pixels;
+      _scrollMoves++;
+    }
     _trackEdgeState(tracker, metrics);
 
     final session = _session;
@@ -4878,6 +4897,7 @@ class TugboatReplayController extends ChangeNotifier {
     if (tracker.atEdge) return;
     tracker.atEdge = true;
     tracker.overscrollCount++;
+    _scrollMoves++;
   }
 
   void recordScrollEnd({
