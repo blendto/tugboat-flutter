@@ -176,6 +176,90 @@ class ScrollFactsTest {
         assertEquals(listOf("start", "overscroll", "end"), phases())
     }
 
+    @Test
+    fun aQuickDragThatLiftsBeforeTheNextFrameStillStartsTheScrollBeforeTheLift() {
+        val scroll = ScrollView(context).apply {
+            id = android.R.id.list
+            addView(View(context).apply { minimumHeight = 4_000 })
+        }
+        val root = FrameLayout(context).apply { addView(scroll) }
+        layOut(root)
+        val tracker = OffsetScrollTracker(root, FactClock(clock), anchorResolver(root)::anchorFor, recorded::emit, { frameRequests++ })
+        tracker.onFrame()
+        recorded.facts.clear()
+
+        tracker.onTouch(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 700f, 0))
+        scroll.scrollTo(0, 300) // the drag moved it; no frame has run and no layout pass reported it yet
+        assertEquals("nothing before the lift event arrives", emptyList<String>(), phases())
+        tracker.onTouch(MotionEvent.obtain(0, 50, MotionEvent.ACTION_UP, 100f, 300f, 0))
+        assertEquals("the start exists when the pointer is released", listOf("start", "update"), phases())
+        assertEquals("ScrollView#list", recorded.inputs("scroll")[0].getJSONObject("anchor").getString("canonicalPath"))
+
+        tracker.onScrollChanged() // the layout pass reports the same scroll later: nothing new
+        tracker.onFrame()
+        clock.monoUs += 200_000
+        tracker.onFrame()
+        assertEquals("one scroll, no overscroll, no duplicate start", listOf("start", "update", "end"), phases())
+    }
+
+    @Test
+    fun aListMountedWithoutALayoutPassIsTrackedFromTheFingerDown() {
+        // React Native adds a screen's views and sizes them itself: no global layout, so no discovery.
+        val scroll = ScrollView(context).apply { addView(View(context).apply { minimumHeight = 4_000 }) }
+        val root = FrameLayout(context).apply { addView(scroll) }
+        layOut(root)
+        val tracker = OffsetScrollTracker(root, FactClock(clock), { null }, recorded::emit, { frameRequests++ })
+        // no onFrame(): the list was never discovered
+
+        tracker.onTouch(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 700f, 0))
+        scroll.scrollTo(0, 300)
+        tracker.onTouch(MotionEvent.obtain(0, 50, MotionEvent.ACTION_UP, 100f, 300f, 0))
+
+        assertEquals(listOf("start", "update"), phases())
+        assertEquals("the start is at the resting offset", 0.0, recorded.inputs("scroll")[0].getDouble("offset"), 0.0)
+    }
+
+    @Test
+    fun aTapOnAnUndiscoveredListSendsNothing() {
+        val scroll = ScrollView(context).apply { addView(View(context).apply { minimumHeight = 4_000 }) }
+        val root = FrameLayout(context).apply { addView(scroll) }
+        layOut(root)
+        val tracker = OffsetScrollTracker(root, FactClock(clock), { null }, recorded::emit, { frameRequests++ })
+
+        touch(tracker, 100f, 700f, 100f, 700f)
+
+        assertEquals(emptyList<String>(), phases())
+    }
+
+    @Test
+    fun anInvisibleScrollableUnderTheFingerIsNotTracked() {
+        val scroll = ScrollView(context).apply {
+            addView(View(context).apply { minimumHeight = 4_000 })
+            visibility = View.INVISIBLE
+        }
+        val root = FrameLayout(context).apply { addView(scroll) }
+        layOut(root)
+        val tracker = OffsetScrollTracker(root, FactClock(clock), { null }, recorded::emit, { frameRequests++ })
+
+        tracker.onTouch(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 700f, 0))
+        scroll.scrollTo(0, 300)
+        tracker.onTouch(MotionEvent.obtain(0, 50, MotionEvent.ACTION_UP, 100f, 300f, 0))
+
+        assertEquals(emptyList<String>(), phases())
+    }
+
+    @Test
+    fun anEdgeDragOnAListTrackedFromTheDownIsOneOverscroll() {
+        val scroll = ScrollView(context).apply { addView(View(context).apply { minimumHeight = 4_000 }) }
+        val root = FrameLayout(context).apply { addView(scroll) }
+        layOut(root)
+        val tracker = OffsetScrollTracker(root, FactClock(clock), { null }, recorded::emit, { frameRequests++ })
+
+        touch(tracker, 100f, 300f, 100f, 700f) // down at the top: nothing can move
+
+        assertEquals(listOf("start", "overscroll", "end"), phases())
+    }
+
     private fun scrollViewTracker(contentHeight: Int): Pair<ScrollView, OffsetScrollTracker> {
         val scroll = ScrollView(context).apply { addView(View(context).apply { minimumHeight = contentHeight }) }
         val root = FrameLayout(context).apply { addView(scroll) }

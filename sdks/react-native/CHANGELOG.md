@@ -2,6 +2,11 @@
 
 ## 0.0.6
 
+- Android: a drag on a `ScrollView`, `FlatList`, carousel or pager is recorded as
+  a `scroll` with the list's anchor, as in Flutter (it was a target-less `swipe`
+  for lists on screens opened after startup). The fix is in `tugboat-android`;
+  the JavaScript API and this package's sources are unchanged.
+
 - iOS: remote `<Image>` downloads are no longer recorded as `network_call`
   (Flutter and Android record nothing for image loads). The HTTP handler skips
   requests React Native's image loader tags (`trackingName` `RCTImageLoader`), so

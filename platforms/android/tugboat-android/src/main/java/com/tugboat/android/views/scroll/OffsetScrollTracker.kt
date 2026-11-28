@@ -26,6 +26,18 @@ import kotlin.math.abs
  *   one seen. A first change sends `start` (at the resting offset, with the
  *   scrollable's anchor), then `update`; [idleMs] without a change sends
  *   `end`.
+ * - A finger down ([onTouch]) registers the scrollables under it that discovery
+ *   has not seen yet (a list mounted without a layout pass, as React Native does);
+ *   an undiscovered `RecyclerView` there gets its listener at once. Only the views
+ *   [HitTester] resolves are walked, so a list under a sibling that takes the hit
+ *   (a non-actionable overlay) waits for discovery.
+ * - A finger lift ([onTouch]) also diffs the offsets at once, so a drag that
+ *   moved a scrollable has its `start` before the pointer is released (the
+ *   engine links a scroll to the pointer still pending; a quick flick can lift
+ *   before the next frame, and was recorded as a target-less swipe). It reads
+ *   every tracked scrollable in the window, so a programmatic scroll at the
+ *   moment of a tap also links to it. A flick whose offset first moves after the
+ *   lift is still a swipe.
  * - Scrollables are discovered on the first frame and after layout passes
  *   (at most every 200 ms), and their offsets are the baseline: a scrollable never seen at rest
  *   sends nothing until it moves again. Discovered `RecyclerView`s go to
@@ -90,14 +102,47 @@ internal class OffsetScrollTracker(
                 movedSinceDown = false
                 downX = event.x
                 downY = event.y
+                trackUnder(downX, downY)
             }
             MotionEvent.ACTION_POINTER_DOWN -> gestureOpen = false
             MotionEvent.ACTION_UP -> {
+                // Offsets are read here, not only on the next frame: a quick drag lifts before the
+                // frame that would notice it, and its `start` must exist for the pointer to link to.
+                readOffsetsNow()
                 if (gestureOpen && !movedSinceDown) overscroll(event.x, event.y)
                 gestureOpen = false
             }
             MotionEvent.ACTION_CANCEL -> gestureOpen = false // the system took the gesture
         }
+    }
+
+    /**
+     * Registers the scrollables under the finger that discovery has not seen, with their resting
+     * offset as the baseline. React Native mounts a screen's views without a layout pass (its
+     * views ignore `requestLayout`), so [onGlobalLayout] never asks for discovery and a list on a
+     * screen opened after the last walk was never tracked.
+     */
+    private fun trackUnder(x: Float, y: Float) {
+        var view = HitTester.hit(root, x, y)
+        while (view != null) {
+            if (isRecycler(view)) {
+                onRecyclerView(view)
+            } else if (Scrollables.isScrollable(view) && !states.containsKey(view)) {
+                Scrollables.metrics(view)?.let { states[view] = State(it) }
+            }
+            view = view.parent as? View
+        }
+    }
+
+    private fun readOffsetsNow() {
+        val now = clock.now()
+        var changed = false
+        for ((view, state) in states.entries.toList()) {
+            if (diff(view, state, now)) changed = true
+        }
+        if (!changed) return
+        if (gestureOpen) movedSinceDown = true
+        requestFrame() // the idle `end` is sent from a frame
     }
 
     private fun overscroll(upX: Float, upY: Float) {
@@ -155,9 +200,9 @@ internal class OffsetScrollTracker(
         if (anyActive) requestFrame()
     }
 
-    private fun diff(view: View, state: State, at: HostTime) {
-        val metrics = Scrollables.metrics(view) ?: return
-        if (metrics.offsetPx == state.metrics.offsetPx) return
+    private fun diff(view: View, state: State, at: HostTime): Boolean {
+        val metrics = Scrollables.metrics(view) ?: return false
+        if (metrics.offsetPx == state.metrics.offsetPx) return false
         val id = ScrollableIds.of(view)
         if (!state.active) {
             state.active = true
@@ -166,6 +211,7 @@ internal class OffsetScrollTracker(
         state.metrics = metrics
         state.lastChangeMonoUs = at.monoUs
         emit(ScrollFacts.fact(id, ScrollPhase.Update, metrics, density(), at))
+        return true
     }
 
     /** Walks the tree at most every [DISCOVERY_INTERVAL_US], so layout animations stay cheap. */
