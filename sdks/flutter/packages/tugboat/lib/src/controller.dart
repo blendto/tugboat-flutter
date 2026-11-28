@@ -68,6 +68,7 @@ class _ScrollTracker {
   final double? pageStart;
   bool pointerLinked;
   int overscrollCount = 0;
+  bool atEdge = false;
   DateTime? lastSampleAt;
   DateTime? lastScreenshotAt;
 }
@@ -4694,6 +4695,7 @@ class TugboatReplayController extends ChangeNotifier {
     if (scrollableElement == null) return;
     final tracker = _scrollTrackers[scrollableElement];
     if (tracker == null) return;
+    _trackEdgeState(tracker, metrics);
 
     final session = _session;
     if (session == null || _capturePaused) return;
@@ -4855,6 +4857,26 @@ class TugboatReplayController extends ChangeNotifier {
     if (scrollableElement == null) return;
     final tracker = _scrollTrackers[scrollableElement];
     if (tracker == null) return;
+    _countEdgeHit(tracker);
+  }
+
+  // overscrollCount counts edge hits: reaching an edge counts once, and only
+  // leaving it and hitting it again counts again (Android reports at most one
+  // per drag, and none when the drag scrolled first). Clamping
+  // physics report the hit as OverscrollNotifications; bouncing physics as
+  // updates beyond the extents.
+  void _trackEdgeState(_ScrollTracker tracker, ScrollMetrics metrics) {
+    if (metrics.outOfRange) {
+      _countEdgeHit(tracker);
+    } else if (metrics.pixels > metrics.minScrollExtent &&
+        metrics.pixels < metrics.maxScrollExtent) {
+      tracker.atEdge = false;
+    }
+  }
+
+  void _countEdgeHit(_ScrollTracker tracker) {
+    if (tracker.atEdge) return;
+    tracker.atEdge = true;
     tracker.overscrollCount++;
   }
 

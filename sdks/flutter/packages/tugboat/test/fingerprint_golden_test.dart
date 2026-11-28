@@ -49,7 +49,7 @@ final Map<String, Object?> _goldenExpected = {
       {
         'fingerprint': 'e72ca8effba2e941',
         'tier': 'interactive',
-        'role': 'button',
+        'role': 'switch',
         'enabled': true,
         'aliases': ['5cbc415df9f25d9f'],
         'tag': null,
@@ -114,7 +114,7 @@ final Map<String, Object?> _goldenExpected = {
       {
         'fingerprint': 'd68eab2b19ca1a9d',
         'tier': 'interactive',
-        'role': 'button',
+        'role': 'switch',
         'enabled': true,
         'aliases': ['39e01adbfea8025a', '808c52ac6a0a9633', 'e78bcc096fd2ab44'],
         'tag': null,

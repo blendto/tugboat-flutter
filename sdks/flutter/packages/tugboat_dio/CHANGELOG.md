@@ -1,3 +1,10 @@
+## 0.12.11
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.11 (switch tap role, overscroll
+  count). No `tugboat_dio` change; its `tugboat` floor is now `^0.12.11`.
+
 ## 0.12.10
 
 ### Changed
