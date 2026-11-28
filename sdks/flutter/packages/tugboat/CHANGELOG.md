@@ -7,7 +7,7 @@
   React Native. `fingerprintConfidence` is unchanged: native's rule (`medium`
   for a view with its own id or in a list item, else `low`) gives a Flutter
   scrollable `low` unless it is in a list item, as before. Fingerprints are
-  unchanged. This changes captured values (a contract change), approved by the
+  unchanged. Scene inventory entries with role `scrollable` carry it too. This changes captured values (a contract change), approved by the
   project owner.
 
 ## 0.12.11
