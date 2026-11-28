@@ -1,3 +1,19 @@
+## 0.12.11
+
+### Fixed
+
+- A tap on a switch, checkbox or radio (`Switch`, `CupertinoSwitch`,
+  `SwitchListTile`, `Checkbox`, `CheckboxListTile`, `RadioListTile`) reports
+  that control's role (`switch`, `checkbox`, `radio`) and `tap` action, as on
+  Android. It reported `button`, the role of the gesture detector or tile
+  inside the control. The scene inventory lists these controls with the same
+  role. No fingerprint or route key change.
+- `overscrollCount` on a scroll interaction counts edge hits, as on Android
+  and React Native: 1 for a drag that reaches an edge, more only when the
+  scroll leaves the edge and reaches it again. It counted every overscroll
+  update (1 to 168 per drag, by frame rate and drag length). This changes
+  captured evidence (a contract change).
+
 ## 0.12.10
 
 ### Fixed
