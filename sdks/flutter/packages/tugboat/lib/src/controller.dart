@@ -4491,6 +4491,16 @@ class TugboatReplayController extends ChangeNotifier {
     // Final scroll facts are independent from the delayed screenshot. Apply
     // them before any cancellation or replacement path can publish the event.
     completion.applyTo(interaction);
+    if (completion.startOffset == completion.endOffset &&
+        completion.overscrollCount == 0) {
+      // Like Android: a drag that moved no scrollable and hit no edge (for
+      // example a cross-axis drag over a list) is a swipe, not a scroll.
+      interaction
+        ..gesture = InteractionGesture.swipe
+        ..scrollStartOffset = null
+        ..scrollEndOffset = null
+        ..scrollTargetAnchor = null;
+    }
     _activeCompletedGestureCaptures.add(interaction);
     final task = () async {
       final resolution = completion.captureResolution;

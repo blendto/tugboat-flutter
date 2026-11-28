@@ -1,3 +1,14 @@
+## 0.12.13
+
+### Changed
+
+- A drag that moves no scrollable and hits no edge, such as a sideways swipe
+  over a vertical list, is recorded as a `swipe` (`delta`, `endPosition`,
+  `position`, no target), not a `scroll` with offset 0 to 0, as on Android and
+  React Native. Vertical drags that move a list or overscroll at an edge are
+  unchanged. This changes captured values (a contract change); following the
+  standing rule, Flutter is fixed to match native. Fingerprints are unchanged.
+
 ## 0.12.12
 
 ### Changed

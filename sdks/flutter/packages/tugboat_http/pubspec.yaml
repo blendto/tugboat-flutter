@@ -2,7 +2,7 @@ name: tugboat_http
 description: >-
   HTTP client wrapper that records safe, bounded network evidence into an active
   Tugboat capture session.
-version: 0.12.12
+version: 0.12.13
 repository: https://github.com/blendto/tugboat-flutter
 issue_tracker: https://github.com/blendto/tugboat-flutter/issues
 homepage: https://github.com/blendto/tugboat-flutter
@@ -18,7 +18,7 @@ dependencies:
   http: ^1.5.0
   flutter:
     sdk: flutter
-  tugboat: ^0.12.12
+  tugboat: ^0.12.13
 
 dev_dependencies:
   flutter_lints: ^5.0.0
