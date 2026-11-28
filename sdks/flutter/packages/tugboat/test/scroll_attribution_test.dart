@@ -67,6 +67,7 @@ Future<void> _exerciseScrollCallbackOrder(
     metrics: metrics,
     depth: 0,
   );
+  controller.recordScrollUpdate(scrollContext: listContext, metrics: moved);
   if (endBeforePointerUp) {
     controller.recordScrollEnd(scrollContext: listContext, metrics: moved);
     controller.recordPointerUp(const Offset(20, -100));
@@ -378,6 +379,10 @@ void main() {
       scrollContext: listContext,
       metrics: metrics,
       depth: 0,
+    );
+    controller.recordScrollUpdate(
+      scrollContext: listContext,
+      metrics: metrics.copyWith(pixels: 60),
     );
     controller.recordPointerUp(const Offset(20, 20), pointer: 1);
     controller.recordPointerUp(const Offset(40, 20), pointer: 2);

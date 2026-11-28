@@ -420,6 +420,9 @@ class InteractionTransaction {
   double? scrollStartOffset;
   double? scrollEndOffset;
   int overscrollCount = 0;
+
+  /// The controller's scroll-movement count when the pointer went down.
+  int scrollMovesAtDown = 0;
   TugboatTargetAnchor? scrollTargetAnchor;
   double? scale;
   int pointerCount = 1;
