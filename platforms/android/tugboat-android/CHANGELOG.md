@@ -5,6 +5,14 @@
 Unpublished. The native Android SDK for Views apps: public facade, engine
 wiring, window capture, and the Android Views adapter.
 
+- A quick drag on a `ScrollView`, `HorizontalScrollView`, `NestedScrollView`
+  or `ListView` (React Native's `ScrollView`, `FlatList` and carousel too) is a
+  `scroll` with the scrollable's anchor, as in Flutter. It was a target-less
+  `swipe` when the finger lifted before the frame that noticed the offset
+  change, because the scroll `start` then came after the pointer was released.
+  The offsets are now also read at the lift, before the pointer is released.
+  `RecyclerView` is unchanged. A contract change in captured evidence.
+
 - A `ScrollView`, `HorizontalScrollView`, `NestedScrollView` or `ListView`
   (React Native's `ScrollView` and `FlatList` too) reports an overscroll the way
   a `RecyclerView` does (Flutter may count more than one per drag): a drag past the touch slop that moved

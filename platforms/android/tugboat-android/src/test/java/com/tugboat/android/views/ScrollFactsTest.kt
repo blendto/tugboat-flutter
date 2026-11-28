@@ -176,6 +176,23 @@ class ScrollFactsTest {
         assertEquals(listOf("start", "overscroll", "end"), phases())
     }
 
+    @Test
+    fun aQuickDragThatLiftsBeforeTheNextFrameStillStartsTheScrollBeforeTheLift() {
+        val (scroll, tracker) = scrollViewTracker(contentHeight = 4_000)
+
+        tracker.onTouch(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 700f, 0))
+        scroll.scrollTo(0, 300) // the drag moved it; no frame has run and no layout pass reported it yet
+        assertEquals("nothing before the lift event arrives", emptyList<String>(), phases())
+        tracker.onTouch(MotionEvent.obtain(0, 50, MotionEvent.ACTION_UP, 100f, 300f, 0))
+        assertEquals("the start exists when the pointer is released", listOf("start", "update"), phases())
+        assertTrue(recorded.inputs("scroll")[0].has("anchor").not())
+
+        tracker.onFrame()
+        clock.monoUs += 200_000
+        tracker.onFrame()
+        assertEquals("one scroll, no overscroll, no duplicate start", listOf("start", "update", "end"), phases())
+    }
+
     private fun scrollViewTracker(contentHeight: Int): Pair<ScrollView, OffsetScrollTracker> {
         val scroll = ScrollView(context).apply { addView(View(context).apply { minimumHeight = contentHeight }) }
         val root = FrameLayout(context).apply { addView(scroll) }
