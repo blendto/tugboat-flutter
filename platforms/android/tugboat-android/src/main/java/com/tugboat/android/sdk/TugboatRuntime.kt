@@ -4,7 +4,6 @@ import android.app.Application
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import com.tugboat.android.BuildConfig
 import com.tugboat.android.TugboatConfig
 import com.tugboat.android.capture.CaptureAnswer
 import com.tugboat.android.capture.CaptureCoordinator
@@ -223,7 +222,7 @@ internal class TugboatRuntime private constructor(
                 appVersion = config.app.version,
                 appBuild = config.app.buildNumber,
                 appId = config.app.appId,
-                sdkVersion = config.sdkVersion?.takeIf { it.isNotBlank() } ?: BuildConfig.SDK_VERSION,
+                sdkVersion = HostConfig.sdkVersionOf(config.sdkVersion),
             )
             val outbox = if (config.durableOutbox) Outboxes.at(application) else null
             outbox?.settings = OutboxSettings.of(config)

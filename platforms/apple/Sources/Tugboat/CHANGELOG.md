@@ -10,7 +10,7 @@ the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISa
 
 - `TugboatConfig.sdkVersion` (optional): the `X-Sdk-Version` of every collector
   request, for a wrapper that reports its own package version, as Flutter does.
-  Nil or blank keeps this library's version.
+  Nil, blank or with control characters keeps this library's version.
 
 - Event shape on iOS, as Flutter and the Android SDK: starting while the app is
   active reports `resumed` once, so a launch records `app_foregrounded` (a start

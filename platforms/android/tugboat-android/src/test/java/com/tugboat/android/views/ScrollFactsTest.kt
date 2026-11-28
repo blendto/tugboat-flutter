@@ -301,6 +301,47 @@ class ScrollFactsTest {
     }
 
     @Test
+    fun aFrameBetweenTheDownAndTheLiftAddsNoSecondStartOrEnd() {
+        val (scroll, tracker) = scrollViewTracker(4_000)
+        scroll.scrollTo(0, 200)
+        tracker.onScrollChanged()
+        tracker.onFrame()
+        clock.monoUs += 50_000
+
+        tracker.onTouch(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 700f, 0))
+        scroll.scrollTo(0, 400)
+        tracker.onScrollChanged()
+        tracker.onFrame() // a frame runs mid-drag
+        tracker.onTouch(MotionEvent.obtain(0, 50, MotionEvent.ACTION_UP, 100f, 300f, 0))
+        clock.monoUs += 200_000
+        tracker.onFrame()
+
+        assertEquals(listOf("start", "update", "end", "start", "update", "end"), phases())
+    }
+
+    @Test
+    fun aListViewStillScrollingIsNotEndedAtTheDown() {
+        val list = android.widget.ListView(context).apply {
+            adapter = android.widget.ArrayAdapter(context, android.R.layout.simple_list_item_1, List(100) { "row $it" })
+        }
+        val root = FrameLayout(context).apply { addView(list) }
+        layOut(root)
+        val tracker = OffsetScrollTracker(root, FactClock(clock), { null }, recorded::emit, { frameRequests++ })
+        tracker.onFrame()
+        recorded.facts.clear()
+        list.setSelection(20)
+        layOut(root)
+        tracker.onScrollChanged()
+        tracker.onFrame()
+        val before = phases()
+        clock.monoUs += 50_000
+
+        tracker.onTouch(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 700f, 0))
+
+        assertEquals("no end added by the down", before, phases())
+    }
+
+    @Test
     fun aTouchOnAListThatIsNotScrollingAddsNoEnd() {
         val (_, tracker) = scrollViewTracker(4_000)
 

@@ -339,6 +339,17 @@ class HttpExecutorTest {
     private fun json(body: String, path: String = "/v1/sessions", timeoutMs: Int = 5_000) =
         HttpRequest("http-1", "lifecycle", path, timeoutMs, HttpBody.Json(body))
 
+    @Test
+    fun aWrappersSdkVersionReplacesTheHostsUnlessBlankOrNotAHeaderValue() {
+        assertEquals("0.0.7", HostConfig.sdkVersionOf("0.0.7"))
+        assertEquals("0.0.7", HostConfig.sdkVersionOf(" 0.0.7\n"))
+        for (bad in listOf(null, "", "  \n", "0.0.7\r\nX-Evil: 1")) {
+            assertEquals(BuildConfig.SDK_VERSION, HostConfig.sdkVersionOf(bad))
+        }
+        val headers = HostConfig("http://x", "k", "1", "1", "a", sdkVersion = HostConfig.sdkVersionOf("0.0.7")).collectorHeaders()
+        assertEquals("0.0.7", headers["X-Sdk-Version"])
+    }
+
     private fun config(baseUrl: String) = HostConfig(
         collectorBaseUrl = baseUrl,
         apiKey = "pmk_key",

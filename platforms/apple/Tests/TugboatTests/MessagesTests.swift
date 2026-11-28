@@ -91,4 +91,16 @@ final class MessagesTests: XCTestCase {
     XCTAssertEqual(config.collectorHeaders.map { $0.value }, ["pmk_key", "pmk_key", "ios", "42", "1.2.3", "com.example.app", TugboatVersion.current])
     XCTAssertFalse(config.description.contains("pmk_key"), "description never prints the key")
   }
+
+  func testAWrappersSdkVersionReplacesTheHostsUnlessBlankOrNotAHeaderValue() {
+    XCTAssertEqual(HostConfig.sdkVersion(configured: "0.0.7"), "0.0.7")
+    XCTAssertEqual(HostConfig.sdkVersion(configured: " 0.0.7\n"), "0.0.7")
+    for bad in [nil, "", "  \n", "0.0.7\r\nX-Evil: 1"] {
+      XCTAssertEqual(HostConfig.sdkVersion(configured: bad), TugboatVersion.current)
+    }
+    var config = HostConfig(
+      collectorBaseURL: "http://x", apiKey: "k", appVersion: "1", appBuild: "1", appId: "a")
+    config.sdkVersion = HostConfig.sdkVersion(configured: "0.0.7")
+    XCTAssertEqual(config.collectorHeaders.last?.value, "0.0.7")
+  }
 }

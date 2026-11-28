@@ -5,16 +5,16 @@
 Unpublished. The native Android SDK for Views apps: public facade, engine
 wiring, window capture, and the Android Views adapter.
 
-- A drag that starts while a `ScrollView`, `NestedScrollView` or `ListView` is still
+- A drag that starts while a `ScrollView`, `HorizontalScrollView` or `NestedScrollView` is still
   flinging (React Native's `ScrollView` and `FlatList` too) is a `scroll` with that
   list as target, as in Flutter, and an edge hit right after a fling carries
   `overscrollCount`. The finger down now ends the fling's scroll, so the drag sends
   a new `start` (a scroll already in progress sends none, and the drag was a
-  target-less `swipe`). A contract change in captured evidence.
+  target-less `swipe`). A `ListView` is unchanged. A contract change in captured evidence.
 
 - `TugboatConfig.sdkVersion` (optional): the `X-Sdk-Version` of every collector
   request, for a wrapper that reports its own package version, as Flutter does.
-  Blank or null keeps this library's version.
+  Blank, null or with control characters keeps this library's version.
 
 - A drag on a `ScrollView`, `HorizontalScrollView`, `NestedScrollView` or
   `ListView` (React Native's `ScrollView`, `FlatList` and carousel too) is a

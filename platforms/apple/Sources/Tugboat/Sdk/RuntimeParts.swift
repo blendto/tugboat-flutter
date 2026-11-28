@@ -27,8 +27,7 @@ extension TugboatRuntime {
         appVersion: config.app.version,
         appBuild: config.app.buildNumber,
         appId: config.app.appId,
-        sdkVersion: config.sdkVersion.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }
-          ?? TugboatVersion.current
+        sdkVersion: HostConfig.sdkVersion(configured: config.sdkVersion)
       )
       let executor = HTTPExecutor(config: hostConfig, frameBytes: { frames.get($0) })
       let outbox = config.durableOutbox ? Tugboat.outbox.map { OutboxParts(outbox: $0, config: config, host: hostConfig) } : nil

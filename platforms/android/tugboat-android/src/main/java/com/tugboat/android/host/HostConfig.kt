@@ -23,6 +23,14 @@ internal class HostConfig(
         "X-Sdk-Version" to sdkVersion,
     )
 
+    companion object {
+        /** A configured `X-Sdk-Version` (a wrapper's), unless blank or not a valid header value. */
+        fun sdkVersionOf(configured: String?): String {
+            val value = configured?.trim().orEmpty()
+            return if (value.isEmpty() || value.any { it.isISOControl() }) BuildConfig.SDK_VERSION else value
+        }
+    }
+
     /** Never prints the API key. */
     override fun toString(): String =
         "HostConfig(collectorBaseUrl=$collectorBaseUrl, appId=$appId, appVersion=$appVersion, " +

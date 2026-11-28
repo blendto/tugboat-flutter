@@ -131,6 +131,14 @@ pubspec_in_git() {
   fi
 }
 
+# The React Native package sends its version as X-Sdk-Version from a constant; it must equal package.json.
+rn_pkg_version="$(sed -nE 's/^[[:space:]]*"version":[[:space:]]*"([^"]+)".*/\1/p' sdks/react-native/package.json | head -1)"
+rn_const_version="$(sed -nE "s/^export const SDK_VERSION = '([^']+)';.*/\1/p" sdks/react-native/src/sdkVersion.ts | head -1)"
+if [[ -n "$rn_pkg_version" && "$rn_pkg_version" != "$rn_const_version" ]]; then
+  echo "::error::sdks/react-native/src/sdkVersion.ts ($rn_const_version) must equal package.json version ($rn_pkg_version)."
+  exit 1
+fi
+
 runtime_gradle="platforms/android/capture-runtime/build.gradle.kts"
 runtime_props="platforms/android/gradle.properties"
 apple_podspec="TugboatCaptureRuntime.podspec"
