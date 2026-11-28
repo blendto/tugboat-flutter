@@ -38,6 +38,9 @@ import kotlin.math.abs
  *   every tracked scrollable in the window, so a programmatic scroll at the
  *   moment of a tap also links to it. A flick whose offset first moves after the
  *   lift is still a swipe.
+ * - A finger down on a scrollable that is still scrolling (a fling) ends that scroll ([endFlingsUnder]),
+ *   so a drag that takes over is a new scroll, with that scrollable as target, and an edge hit after
+ *   a fling can be an overscroll.
  * - Scrollables are discovered on the first frame and after layout passes
  *   (at most every 200 ms), and their offsets are the baseline: a scrollable never seen at rest
  *   sends nothing until it moves again. Discovered `RecyclerView`s go to
@@ -103,6 +106,7 @@ internal class OffsetScrollTracker(
                 downX = event.x
                 downY = event.y
                 trackUnder(downX, downY)
+                endFlingsUnder(downX, downY)
             }
             MotionEvent.ACTION_POINTER_DOWN -> gestureOpen = false
             MotionEvent.ACTION_UP -> {
@@ -129,6 +133,32 @@ internal class OffsetScrollTracker(
                 onRecyclerView(view)
             } else if (Scrollables.isScrollable(view) && !states.containsKey(view)) {
                 Scrollables.metrics(view)?.let { states[view] = State(it) }
+            }
+            view = view.parent as? View
+        }
+    }
+
+    /**
+     * A finger down on a scrollable still scrolling (a fling) ends that scroll, as Flutter's
+     * ballistic scroll ends when a drag takes over: the drag's own movement then sends a new
+     * `start` (a scroll already in progress sends none, so the drag was a target-less swipe) and
+     * the edge rule below no longer sees an active scroll. Offsets pending since the last frame
+     * are read first, so they are not counted as movement of this gesture.
+     */
+    private fun endFlingsUnder(x: Float, y: Float) {
+        var view = HitTester.hit(root, x, y)
+        var flushed = false
+        while (view != null) {
+            val state = states[view]
+            if (state?.active == true) {
+                if (!flushed) {
+                    flushed = true
+                    gestureOpen = false
+                    readOffsetsNow()
+                    gestureOpen = true
+                }
+                state.active = false
+                emit(ScrollFacts.fact(ScrollableIds.of(view), ScrollPhase.End, state.metrics, density(), clock.now()))
             }
             view = view.parent as? View
         }
