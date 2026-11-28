@@ -27,11 +27,17 @@ import kotlin.math.abs
  *   scrollable's anchor), then `update`; [idleMs] without a change sends
  *   `end`.
  * - A finger down ([onTouch]) registers the scrollables under it that discovery
- *   has not seen yet (a list mounted without a layout pass, as React Native does).
+ *   has not seen yet (a list mounted without a layout pass, as React Native does);
+ *   an undiscovered `RecyclerView` there gets its listener at once. Only the views
+ *   [HitTester] resolves are walked, so a list under a sibling that takes the hit
+ *   (a non-actionable overlay) waits for discovery.
  * - A finger lift ([onTouch]) also diffs the offsets at once, so a drag that
  *   moved a scrollable has its `start` before the pointer is released (the
  *   engine links a scroll to the pointer still pending; a quick flick can lift
- *   before the next frame, and was recorded as a target-less swipe).
+ *   before the next frame, and was recorded as a target-less swipe). It reads
+ *   every tracked scrollable in the window, so a programmatic scroll at the
+ *   moment of a tap also links to it. A flick whose offset first moves after the
+ *   lift is still a swipe.
  * - Scrollables are discovered on the first frame and after layout passes
  *   (at most every 200 ms), and their offsets are the baseline: a scrollable never seen at rest
  *   sends nothing until it moves again. Discovered `RecyclerView`s go to

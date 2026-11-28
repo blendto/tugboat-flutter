@@ -13,8 +13,10 @@ wiring, window capture, and the Android Views adapter.
   so discovery was never asked again), and a quick drag could lift before the
   frame that noticed the offset change, so the scroll `start` came after the
   pointer was released. The scrollables under the finger are now registered at
-  the finger down, and offsets are read at the lift. `RecyclerView` is
-  unchanged. A contract change in captured evidence.
+  the finger down, and offsets are read at the lift. A `RecyclerView`
+  not yet discovered gets its scroll listener at the finger down; its scroll
+  facts are otherwise unchanged. A flick whose offset first moves after the
+  lift is still a `swipe`. A contract change in captured evidence.
 
 - A `ScrollView`, `HorizontalScrollView`, `NestedScrollView` or `ListView`
   (React Native's `ScrollView` and `FlatList` too) reports an overscroll the way
