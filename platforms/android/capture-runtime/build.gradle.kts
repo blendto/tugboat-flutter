@@ -83,7 +83,7 @@ publishing {
         if (githubUser.isPresent && githubPassword.isPresent) {
             maven {
                 name = "GitHubPackages"
-                url = uri("https://maven.pkg.github.com/blendto/tugboat-flutter")
+                url = uri("https://maven.pkg.github.com/blendto/tugboat-mobile-sdk")
                 credentials {
                     username = githubUser.get()
                     password = githubPassword.get()
