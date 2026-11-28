@@ -152,7 +152,7 @@ dispatches `publish-android.yml` on it (same pattern as pub.dev).
 
 No extra secrets. The publish job uploads to
 
-`https://maven.pkg.github.com/blendto/tugboat-flutter`
+`https://maven.pkg.github.com/blendto/tugboat-mobile-sdk`
 
 After the first successful publish, open the package on GitHub and set
 visibility to **public** if native Android hosts should resolve it with only
@@ -166,7 +166,7 @@ Consumers need a GitHub token even for a public package:
 ```kotlin
 repositories {
     maven {
-        url = uri("https://maven.pkg.github.com/blendto/tugboat-flutter")
+        url = uri("https://maven.pkg.github.com/blendto/tugboat-mobile-sdk")
         credentials {
             username = providers.gradleProperty("gpr.user").orElse(System.getenv("GITHUB_ACTOR")).get()
             password = providers.gradleProperty("gpr.key").orElse(System.getenv("GITHUB_TOKEN")).get()
