@@ -2,11 +2,13 @@
 
 ### Changed
 
-- A scroll target (role `scrollable`) carries `enabled: true`, which it
-  omitted, and follows native's confidence rule: `medium` when a `TugboatTag`
-  names it or it sits in a list item, else `low`. Most scrollables were `low`.
-  Fingerprints are unchanged. This changes captured values (a contract change),
-  approved by the project owner.
+- An anchor whose role is `scrollable` (a scroll target, or a tap that lands on
+  a scrollable) carries `enabled: true`, which it omitted, as on Android and
+  React Native. `fingerprintConfidence` is unchanged: native's rule (`medium`
+  for a view with its own id or in a list item, else `low`) gives a Flutter
+  scrollable `low` unless it is in a list item, as before. Fingerprints are
+  unchanged. This changes captured values (a contract change), approved by the
+  project owner.
 
 ## 0.12.11
 

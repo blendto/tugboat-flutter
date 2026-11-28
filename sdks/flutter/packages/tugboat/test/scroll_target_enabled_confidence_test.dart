@@ -4,8 +4,9 @@ import 'package:tugboat/tugboat.dart';
 
 import 'helpers/widget_capture_wait.dart';
 
-// BLE-716: a scroll target carries `enabled: true` and native's confidence
-// rule (medium for a named view or a list item, else low), as on Android.
+// BLE-716: a scroll target carries `enabled: true`, as on Android. Native's
+// confidence rule (medium for a view with its own id or in a list item) gives
+// a Flutter scrollable `low`, as before.
 const _config = TugboatReplayConfig(
   enabled: true,
   settleDelay: Duration.zero,
@@ -54,21 +55,12 @@ Future<Map<String, Object?>> _scrollAnchor(
 void main() {
   tearDown(TugboatReplay.resetForTest);
 
-  testWidgets('an unnamed scrollable is enabled with low confidence', (
+  testWidgets('a scroll target is enabled; confidence is unchanged', (
     tester,
   ) async {
     final anchor = await _scrollAnchor(tester, wrap: (list) => list);
     expect(anchor['role'], 'scrollable');
     expect(anchor['enabled'], true);
     expect(anchor['fingerprintConfidence'], 'low');
-  });
-
-  testWidgets('a tagged scrollable has medium confidence', (tester) async {
-    final anchor = await _scrollAnchor(
-      tester,
-      wrap: (list) => TugboatTag('feed', child: list),
-    );
-    expect(anchor['enabled'], true);
-    expect(anchor['fingerprintConfidence'], 'medium');
   });
 }
