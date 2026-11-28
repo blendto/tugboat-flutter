@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Exit 0 if CocoaPods trunk has TugboatCaptureRuntime at $1.
+# Exit 0 if CocoaPods trunk has pod $2 (default TugboatCaptureRuntime) at $1.
 set -euo pipefail
 version="${1:-}"
+pod="${2:-TugboatCaptureRuntime}"
 if [[ -z "$version" ]]; then
-  echo "usage: cocoapods-pod-has-version.sh <version>" >&2
+  echo "usage: cocoapods-pod-has-version.sh <version> [pod]" >&2
   exit 2
 fi
-url="https://trunk.cocoapods.org/api/v1/pods/TugboatCaptureRuntime"
+url="https://trunk.cocoapods.org/api/v1/pods/${pod}"
 code="$(curl -sS -o /tmp/tugboat-cocoapods-pod.json -w '%{http_code}' "$url" || true)"
 if [[ "$code" != "200" ]]; then
   exit 1

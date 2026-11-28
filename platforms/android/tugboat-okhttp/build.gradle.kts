@@ -4,8 +4,9 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-// Versioned independently (ADR 0008). Unpublished: the only repository
-// below is the untracked `.local-maven`.
+// Versioned independently (ADR 0008). Published to Maven Central from tag
+// `tugboat-okhttp-v<version>` (publish-android-sdk.yml); locally to the
+// untracked `.local-maven`.
 val tugboatOkHttpVersion = "0.1.0"
 
 // OkHttp is `compileOnly` (README "OkHttp versions"): the app ships it, and
@@ -68,6 +69,10 @@ mavenPublishing {
     pom {
         name.set("Tugboat OkHttp")
         description.set("OkHttp interceptor that records network calls for the Tugboat native Android SDK.")
+    }
+    if (providers.gradleProperty("tugboat.publishMavenCentral").orElse("false").get() == "true") {
+        publishToMavenCentral(automaticRelease = true)
+        signAllPublications()
     }
 }
 

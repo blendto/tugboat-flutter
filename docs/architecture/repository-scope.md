@@ -114,5 +114,5 @@ capture scheduling.
 ## Future React Native adapter scope
 
 Placeholder only: Android namespace `com.tugboat.reactnative`, npm
-`@tugboat/react-native`. It will consume the same AAR and CocoaPod. Raw
+`@tugboat-ai/react-native`. It will consume the same AAR and CocoaPod. Raw
 pixels must never enter JavaScript. No npm workspace in the first milestone.

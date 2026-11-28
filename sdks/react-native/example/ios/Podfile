@@ -17,7 +17,7 @@ end
 target 'RnExample' do
   config = use_native_modules!
 
-  # The in-repo Swift host, which @tugboat/react-native depends on (unpublished:
+  # The in-repo Swift host, which @tugboat-ai/react-native depends on (unpublished:
   # local paths from the repository root; see sdks/react-native/README.md).
   pod 'TugboatSessionEngine', :path => '../../../..'
   pod 'TugboatCaptureRuntime', :path => '../../../..'

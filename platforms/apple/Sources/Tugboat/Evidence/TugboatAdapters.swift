@@ -83,7 +83,7 @@ public enum TugboatViewRole {
 #if canImport(UIKit)
 import UIKit
 
-/// Seams for the React Native adapter (`@tugboat/react-native`), which draws
+/// Seams for the React Native adapter (`@tugboat-ai/react-native`), which draws
 /// plain UIKit views and names its own screens. Nothing here changes an app
 /// that does not call it. Any thread: `setScreen` and `setHostNamesScreens` hop to
 /// the main thread themselves, and the rest keep their state under a lock.

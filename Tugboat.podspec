@@ -1,7 +1,9 @@
 # The Swift host (`Tugboat`): the engine host, the UIKit and SwiftUI adapter,
-# capture and the network helpers. Unpublished: the React Native SDK uses it
-# from a local path (sdks/react-native/README.md). The same sources as the
+# capture and the network helpers. Published to CocoaPods trunk from tag
+# `apple-host-v<version>` (publish-apple-sdk.yml). The same sources as the
 # `Tugboat` target in Package.swift; the version is `TugboatVersion.current`.
+# The dependencies are exact: the host needs TugboatCaptureRuntime 0.2.0's
+# maskSupplier capture.
 Pod::Spec.new do |s|
   s.name             = 'Tugboat'
   s.version          = '0.1.0'
@@ -15,8 +17,8 @@ Pod::Spec.new do |s|
   s.static_framework = true
   s.source_files     = 'platforms/apple/Sources/Tugboat/**/*.swift'
   s.resource_bundles = { 'TugboatPrivacy' => ['platforms/apple/Sources/Tugboat/PrivacyInfo.xcprivacy'] }
-  s.dependency 'TugboatSessionEngine'
-  s.dependency 'TugboatCaptureRuntime'
+  s.dependency 'TugboatSessionEngine', '0.1.0'
+  s.dependency 'TugboatCaptureRuntime', '0.2.0'
   s.frameworks       = 'UIKit', 'SwiftUI'
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',

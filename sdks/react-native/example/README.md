@@ -1,7 +1,7 @@
 # Tugboat React Native sample app
 
 A shop-flow sample that mirrors `sdks/flutter/packages/tugboat/example`, used to
-test the upcoming `@tugboat/react-native` SDK. React Native 0.88 (New
+test the upcoming `@tugboat-ai/react-native` SDK. React Native 0.88 (New
 Architecture, Hermes), TypeScript, React Navigation. Android and iOS.
 
 Package and bundle id: `com.tugboat.rnexample`.
@@ -17,7 +17,7 @@ URL, default `https://httpbin.org`). Every interactive element has a `testID`.
 
 ## Where the SDK plugs in
 
-`src/tugboat.ts` starts `@tugboat/react-native` (`file:..`) against the local
+`src/tugboat.ts` starts `@tugboat-ai/react-native` (`file:..`) against the local
 capture collector (`http://localhost:3000`, via `adb reverse tcp:3000 tcp:3000`)
 and exports `Sensitive`. The Payment card fields and the profile one-time-code
 field are wrapped in it. Publish the Android SDK to `.local-maven` first: see

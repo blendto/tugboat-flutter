@@ -2,8 +2,8 @@ require "json"
 
 package = JSON.parse(File.read(File.join(__dir__, "package.json")))
 
-# Autolinked into the app by React Native's CLI. The Swift host comes from the
-# app's Podfile (local paths in this repository): see README.md.
+# Autolinked into the app by React Native's CLI. The Swift host is the Tugboat
+# pod from CocoaPods trunk; example/ios/Podfile uses local paths instead.
 Pod::Spec.new do |s|
   s.name         = "TugboatReactNative"
   s.version      = package["version"]
@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   s.swift_version = "5.9"
   s.source_files = "ios/**/*.{h,m,mm,cpp,swift}"
   s.private_header_files = "ios/**/*.h"
-  s.dependency "Tugboat"
+  s.dependency "Tugboat", "0.1.0"
   s.pod_target_xcconfig = { "DEFINES_MODULE" => "YES" }
 
   install_modules_dependencies(s)

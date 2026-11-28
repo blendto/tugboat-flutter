@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.8
+
+- Renamed to `@tugboat-ai/react-native` (was `@tugboat/react-native`), the name it
+  is published under on npm. Import from the new name; the API is unchanged.
+- The package can be published: it is no longer `private`, and it ships its
+  license (AGPL-3.0-only) and this changelog. Releases come from the tag
+  `react-native-v<version>` (see `docs/releases/process.md`).
+
 ## 0.0.7
 
 - Android and iOS: collector requests send `X-Sdk-Version` = this package's version

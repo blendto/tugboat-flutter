@@ -1865,10 +1865,10 @@ PODS:
   - SocketRocket (0.7.1):
     - ReactNativeDependencies
   - Tugboat (0.1.0):
-    - TugboatCaptureRuntime
-    - TugboatSessionEngine
+    - TugboatCaptureRuntime (= 0.2.0)
+    - TugboatSessionEngine (= 0.1.0)
   - TugboatCaptureRuntime (0.2.0)
-  - TugboatReactNative (0.0.7):
+  - TugboatReactNative (0.0.8):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1890,7 +1890,7 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-    - Tugboat
+    - Tugboat (= 0.1.0)
     - Yoga
   - TugboatSessionEngine (0.1.0)
   - Yoga (0.0.0):
@@ -1987,7 +1987,7 @@ DEPENDENCIES:
   - SocketRocket (from `build/rndeps-facades/SocketRocket`)
   - Tugboat (from `../../../..`)
   - TugboatCaptureRuntime (from `../../../..`)
-  - "TugboatReactNative (from `../node_modules/@tugboat/react-native`)"
+  - "TugboatReactNative (from `../node_modules/@tugboat-ai/react-native`)"
   - TugboatSessionEngine (from `../../../..`)
   - Yoga (from `build/rncore-facades/Yoga`)
 
@@ -2172,7 +2172,7 @@ EXTERNAL SOURCES:
   TugboatCaptureRuntime:
     :path: "../../../.."
   TugboatReactNative:
-    :path: "../node_modules/@tugboat/react-native"
+    :path: "../node_modules/@tugboat-ai/react-native"
   TugboatSessionEngine:
     :path: "../../../.."
   Yoga:

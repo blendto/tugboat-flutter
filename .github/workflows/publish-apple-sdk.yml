@@ -1,0 +1,120 @@
+# Publishes the native iOS SDK pods to CocoaPods trunk:
+#   tag session-engine-v<version>  ->  TugboatSessionEngine.podspec
+#   tag apple-host-v<version>      ->  Tugboat.podspec
+# The tag is also the podspec's s.source, so it must be on the commit to
+# release, and its name must match s.version. TugboatCaptureRuntime has its
+# own workflow (publish-apple.yml).
+#
+# Merging to main never publishes. To release, push the tag on a main commit:
+#   git tag -a session-engine-v0.1.0 -m "TugboatSessionEngine 0.1.0" && git push origin session-engine-v0.1.0
+# Release order: TugboatCaptureRuntime, then TugboatSessionEngine, then
+# Tugboat (it pins both exactly). trunk push lints against trunk, so a missing
+# dependency fails the push.
+#
+# Dry run: Actions > Run workflow on any branch, pick the pod. It lints the
+# podspec against this checkout's sources (pod lib lint, with the in-repo
+# dependencies) and publishes nothing. Running it on a tag publishes, so a
+# failed release can be re-run.
+name: Publish Apple SDK
+
+on:
+  push:
+    tags:
+      - 'session-engine-v[0-9]+.[0-9]+.[0-9]+'
+      - 'apple-host-v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      pod:
+        description: Pod to dry-run (ignored on a tag)
+        type: choice
+        options:
+          - TugboatSessionEngine
+          - Tugboat
+        default: Tugboat
+
+concurrency:
+  group: publish-apple-sdk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve pod and version
+        id: plan
+        env:
+          INPUT_POD: ${{ inputs.pod }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            prefix="${GITHUB_REF_NAME%-v*}"
+            case "$prefix" in
+              session-engine) pod=TugboatSessionEngine ;;
+              apple-host) pod=Tugboat ;;
+              *) echo "::error::Unknown tag ${GITHUB_REF_NAME}."; exit 1 ;;
+            esac
+            mode=publish
+          else
+            pod="${INPUT_POD:-Tugboat}"
+            case "$pod" in
+              TugboatSessionEngine) prefix=session-engine ;;
+              Tugboat) prefix=apple-host ;;
+              *) echo "::error::Unknown pod ${pod}."; exit 1 ;;
+            esac
+            mode=dry-run
+          fi
+          version="$(sed -nE "s/^[[:space:]]*s\.version[[:space:]]*=[[:space:]]*['\"]([^'\"]+)['\"].*/\1/p" "${pod}.podspec" | head -1)"
+          if [[ -z "$version" ]]; then
+            echo "::error::Could not read s.version from ${pod}.podspec."
+            exit 1
+          fi
+          if [[ "$mode" == "publish" && "${GITHUB_REF_NAME}" != "${prefix}-v${version}" ]]; then
+            echo "::error::Git tag ${GITHUB_REF_NAME} must be ${prefix}-v${version} to publish ${pod} ${version}."
+            exit 1
+          fi
+          published=false
+          if bash tool/ci/cocoapods-pod-has-version.sh "${version}" "${pod}"; then
+            published=true
+            echo "${pod} ${version} is already on CocoaPods trunk."
+          fi
+          echo "${mode}: ${pod} ${version}"
+          {
+            echo "pod=${pod}"
+            echo "version=${version}"
+            echo "mode=${mode}"
+            echo "published=${published}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Lint against this checkout
+        if: steps.plan.outputs.mode == 'dry-run'
+        env:
+          POD: ${{ steps.plan.outputs.pod }}
+        run: |
+          set -euo pipefail
+          if [[ "$POD" == "Tugboat" ]]; then
+            pod lib lint Tugboat.podspec --allow-warnings --verbose \
+              --include-podspecs='{TugboatSessionEngine,TugboatCaptureRuntime}.podspec'
+          else
+            pod lib lint "${POD}.podspec" --allow-warnings --verbose
+          fi
+
+      - name: Publish to CocoaPods trunk
+        if: steps.plan.outputs.mode == 'publish' && steps.plan.outputs.published == 'false'
+        env:
+          POD: ${{ steps.plan.outputs.pod }}
+          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${COCOAPODS_TRUNK_TOKEN}" ]]; then
+            echo "::error::Repository secret COCOAPODS_TRUNK_TOKEN is not set."
+            exit 1
+          fi
+          # A pod pushed minutes ago (TugboatSessionEngine before Tugboat) can be
+          # missing from the CDN for a while; if lint cannot find it, re-run.
+          pod trunk push "${POD}.podspec" --allow-warnings --verbose
