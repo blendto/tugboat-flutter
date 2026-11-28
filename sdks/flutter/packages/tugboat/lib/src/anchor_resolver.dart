@@ -1288,7 +1288,9 @@ class AnchorResolver {
       },
       canonicalPath: path,
       relativePosition: _relativePosition(bounds, viewport),
-      enabled: described.enabled,
+      // Native reports `view.isEnabled` on every role; a scrollable has no
+      // disabled state here.
+      enabled: described.role == _scrollableRole ? true : described.enabled,
       actions: described.actions,
     );
   }

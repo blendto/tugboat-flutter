@@ -82,6 +82,7 @@ void main() {
   ) async {
     final anchor = await _tapAnchor(tester, find.text('Plain'));
     expect(anchor['role'], 'scrollable');
+    expect(anchor['enabled'], true); // BLE-716
     expect(anchor['actions'], ['scroll']);
   });
 
