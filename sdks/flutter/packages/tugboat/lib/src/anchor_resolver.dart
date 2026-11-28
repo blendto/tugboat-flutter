@@ -1336,10 +1336,21 @@ class AnchorResolver {
   _describeHit(Element inspected, _TokenMap tokenMap) {
     final roles = <WidgetRole>[];
     String? widgetType;
+    // The first role is plumbing (the tap detector or ink inside a switch,
+    // checkbox or radio, or the tile row of a *ListTile); the toggle that
+    // owns it is the first toggle role at or above the hit.
+    var firstIsPlumbing = false;
+    WidgetRole? toggle;
 
     void inspectElement(Element element) {
       final widget = element.widget;
       final widgetRole = _anchorRoleFor(element, tokenMap);
+      if (widgetRole != null && roles.isEmpty) {
+        firstIsPlumbing = _isTogglePlumbing(widget);
+      }
+      if (widgetRole != null && _toggleRoles.contains(widgetRole.name)) {
+        toggle ??= widgetRole;
+      }
       if (widgetRole != null && roles.length < 2) roles.add(widgetRole);
       if (tugboatRoleForWidget(widget) != null) {
         widgetType ??= _widgetName(widget);
@@ -1360,6 +1371,8 @@ class AnchorResolver {
             roles[0].name == 'scrollable' &&
             roles[1].name == 'textField'
         ? roles[1]
+        : firstIsPlumbing && toggle != null
+        ? toggle
         : roles.firstOrNull;
     return (
       role: described?.name,
@@ -1368,6 +1381,16 @@ class AnchorResolver {
       widgetType: widgetType,
     );
   }
+
+  static const _toggleRoles = {'switch', 'checkbox', 'radio'};
+
+  /// Widgets a toggle control builds from, which carry a `button` role of
+  /// their own. A button a host app puts inside a toggle's row is not one.
+  bool _isTogglePlumbing(Widget widget) =>
+      widget is GestureDetector ||
+      widget is InkWell ||
+      widget is InkResponse ||
+      widget is ListTile;
 
   Rect? _rawBoundsForElement(Element element, RenderBox rootRender) {
     final render = element.renderObject;

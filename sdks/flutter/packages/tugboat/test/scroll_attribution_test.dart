@@ -180,7 +180,15 @@ void main() {
         metrics: startMetrics,
         depth: 0,
       );
+      // Three overscroll updates while held at the edge are one edge hit;
+      // leaving the edge and reaching it again is a second.
       controller.recordScrollOverscroll(scrollContext: listContext);
+      controller.recordScrollOverscroll(scrollContext: listContext);
+      controller.recordScrollOverscroll(scrollContext: listContext);
+      controller.recordScrollUpdate(
+        scrollContext: listContext,
+        metrics: endMetrics,
+      );
       controller.recordScrollOverscroll(scrollContext: listContext);
       controller.recordPointerUp(const Offset(20, 20));
       controller.recordScrollEnd(
