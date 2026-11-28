@@ -1,3 +1,10 @@
+## 0.12.12
+
+### Changed
+
+- Compatibility release for `tugboat` 0.12.12 (scroll target `enabled` and
+  confidence). No `tugboat_dio` change; its `tugboat` floor is now `^0.12.12`.
+
 ## 0.12.11
 
 ### Changed

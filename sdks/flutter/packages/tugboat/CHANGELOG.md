@@ -1,3 +1,13 @@
+## 0.12.12
+
+### Changed
+
+- A scroll target (role `scrollable`) carries `enabled: true`, which it
+  omitted, and follows native's confidence rule: `medium` when a `TugboatTag`
+  names it or it sits in a list item, else `low`. Most scrollables were `low`.
+  Fingerprints are unchanged. This changes captured values (a contract change),
+  approved by the project owner.
+
 ## 0.12.11
 
 ### Fixed

@@ -1275,7 +1275,12 @@ class AnchorResolver {
       fingerprint: fingerprint.isEmpty ? null : fingerprint,
       fingerprintConfidence: fingerprint.isEmpty
           ? null
-          : _anchorConfidence(routeKey, fpElement, tokenMap),
+          : _anchorConfidence(
+              routeKey,
+              fpElement,
+              tokenMap,
+              scrollable: described.role == _scrollableRole,
+            ),
       tagFingerprint: tagId == null
           ? null
           : _fingerprintForParts({'routeKey': routeKey, 'tag': tagId}),
@@ -1288,7 +1293,8 @@ class AnchorResolver {
       },
       canonicalPath: path,
       relativePosition: _relativePosition(bounds, viewport),
-      enabled: described.enabled,
+      // Native reports `view.isEnabled` on every role, a scrollable's included.
+      enabled: described.role == _scrollableRole ? true : described.enabled,
       actions: described.actions,
     );
   }
@@ -1317,12 +1323,17 @@ class AnchorResolver {
   String _anchorConfidence(
     String routeKey,
     Element fpElement,
-    _TokenMap tokenMap,
-  ) {
+    _TokenMap tokenMap, {
+    bool scrollable = false,
+  }) {
     final hasItemPosition = _hasInheritedItemPosition(fpElement, tokenMap);
+    // Native: medium for a named view (its own id) or one in a list item. A
+    // scrollable adopts that; the tag (`TugboatTag` around it) is the
+    // Flutter name.
+    final named = scrollable && _tagIdForElement(fpElement, tokenMap) != null;
     return _confidenceFloor([
       _routeKeyConfidence(routeKey),
-      hasItemPosition ? 'medium' : 'low',
+      hasItemPosition || named ? 'medium' : 'low',
     ]);
   }
 
