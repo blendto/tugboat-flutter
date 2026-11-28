@@ -193,6 +193,23 @@ class ScrollFactsTest {
         assertEquals("one scroll, no overscroll, no duplicate start", listOf("start", "update", "end"), phases())
     }
 
+    @Test
+    fun aListMountedWithoutALayoutPassIsTrackedFromTheFingerDown() {
+        // React Native adds a screen's views and sizes them itself: no global layout, so no discovery.
+        val scroll = ScrollView(context).apply { addView(View(context).apply { minimumHeight = 4_000 }) }
+        val root = FrameLayout(context).apply { addView(scroll) }
+        layOut(root)
+        val tracker = OffsetScrollTracker(root, FactClock(clock), { null }, recorded::emit, { frameRequests++ })
+        // no onFrame(): the list was never discovered
+
+        tracker.onTouch(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 700f, 0))
+        scroll.scrollTo(0, 300)
+        tracker.onTouch(MotionEvent.obtain(0, 50, MotionEvent.ACTION_UP, 100f, 300f, 0))
+
+        assertEquals(listOf("start", "update"), phases())
+        assertEquals("the start is at the resting offset", 0.0, recorded.inputs("scroll")[0].getDouble("offset"), 0.0)
+    }
+
     private fun scrollViewTracker(contentHeight: Int): Pair<ScrollView, OffsetScrollTracker> {
         val scroll = ScrollView(context).apply { addView(View(context).apply { minimumHeight = contentHeight }) }
         val root = FrameLayout(context).apply { addView(scroll) }

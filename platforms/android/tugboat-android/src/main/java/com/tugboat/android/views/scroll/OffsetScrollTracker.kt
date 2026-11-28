@@ -26,6 +26,8 @@ import kotlin.math.abs
  *   one seen. A first change sends `start` (at the resting offset, with the
  *   scrollable's anchor), then `update`; [idleMs] without a change sends
  *   `end`.
+ * - A finger down ([onTouch]) registers the scrollables under it that discovery
+ *   has not seen yet (a list mounted without a layout pass, as React Native does).
  * - A finger lift ([onTouch]) also diffs the offsets at once, so a drag that
  *   moved a scrollable has its `start` before the pointer is released (the
  *   engine links a scroll to the pointer still pending; a quick flick can lift
@@ -94,6 +96,7 @@ internal class OffsetScrollTracker(
                 movedSinceDown = false
                 downX = event.x
                 downY = event.y
+                trackUnder(downX, downY)
             }
             MotionEvent.ACTION_POINTER_DOWN -> gestureOpen = false
             MotionEvent.ACTION_UP -> {
@@ -104,6 +107,24 @@ internal class OffsetScrollTracker(
                 gestureOpen = false
             }
             MotionEvent.ACTION_CANCEL -> gestureOpen = false // the system took the gesture
+        }
+    }
+
+    /**
+     * Registers the scrollables under the finger that discovery has not seen, with their resting
+     * offset as the baseline. React Native mounts a screen's views without a layout pass (its
+     * views ignore `requestLayout`), so [onGlobalLayout] never asks for discovery and a list on a
+     * screen opened after the last walk was never tracked.
+     */
+    private fun trackUnder(x: Float, y: Float) {
+        var view = HitTester.hit(root, x, y)
+        while (view != null) {
+            if (isRecycler(view)) {
+                onRecyclerView(view)
+            } else if (Scrollables.isScrollable(view) && !states.containsKey(view)) {
+                Scrollables.metrics(view)?.let { states[view] = State(it) }
+            }
+            view = view.parent as? View
         }
     }
 
