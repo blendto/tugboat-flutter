@@ -1,3 +1,7 @@
+## 0.12.14
+
+Depend on CocoaPods `TugboatCaptureRuntime:0.2.0`.
+
 ## 0.12.13
 
 ### Changed
