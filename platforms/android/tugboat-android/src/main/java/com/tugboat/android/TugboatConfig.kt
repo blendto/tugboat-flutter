@@ -52,6 +52,12 @@ data class TugboatConfig @JvmOverloads constructor(
     val outboxMaxAgeMs: Long = 72L * 60 * 60 * 1000,
     /** Sends of one entry, across launches, before it is deleted unsent. */
     val outboxMaxAttempts: Int = 8,
+    /**
+     * The `X-Sdk-Version` of every collector request, for a wrapper (React Native)
+     * that reports its own package version, as Flutter reports its package's.
+     * Blank or null: this library's version.
+     */
+    val sdkVersion: String? = null,
 )
 
 /** The collector the SDK delivers to. */

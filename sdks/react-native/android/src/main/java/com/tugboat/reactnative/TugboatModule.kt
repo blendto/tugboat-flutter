@@ -42,6 +42,7 @@ class TugboatModule(reactContext: ReactApplicationContext) : NativeTugboatSpec(r
                 captureSystemInput = config.bool("captureSystemInput", false),
                 captureDiagnostics = config.bool("captureDiagnostics", false),
                 durableOutbox = config.bool("durableOutbox", false),
+                sdkVersion = config.string("sdkVersion"),
             ),
         )
         if (config.bool("captureNetwork", true)) {

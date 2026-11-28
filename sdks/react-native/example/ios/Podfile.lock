@@ -1868,7 +1868,7 @@ PODS:
     - TugboatCaptureRuntime
     - TugboatSessionEngine
   - TugboatCaptureRuntime (0.2.0)
-  - TugboatReactNative (0.0.6):
+  - TugboatReactNative (0.0.7):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
