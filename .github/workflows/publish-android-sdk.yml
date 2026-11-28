@@ -1,0 +1,158 @@
+# Publishes the native Android SDK modules to Maven Central:
+#   tag tugboat-android-v<version>  ->  com.gettugboat.sdk:tugboat-android
+#   tag tugboat-okhttp-v<version>   ->  com.gettugboat.sdk:tugboat-okhttp
+# Each module is versioned in its build.gradle.kts (ADR 0008); the tag must
+# match. capture-runtime has its own workflow (publish-android.yml).
+#
+# Merging to main never publishes. To release, push the tag on a main commit:
+#   git tag -a tugboat-android-v0.1.0 -m "tugboat-android 0.1.0" && git push origin tugboat-android-v0.1.0
+# Release order: capture-runtime, then tugboat-android, then tugboat-okhttp.
+# The job refuses to publish while a com.gettugboat.sdk dependency in the POM
+# is not on Maven Central, because Central keeps a release forever.
+#
+# Dry run: Actions > Run workflow on any branch, pick the module. It builds
+# the module, prints its POM and checks the dependencies, and publishes
+# nothing. Running it on a tag publishes, so a failed release can be re-run.
+name: Publish Android SDK
+
+on:
+  push:
+    tags:
+      - 'tugboat-android-v[0-9]+.[0-9]+.[0-9]+'
+      - 'tugboat-okhttp-v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      module:
+        description: Module to dry-run (ignored on a tag)
+        type: choice
+        options:
+          - tugboat-android
+          - tugboat-okhttp
+        default: tugboat-android
+
+concurrency:
+  group: publish-android-sdk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve module and version
+        id: plan
+        env:
+          INPUT_MODULE: ${{ inputs.module }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            module="${GITHUB_REF_NAME%-v*}"
+            mode=publish
+          else
+            module="${INPUT_MODULE:-tugboat-android}"
+            mode=dry-run
+          fi
+          case "$module" in
+            tugboat-android) variable=tugboatAndroidVersion ;;
+            tugboat-okhttp) variable=tugboatOkHttpVersion ;;
+            *) echo "::error::Unknown module ${module}."; exit 1 ;;
+          esac
+          version="$(sed -nE "s/^val ${variable} = \"([^\"]+)\".*/\1/p" "platforms/android/${module}/build.gradle.kts" | head -1)"
+          if [[ -z "$version" ]]; then
+            echo "::error::Could not read ${variable} from platforms/android/${module}/build.gradle.kts."
+            exit 1
+          fi
+          if [[ "$mode" == "publish" && "${GITHUB_REF_NAME}" != "${module}-v${version}" ]]; then
+            echo "::error::Git tag ${GITHUB_REF_NAME} must be ${module}-v${version} to publish ${module} ${version}."
+            exit 1
+          fi
+          published=false
+          code="$(curl -sS -o /dev/null -w '%{http_code}' \
+            "https://repo1.maven.org/maven2/com/gettugboat/sdk/${module}/${version}/${module}-${version}.pom")"
+          if [[ "$code" == "200" ]]; then
+            published=true
+            echo "${module} ${version} is already on Maven Central."
+          fi
+          echo "${mode}: ${module} ${version}"
+          {
+            echo "module=${module}"
+            echo "version=${version}"
+            echo "mode=${mode}"
+            echo "published=${published}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Require Maven Central secrets
+        if: steps.plan.outputs.mode == 'publish' && steps.plan.outputs.published == 'false'
+        env:
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          MAVEN_GPG_KEY: ${{ secrets.MAVEN_GPG_KEY }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          for name in MAVEN_CENTRAL_USERNAME MAVEN_CENTRAL_PASSWORD MAVEN_GPG_KEY MAVEN_GPG_PASSPHRASE; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Repository secret ${name} is not set."
+              exit 1
+            fi
+          done
+
+      - name: Set up JDK 17
+        if: steps.plan.outputs.mode == 'dry-run' || steps.plan.outputs.published == 'false'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        if: steps.plan.outputs.mode == 'dry-run' || steps.plan.outputs.published == 'false'
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      # tugboat-android compiles against capture-runtime, which builds C++.
+      - name: Install NDK and CMake
+        if: steps.plan.outputs.mode == 'dry-run' || steps.plan.outputs.published == 'false'
+        run: |
+          yes | sdkmanager --install "ndk;28.2.13676358" "cmake;3.22.1" "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Build and generate POM
+        if: steps.plan.outputs.mode == 'dry-run' || steps.plan.outputs.published == 'false'
+        working-directory: platforms/android
+        env:
+          MODULE: ${{ steps.plan.outputs.module }}
+        run: |
+          set -euo pipefail
+          ./gradlew ":${MODULE}:assembleRelease" ":${MODULE}:generatePomFileForMavenPublication"
+          cat "${MODULE}/build/publications/maven/pom-default.xml"
+
+      - name: Check Tugboat dependencies are on Maven Central
+        if: steps.plan.outputs.mode == 'dry-run' || steps.plan.outputs.published == 'false'
+        env:
+          MODULE: ${{ steps.plan.outputs.module }}
+          MODE: ${{ steps.plan.outputs.mode }}
+        run: |
+          set -euo pipefail
+          if ! bash tool/ci/check-maven-pom-deps-published.sh "platforms/android/${MODULE}/build/publications/maven/pom-default.xml"; then
+            if [[ "$MODE" == "dry-run" ]]; then
+              echo "::warning::A tag release of ${MODULE} would stop here until those are published."
+              exit 0
+            fi
+            exit 1
+          fi
+
+      - name: Publish to Maven Central
+        if: steps.plan.outputs.mode == 'publish' && steps.plan.outputs.published == 'false'
+        working-directory: platforms/android
+        env:
+          MODULE: ${{ steps.plan.outputs.module }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.MAVEN_GPG_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        run: ./gradlew ":${MODULE}:publishAndReleaseToMavenCentral" -Ptugboat.publishMavenCentral=true

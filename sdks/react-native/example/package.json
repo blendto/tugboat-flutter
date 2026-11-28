@@ -9,7 +9,7 @@
     "start": "react-native start"
   },
   "dependencies": {
-    "@tugboat/react-native": "file:..",
+    "@tugboat-ai/react-native": "file:..",
     "@react-native/new-app-screen": "0.88.1",
     "@react-navigation/bottom-tabs": "^7.22.0",
     "@react-navigation/native": "^7.5.2",

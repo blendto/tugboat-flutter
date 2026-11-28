@@ -42,6 +42,6 @@ Design note (decisions recorded 2026-11-27):
   release needs the Android SDK on Maven Central (BLE-638) and the Swift SDK
   on SwiftPM and CocoaPods (BLE-639).
 
-Identifiers: npm `@tugboat/react-native`, Android namespace
+Identifiers: npm `@tugboat-ai/react-native`, Android namespace
 `com.tugboat.reactnative`. The package lives in `sdks/react-native`; there is
 no npm workspace yet (BLE-643 adds it).

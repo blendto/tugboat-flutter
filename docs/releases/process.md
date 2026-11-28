@@ -17,15 +17,23 @@ Each package is released by a tag on a commit of `main`:
 | `tugboat`, `tugboat_dio` and `tugboat_http` (lockstep) | `v<version>` | **Publish to pub.dev** (`publish.yml`) |
 | `com.gettugboat.sdk:capture-runtime` | `capture-runtime-v<version>` | **Publish Android runtime** (`publish-android.yml`) |
 | `TugboatCaptureRuntime` | `apple-runtime-v<version>` | **Publish Apple runtime** (`publish-apple.yml`) |
+| `com.gettugboat.sdk:tugboat-android` | `tugboat-android-v<version>` | **Publish Android SDK** (`publish-android-sdk.yml`) |
+| `com.gettugboat.sdk:tugboat-okhttp` | `tugboat-okhttp-v<version>` | **Publish Android SDK** (`publish-android-sdk.yml`) |
+| `TugboatSessionEngine` | `session-engine-v<version>` | **Publish Apple SDK** (`publish-apple-sdk.yml`) |
+| `Tugboat` | `apple-host-v<version>` | **Publish Apple SDK** (`publish-apple-sdk.yml`) |
+| `@tugboat-ai/react-native` | `react-native-v<version>` | **Publish React Native** (`publish-react-native.yml`) |
 
 To cut a release:
 
 1. Make sure the version in `pubspec.yaml`, `platforms/android/gradle.properties`
-   (`VERSION_NAME`) or `TugboatCaptureRuntime.podspec` (`s.version`) is the one
-   to release, and that its changelog section is written.
+   (`VERSION_NAME`), `TugboatCaptureRuntime.podspec` (`s.version`) or
+   `sdks/react-native/package.json` is the one to release, and that its changelog section is written.
 2. Either run the package's workflow on `main` (Actions > the workflow > Run
    workflow, branch `main`), or push the tag yourself:
    `git tag -a v0.12.5 -m "tugboat 0.12.5" <commit> && git push origin v0.12.5`.
+   The native SDK workflows (`publish-android-sdk.yml`, `publish-apple-sdk.yml`)
+   release only from a pushed tag; run from the Actions tab, they are a dry
+   run (see "Native SDKs").
 3. Running the workflow on `main` (the `cut_release` job) checks that the
    version is not published yet, tags the current `main` commit, and
    dispatches the workflow on the tag. `GITHUB_TOKEN` tag pushes do not start
@@ -67,6 +75,64 @@ procedure.
   newer than the root podspec `s.version`. Changing the pin requires it to
   equal that version. Runtime-only PRs may leave the pin lagging until trunk
   has the new pod.
+
+## Native SDKs (Android `tugboat-android`, iOS `Tugboat`)
+
+These release only by pushing the tag on a `main` commit; running the
+workflow from the Actions tab is a dry run instead. On a branch it builds the
+chosen module and prints its POM (Android), or lints the chosen podspec
+against the checkout's sources (iOS), and publishes nothing. Use it before
+tagging: Maven Central and CocoaPods trunk releases are permanent, and the
+pod tags are also the podspecs' `s.source`.
+
+Versions live in `val tugboatAndroidVersion` / `val tugboatOkHttpVersion`
+(`platforms/android/<module>/build.gradle.kts`) and in the podspecs'
+`s.version`. `Tugboat.podspec` pins `TugboatSessionEngine` and
+`TugboatCaptureRuntime` exactly; bump those pins with them.
+
+Release in dependency order, waiting for each to appear before the next:
+
+1. `capture-runtime-v<version>` (Maven Central)
+2. `tugboat-android-v<version>`, then `tugboat-okhttp-v<version>`
+3. `apple-runtime-v<version>` (CocoaPods trunk)
+4. `session-engine-v<version>`, then `apple-host-v<version>`
+
+The Android job refuses to publish while a `com.gettugboat.sdk` dependency in
+the module's POM is not on Maven Central
+(`tool/ci/check-maven-pom-deps-published.sh`); `pod trunk push` fails on a
+missing pod dependency. Both jobs fail if their registry secrets are missing
+(`MAVEN_CENTRAL_*` and `MAVEN_GPG_*`, or `COCOAPODS_TRUNK_TOKEN`).
+
+## npm (`@tugboat-ai/react-native`)
+
+Tag `react-native-v<version>` publishes `sdks/react-native` to npm under the
+`tugboat-ai` org. `package.json` `version` and `src/sdkVersion.ts` must match
+the tag; the publish job checks both.
+
+The package pins its native SDKs: `tugboatAndroidVersion` in
+`android/build.gradle` (`com.gettugboat.sdk:tugboat-android` and
+`tugboat-okhttp`) and the `Tugboat` dependency in
+`TugboatReactNative.podspec`. `tool/ci/check-react-native-native-deps.sh`
+fails the release until those versions are on Maven Central and CocoaPods
+trunk, because an npm version cannot be republished once it is out. Publish
+the native SDKs first.
+
+Authentication is npm trusted publishing (GitHub Actions OIDC; npm adds
+provenance). The trusted publisher is set on npmjs.com: the package's
+**Settings** > **Trusted publishing**, GitHub Actions, organization
+`blendto`, repository `tugboat-mobile-sdk`, workflow
+`publish-react-native.yml`. A new trusted publisher expires unless it
+publishes within 2 days. If npm will not let you add one before the package
+exists:
+
+1. First release: add a repository secret `NPM_TOKEN`, a granular npm token
+   that can publish to the `tugboat-ai` scope, then release as above.
+2. Within 2 days before the next release, add the trusted publisher.
+3. After that release has gone out through OIDC, delete the `NPM_TOKEN`
+   secret and revoke the token.
+
+`package.json` `repository.url` must match the GitHub repository exactly, or
+npm rejects the provenance.
 
 ## pub.dev (Flutter 0.8.x)
 

@@ -7,8 +7,9 @@ plugins {
     id("com.vanniktech.maven.publish")
 }
 
-// Versioned independently of capture-runtime (ADR 0008). Unpublished: the
-// only repository below is the untracked `.local-maven`.
+// Versioned independently of capture-runtime (ADR 0008). Published to Maven
+// Central from tag `tugboat-android-v<version>` (publish-android-sdk.yml);
+// locally to the untracked `.local-maven`.
 val tugboatAndroidVersion = "0.1.0"
 
 // The fingerprint schema version in the engine's C header: the one source JVM tests (which cannot load
@@ -171,6 +172,10 @@ mavenPublishing {
     pom {
         name.set("Tugboat Android")
         description.set("Native Android host for the Tugboat session engine.")
+    }
+    if (providers.gradleProperty("tugboat.publishMavenCentral").orElse("false").get() == "true") {
+        publishToMavenCentral(automaticRelease = true)
+        signAllPublications()
     }
 }
 

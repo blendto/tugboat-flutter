@@ -1,7 +1,7 @@
 const path = require('path');
 const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
 
-// @tugboat/react-native is `file:..`: Metro must watch it, and resolve react and
+// @tugboat-ai/react-native is `file:..`: Metro must watch it, and resolve react and
 // react-native from this app only.
 const sdk = path.resolve(__dirname, '..');
 

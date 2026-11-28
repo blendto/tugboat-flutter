@@ -1,15 +1,29 @@
 {
-  "name": "@tugboat/react-native",
-  "version": "0.0.7",
-  "private": true,
-  "description": "Tugboat session capture for React Native (Android and iOS, unpublished).",
+  "name": "@tugboat-ai/react-native",
+  "version": "0.0.8",
+  "description": "Tugboat session capture for React Native (Android and iOS).",
+  "license": "AGPL-3.0-only",
+  "homepage": "https://github.com/blendto/tugboat-mobile-sdk/tree/main/sdks/react-native#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blendto/tugboat-mobile-sdk.git",
+    "directory": "sdks/react-native"
+  },
+  "bugs": {
+    "url": "https://github.com/blendto/tugboat-mobile-sdk/issues"
+  },
   "main": "src/index.ts",
   "types": "src/index.ts",
   "files": [
     "src",
     "android",
     "ios",
-    "TugboatReactNative.podspec"
+    "TugboatReactNative.podspec",
+    "LICENSE",
+    "CHANGELOG.md",
+    "!android/build",
+    "!android/.gradle",
+    "!android/.cxx"
   ],
   "peerDependencies": {
     "@react-navigation/native": "*",
@@ -40,5 +54,8 @@
         }
       }
     }
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

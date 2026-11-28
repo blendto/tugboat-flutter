@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { Tugboat } from '@tugboat/react-native';
+import { Tugboat } from '@tugboat-ai/react-native';
 
 /**
  * Starts the SDK once. The collector is the local capture collector:

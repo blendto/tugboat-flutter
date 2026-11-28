@@ -1,6 +1,6 @@
 # The portable C++ session engine behind the C ABI (ADR 0009), for the
-# `Tugboat` pod. Unpublished: apps use it from a local path (see
-# sdks/react-native/README.md). The same sources as the `TugboatSessionEngine`
+# `Tugboat` pod. Published to CocoaPods trunk from tag
+# `session-engine-v<version>` (publish-apple-sdk.yml). The same sources as the `TugboatSessionEngine`
 # target in Package.swift.
 Pod::Spec.new do |s|
   s.name             = 'TugboatSessionEngine'

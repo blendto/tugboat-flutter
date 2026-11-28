@@ -46,7 +46,7 @@
 | Flutter `tugboat` | 0.8.13 | Android `capture-runtime` 0.1.x compiled from monorepo sources (hosted Maven is not required). Apple `TugboatCaptureRuntime` 0.1.x compiled from monorepo sources (unpublished CocoaPod is not required). Plugin iOS floor 12; native capture still reports unsupported below iOS 15. |
 | Flutter `tugboat` | 0.8.12 | none (Flutter `flutterRepaintBoundary` only; session identity stamp patch) |
 | Apple `TugboatCaptureRuntime` | 0.1.0 | CocoaPods trunk / SwiftPM git tag; iOS 15 live Flutter-layer CPU path |
-| `@tugboat/react-native` | — | not started |
+| `@tugboat-ai/react-native` | 0.0.8 | Unpublished. Pins Android `tugboat-android` and `tugboat-okhttp` `0.1.0` and Apple `Tugboat` `0.1.0`; npm releases wait until those are on Maven Central and CocoaPods trunk. |
 
 The native SDKs, Android `tugboat-android` and Apple `Tugboat` (both unpublished 0.1.0), follow
 Flutter's activation contract (`enabled` default false, `activate`/`deactivate`).
