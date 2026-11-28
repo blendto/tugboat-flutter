@@ -81,7 +81,8 @@ public struct TugboatConfig
   public var outboxMaxEntries: Int
   public var outboxMaxAgeMs: Int
   public var outboxMaxAttempts: Int
-  public init( collector: Collector, app: App, enabled: Bool = false, maskLevel: MaskLevel = .allTextAndMedia, captureFocusChanges: Bool = false, captureDiagnostics: Bool = false, trackHostingControllers: Bool = true, swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity = .off, explorationRunId: String? = nil, durableOutbox: Bool = false, outboxMaxBytes: Int = 20 * 1024 * 1024, outboxMaxEntries: Int = 1000, outboxMaxAgeMs: Int = 72 * 60 * 60 * 1000, outboxMaxAttempts: Int = 8 )
+  public var sdkVersion: String?
+  public init( collector: Collector, app: App, enabled: Bool = false, maskLevel: MaskLevel = .allTextAndMedia, captureFocusChanges: Bool = false, captureDiagnostics: Bool = false, trackHostingControllers: Bool = true, swiftUIAccessibilityIdentity: SwiftUIAccessibilityIdentity = .off, explorationRunId: String? = nil, durableOutbox: Bool = false, outboxMaxBytes: Int = 20 * 1024 * 1024, outboxMaxEntries: Int = 1000, outboxMaxAgeMs: Int = 72 * 60 * 60 * 1000, outboxMaxAttempts: Int = 8, sdkVersion: String? = nil )
   public struct Collector: CustomStringConvertible
     public var baseURL: URL
     public var apiKey: String

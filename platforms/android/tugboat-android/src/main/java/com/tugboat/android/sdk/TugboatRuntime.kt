@@ -222,6 +222,7 @@ internal class TugboatRuntime private constructor(
                 appVersion = config.app.version,
                 appBuild = config.app.buildNumber,
                 appId = config.app.appId,
+                sdkVersion = HostConfig.sdkVersionOf(config.sdkVersion),
             )
             val outbox = if (config.durableOutbox) Outboxes.at(application) else null
             outbox?.settings = OutboxSettings.of(config)

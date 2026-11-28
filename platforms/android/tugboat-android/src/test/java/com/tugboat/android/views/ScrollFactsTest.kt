@@ -260,6 +260,96 @@ class ScrollFactsTest {
         assertEquals(listOf("start", "overscroll", "end"), phases())
     }
 
+    @Test
+    fun aDragDuringAFlingIsANewScrollOfThatList() {
+        val (scroll, tracker) = scrollViewTracker(4_000)
+        scroll.scrollTo(0, 200)
+        tracker.onScrollChanged()
+        tracker.onFrame() // the fling: start, update
+        clock.monoUs += 50_000
+
+        tracker.onTouch(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 700f, 0)) // 50 ms into the idle window
+        scroll.scrollTo(0, 500)
+        tracker.onTouch(MotionEvent.obtain(0, 50, MotionEvent.ACTION_UP, 100f, 300f, 0))
+
+        assertEquals(listOf("start", "update", "end", "start", "update"), phases())
+        val inputs = recorded.inputs("scroll")
+        assertEquals("the new start is where the fling stopped", 100.0, inputs[3].getDouble("offset"), 0.0)
+        assertEquals(inputs[0].getString("scrollableId"), inputs[3].getString("scrollableId"))
+        tracker.onScrollChanged()
+        tracker.onFrame()
+        clock.monoUs += 200_000
+        tracker.onFrame()
+        assertEquals("one end for the drag, no second start", listOf("start", "update", "end", "start", "update", "end"), phases())
+    }
+
+    @Test
+    fun anEdgeDragRightAfterAFlingIsOneOverscroll() {
+        val (scroll, tracker) = scrollViewTracker(4_000)
+        scroll.scrollTo(0, 0)
+        scroll.scrollTo(0, 100)
+        tracker.onScrollChanged()
+        tracker.onFrame()
+        scroll.scrollTo(0, 0) // the fling came back to the top within the idle window
+        tracker.onScrollChanged() // pending: no frame has run
+        clock.monoUs += 50_000
+        recorded.facts.clear()
+
+        touch(tracker, 100f, 300f, 100f, 700f) // pull down at the top
+
+        assertEquals(listOf("update", "end", "start", "overscroll", "end"), phases())
+    }
+
+    @Test
+    fun aFrameBetweenTheDownAndTheLiftAddsNoSecondStartOrEnd() {
+        val (scroll, tracker) = scrollViewTracker(4_000)
+        scroll.scrollTo(0, 200)
+        tracker.onScrollChanged()
+        tracker.onFrame()
+        clock.monoUs += 50_000
+
+        tracker.onTouch(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 700f, 0))
+        scroll.scrollTo(0, 400)
+        tracker.onScrollChanged()
+        tracker.onFrame() // a frame runs mid-drag
+        tracker.onTouch(MotionEvent.obtain(0, 50, MotionEvent.ACTION_UP, 100f, 300f, 0))
+        clock.monoUs += 200_000
+        tracker.onFrame()
+
+        assertEquals(listOf("start", "update", "end", "start", "update", "end"), phases())
+    }
+
+    @Test
+    fun aListViewStillScrollingIsNotEndedAtTheDown() {
+        val list = android.widget.ListView(context).apply {
+            adapter = android.widget.ArrayAdapter(context, android.R.layout.simple_list_item_1, List(100) { "row $it" })
+        }
+        val root = FrameLayout(context).apply { addView(list) }
+        layOut(root)
+        val tracker = OffsetScrollTracker(root, FactClock(clock), { null }, recorded::emit, { frameRequests++ })
+        tracker.onFrame()
+        recorded.facts.clear()
+        list.setSelection(20)
+        layOut(root)
+        tracker.onScrollChanged()
+        tracker.onFrame()
+        val before = phases()
+        clock.monoUs += 50_000
+
+        tracker.onTouch(MotionEvent.obtain(0, 0, MotionEvent.ACTION_DOWN, 100f, 700f, 0))
+
+        assertEquals("no end added by the down", before, phases())
+    }
+
+    @Test
+    fun aTouchOnAListThatIsNotScrollingAddsNoEnd() {
+        val (_, tracker) = scrollViewTracker(4_000)
+
+        touch(tracker, 100f, 700f, 100f, 700f)
+
+        assertEquals(emptyList<String>(), phases())
+    }
+
     private fun scrollViewTracker(contentHeight: Int): Pair<ScrollView, OffsetScrollTracker> {
         val scroll = ScrollView(context).apply { addView(View(context).apply { minimumHeight = contentHeight }) }
         val root = FrameLayout(context).apply { addView(scroll) }

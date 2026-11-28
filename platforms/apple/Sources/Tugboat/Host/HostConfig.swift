@@ -24,6 +24,13 @@ struct HostConfig: CustomStringConvertible {
     ]
   }
 
+  /// A configured `X-Sdk-Version` (a wrapper's), unless blank or not a valid header value.
+  static func sdkVersion(configured: String?) -> String {
+    let value = configured?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let valid = !value.isEmpty && value.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) }
+    return valid ? value : TugboatVersion.current
+  }
+
   /// Never prints the API key.
   var description: String {
     "HostConfig(collectorBaseURL: \(collectorBaseURL), appId: \(appId), appVersion: \(appVersion), "

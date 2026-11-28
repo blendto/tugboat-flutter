@@ -8,6 +8,10 @@ entry here must match it.
 Unpublished. The native SwiftUI SDK: public facade, engine wiring, capture,
 the SwiftUI adapter, and a sample app (`platforms/apple/Samples/TugboatSwiftUISample`).
 
+- `TugboatConfig.sdkVersion` (optional): the `X-Sdk-Version` of every collector
+  request, for a wrapper that reports its own package version, as Flutter does.
+  Nil, blank or with control characters keeps this library's version.
+
 - Event shape on iOS, as Flutter and the Android SDK: starting while the app is
   active reports `resumed` once, so a launch records `app_foregrounded` (a start
   before the app is active gets it from `didBecomeActive`; like every `resumed`

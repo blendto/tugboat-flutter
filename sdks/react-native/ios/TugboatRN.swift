@@ -50,7 +50,8 @@ public final class TugboatRN: NSObject {
         captureDiagnostics: (config["captureDiagnostics"] as? Bool) ?? false,
         // JavaScript names every screen with setScreen; no view controller is a route.
         trackHostingControllers: false,
-        durableOutbox: (config["durableOutbox"] as? Bool) ?? false))
+        durableOutbox: (config["durableOutbox"] as? Bool) ?? false,
+        sdkVersion: text(config["sdkVersion"])))
   }
 
   @objc public static func activate(_ activationRequestId: String) {

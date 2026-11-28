@@ -97,6 +97,10 @@ public struct TugboatConfig {
   /// Sends of one entry, counted across launches, after which it is deleted
   /// unsent (default 8).
   public var outboxMaxAttempts: Int
+  /// The `X-Sdk-Version` of every collector request, for a wrapper (React
+  /// Native) that reports its own package version, as Flutter reports its
+  /// package's. Nil or blank: this library's version.
+  public var sdkVersion: String?
 
   public init(
     collector: Collector,
@@ -112,7 +116,8 @@ public struct TugboatConfig {
     outboxMaxBytes: Int = 20 * 1024 * 1024,
     outboxMaxEntries: Int = 1000,
     outboxMaxAgeMs: Int = 72 * 60 * 60 * 1000,
-    outboxMaxAttempts: Int = 8
+    outboxMaxAttempts: Int = 8,
+    sdkVersion: String? = nil
   ) {
     self.collector = collector
     self.app = app
@@ -128,6 +133,7 @@ public struct TugboatConfig {
     self.outboxMaxEntries = outboxMaxEntries
     self.outboxMaxAgeMs = outboxMaxAgeMs
     self.outboxMaxAttempts = outboxMaxAttempts
+    self.sdkVersion = sdkVersion
   }
 
   /// The collector the SDK delivers to.

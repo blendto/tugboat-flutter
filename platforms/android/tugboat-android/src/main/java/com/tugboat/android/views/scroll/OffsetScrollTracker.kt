@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
+import android.widget.AbsListView
 import com.tugboat.android.host.HostTime
 import com.tugboat.android.views.AdapterGuard
 import com.tugboat.android.views.OptionalAndroidx
@@ -38,6 +39,9 @@ import kotlin.math.abs
  *   every tracked scrollable in the window, so a programmatic scroll at the
  *   moment of a tap also links to it. A flick whose offset first moves after the
  *   lift is still a swipe.
+ * - A finger down on a scrollable (other than a `ListView`) that is still scrolling (a fling) ends that scroll ([endFlingsUnder]),
+ *   so a drag that takes over is a new scroll, with that scrollable as target, and an edge hit after
+ *   a fling can be an overscroll.
  * - Scrollables are discovered on the first frame and after layout passes
  *   (at most every 200 ms), and their offsets are the baseline: a scrollable never seen at rest
  *   sends nothing until it moves again. Discovered `RecyclerView`s go to
@@ -59,7 +63,8 @@ import kotlin.math.abs
  *   missed; any scroll in the window during the drag suppresses it; and
  *   `onScrollChanged` runs at the next draw, so a scroll in the same input
  *   batch as the lift can be missed, and then both a scroll and an
- *   overscroll are reported.
+ *   overscroll are reported; and the last draw of a fling that lands just after
+ *   the down also suppresses an edge drag's overscroll.
  *
  * Main thread only.
  */
@@ -102,7 +107,9 @@ internal class OffsetScrollTracker(
                 movedSinceDown = false
                 downX = event.x
                 downY = event.y
-                trackUnder(downX, downY)
+                val hit = HitTester.hit(root, downX, downY)
+                trackUnder(hit)
+                endFlingsUnder(hit)
             }
             MotionEvent.ACTION_POINTER_DOWN -> gestureOpen = false
             MotionEvent.ACTION_UP -> {
@@ -122,13 +129,41 @@ internal class OffsetScrollTracker(
      * views ignore `requestLayout`), so [onGlobalLayout] never asks for discovery and a list on a
      * screen opened after the last walk was never tracked.
      */
-    private fun trackUnder(x: Float, y: Float) {
-        var view = HitTester.hit(root, x, y)
+    private fun trackUnder(hit: View?) {
+        var view = hit
         while (view != null) {
             if (isRecycler(view)) {
                 onRecyclerView(view)
             } else if (Scrollables.isScrollable(view) && !states.containsKey(view)) {
                 Scrollables.metrics(view)?.let { states[view] = State(it) }
+            }
+            view = view.parent as? View
+        }
+    }
+
+    /**
+     * A finger down on a scrollable still scrolling (a fling) ends that scroll, as Flutter's
+     * ballistic scroll ends when a drag takes over: the drag's own movement then sends a new
+     * `start` (a scroll already in progress sends none, so the drag was a target-less swipe) and
+     * the edge rule below no longer sees an active scroll. Offsets pending since the last frame
+     * are read first, so they are not counted as movement of this gesture.
+     */
+    private fun endFlingsUnder(hit: View?) {
+        var view = hit
+        var flushed = false
+        while (view != null) {
+            val state = states[view]
+            // `AbsListView` is left alone: it may keep flinging after the down (not verified), and the
+            // tap that stops it must stay a tap.
+            if (state?.active == true && view !is AbsListView) {
+                if (!flushed) {
+                    flushed = true
+                    gestureOpen = false
+                    readOffsetsNow()
+                    gestureOpen = true
+                }
+                state.active = false
+                emit(ScrollFacts.fact(ScrollableIds.of(view), ScrollPhase.End, state.metrics, density(), clock.now()))
             }
             view = view.parent as? View
         }

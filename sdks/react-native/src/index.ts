@@ -2,6 +2,7 @@ import React from 'react';
 import { Platform } from 'react-native';
 import type { ViewProps } from 'react-native';
 import NativeTugboat from './NativeTugboat';
+import { SDK_VERSION } from './sdkVersion';
 
 export interface TugboatConfig {
   collector: { baseUrl: string; apiKey: string };
@@ -80,7 +81,7 @@ function focusedRoute(state: any): { name: string; key: string } | null {
 
 export const Tugboat = {
   start(config: TugboatConfig): void {
-    call('start', () => NativeTugboat!.start({ ...config }));
+    call('start', () => NativeTugboat!.start({ ...config, sdkVersion: SDK_VERSION }));
   },
   activate(activationRequestId: string): void {
     call('activate', () => NativeTugboat!.activate(activationRequestId));

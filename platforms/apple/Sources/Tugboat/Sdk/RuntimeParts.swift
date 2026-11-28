@@ -26,7 +26,8 @@ extension TugboatRuntime {
         apiKey: config.collector.apiKey,
         appVersion: config.app.version,
         appBuild: config.app.buildNumber,
-        appId: config.app.appId
+        appId: config.app.appId,
+        sdkVersion: HostConfig.sdkVersion(configured: config.sdkVersion)
       )
       let executor = HTTPExecutor(config: hostConfig, frameBytes: { frames.get($0) })
       let outbox = config.durableOutbox ? Tugboat.outbox.map { OutboxParts(outbox: $0, config: config, host: hostConfig) } : nil

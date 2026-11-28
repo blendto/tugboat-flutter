@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.7
+
+- Android and iOS: collector requests send `X-Sdk-Version` = this package's version
+  (they sent the native host's, `0.1.0`), as Flutter sends its package version.
+  The native hosts take it through the new optional `TugboatConfig.sdkVersion`.
+- Android: a drag that starts while a list is still flinging is a `scroll` with that
+  list as target (it was a target-less `swipe`), and an edge hit after a fling
+  carries `overscrollCount`, as in Flutter. The fix is in `tugboat-android`.
+
 ## 0.0.6
 
 - Android: a drag on a `ScrollView`, `FlatList`, carousel or pager is recorded as
