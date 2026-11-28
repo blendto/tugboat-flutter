@@ -8,9 +8,11 @@
   Android. It reported `button`, the role of the gesture detector or tile
   inside the control. The scene inventory lists these controls with the same
   role. No fingerprint or route key change.
-- `overscrollCount` on a scroll interaction counts edge hits, as on Android
-  and React Native: 1 for a drag that reaches an edge, more only when the
-  scroll leaves the edge and reaches it again. It counted every overscroll
+- `overscrollCount` on a scroll interaction counts edge hits: 1 for a drag
+  that reaches an edge, more only when the scroll leaves the edge and reaches
+  it again. Android reports 1 for a drag at an edge that moved nothing; Flutter
+  also counts an edge reached after scrolling, and a fling that reaches one.
+  It counted every overscroll
   update (1 to 168 per drag, by frame rate and drag length). This changes
   captured evidence (a contract change).
 

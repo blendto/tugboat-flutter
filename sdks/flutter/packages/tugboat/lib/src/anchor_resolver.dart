@@ -1336,20 +1336,21 @@ class AnchorResolver {
   _describeHit(Element inspected, _TokenMap tokenMap) {
     final roles = <WidgetRole>[];
     String? widgetType;
-    // The first role is plumbing (the tap detector or ink inside a switch,
-    // checkbox or radio, or the tile row of a *ListTile); the toggle that
-    // owns it is the first toggle role at or above the hit.
-    var firstIsPlumbing = false;
+    // The roles between the hit and the first toggle (switch, checkbox,
+    // radio). When they are only the toggle's own plumbing, the toggle names
+    // the hit.
+    final belowToggle = <Type>[];
     WidgetRole? toggle;
 
     void inspectElement(Element element) {
       final widget = element.widget;
       final widgetRole = _anchorRoleFor(element, tokenMap);
-      if (widgetRole != null && roles.isEmpty) {
-        firstIsPlumbing = _isTogglePlumbing(widget);
-      }
-      if (widgetRole != null && _toggleRoles.contains(widgetRole.name)) {
-        toggle ??= widgetRole;
+      if (widgetRole != null && toggle == null) {
+        if (_toggleRoles.contains(widgetRole.name)) {
+          toggle = widgetRole;
+        } else {
+          belowToggle.add(widget.runtimeType);
+        }
       }
       if (widgetRole != null && roles.length < 2) roles.add(widgetRole);
       if (tugboatRoleForWidget(widget) != null) {
@@ -1371,7 +1372,7 @@ class AnchorResolver {
             roles[0].name == 'scrollable' &&
             roles[1].name == 'textField'
         ? roles[1]
-        : firstIsPlumbing && toggle != null
+        : toggle != null && _isTogglePlumbing(belowToggle)
         ? toggle
         : roles.firstOrNull;
     return (
@@ -1384,13 +1385,19 @@ class AnchorResolver {
 
   static const _toggleRoles = {'switch', 'checkbox', 'radio'};
 
-  /// Widgets a toggle control builds from, which carry a `button` role of
-  /// their own. A button a host app puts inside a toggle's row is not one.
-  bool _isTogglePlumbing(Widget widget) =>
-      widget is GestureDetector ||
-      widget is InkWell ||
-      widget is InkResponse ||
-      widget is ListTile;
+  /// Whether [chain] (nearest the hit first) is only what a toggle builds
+  /// itself, in its order: its tap detector, then for a `*ListTile` the ink
+  /// and tile row around it (a disabled one has fewer). Anything more or out
+  /// of order (a host button, ink or detector in the row) keeps its own role.
+  bool _isTogglePlumbing(List<Type> chain) {
+    const own = [GestureDetector, InkWell, ListTile];
+    var next = 0;
+    for (final type in chain) {
+      next = own.indexOf(type, next) + 1;
+      if (next == 0) return false;
+    }
+    return true;
+  }
 
   Rect? _rawBoundsForElement(Element element, RenderBox rootRender) {
     final render = element.renderObject;

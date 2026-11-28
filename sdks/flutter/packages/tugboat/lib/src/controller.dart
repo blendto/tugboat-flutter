@@ -4860,8 +4860,9 @@ class TugboatReplayController extends ChangeNotifier {
     _countEdgeHit(tracker);
   }
 
-  // overscrollCount counts edge hits, like Android: reaching an edge counts
-  // once, and only leaving it and hitting it again counts again. Clamping
+  // overscrollCount counts edge hits: reaching an edge counts once, and only
+  // leaving it and hitting it again counts again (Android reports at most one
+  // per drag, and none when the drag scrolled first). Clamping
   // physics report the hit as OverscrollNotifications; bouncing physics as
   // updates beyond the extents.
   void _trackEdgeState(_ScrollTracker tracker, ScrollMetrics metrics) {
